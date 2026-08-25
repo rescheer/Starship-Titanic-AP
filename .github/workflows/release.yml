@@ -1,7 +1,6 @@
 name: Build and Release
 
-# Runs when you push a tag like "v0.1.0", or manually from the Actions tab
-# (workflow_dispatch) if you want to test a build without cutting a release.
+# Runs when pushing a tag like "v0.1.0"
 on:
   push:
     tags:
@@ -9,13 +8,12 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write # required so the release job can create a GitHub Release
+  contents: write
 
 jobs:
   # ------------------------------------------------------------------ #
   # Bundle apworld/starship_titanic/ into a zip, named with a
-  # .apworld extension (an .apworld IS just a zip -- no conversion step
-  # needed, just naming it correctly on the way out).
+  # .apworld extension
   # ------------------------------------------------------------------ #
   build-apworld:
     runs-on: ubuntu-latest
@@ -42,9 +40,6 @@ jobs:
 
   # ------------------------------------------------------------------ #
   # Build the C# client in Release configuration and zip the output.
-  # Runs on windows-latest since this is a WinForms app targeting a
-  # Windows-specific TFM (e.g. net8.0-windows) -- that won't build on
-  # Linux/macOS runners.
   # ------------------------------------------------------------------ #
   build-client:
     runs-on: windows-latest
@@ -102,12 +97,6 @@ jobs:
 
   # ------------------------------------------------------------------ #
   # Create the GitHub Release and attach both zips.
-  #
-  # Note: GitHub automatically attaches "Source code (zip)" and
-  # "Source code (tar.gz)" to every published release on its own -- you
-  # don't need a workflow step for that. If you'd rather ship a
-  # custom-named/filtered source archive instead of relying on the
-  # automatic one, say so and I'll add a `git archive` step here.
   # ------------------------------------------------------------------ #
   release:
     runs-on: ubuntu-latest
@@ -131,6 +120,4 @@ jobs:
           files: |
             dist/starship_titanic.apworld
             dist/starship_titanic_client.zip
-          # Comment out the next line if you'd rather write release
-          # notes by hand each time instead of auto-generating them.
-          generate_release_notes: true
+          # generate_release_notes: true
