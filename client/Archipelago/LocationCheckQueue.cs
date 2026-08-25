@@ -47,36 +47,47 @@ public sealed class LocationCheckQueue
     }
 
     /// <summary>
-    /// Attempts to flush every queued check through the given send
-    /// function. Only checks that actually succeed are removed - anything
-    /// that fails stays queued for the next attempt. Stops at the first
-    /// failure rather than churning through the whole batch against a
-    /// connection that's likely already gone again. Returns how many were
-    /// successfully sent.
+    /// Point-in-time snapshot of every queued id, for a caller that wants
+    /// to attempt sending them itself (e.g. asynchronously, one at a time,
+    /// off the calling thread) rather than handing this class a
+    /// synchronous send callback.
     /// </summary>
-    public int Flush(Func<long, bool> send)
+    public long[] Snapshot()
+    {
+        lock (_lock)
+            return _pending.ToArray();
+    }
+
+    /// <summary>
+    /// Removes a single id once its send is confirmed successful. No-op,
+    /// not an error, if it's already gone (e.g. removed by a concurrent
+    /// attempt, or never queued in the first place).
+    /// </summary>
+    public void Remove(long locationId)
+    {
+        lock (_lock)
+        {
+            if (_pending.Remove(locationId))
+                Save();
+        }
+    }
+
+    /// <summary>
+    /// Drops every queued check without sending it. For clearing out
+    /// stale entries after a server reset during testing/development -
+    /// the queue isn't scoped to a particular server/seed, so checks
+    /// queued against one session will happily get replayed against
+    /// whatever session is connected next, which is exactly wrong after
+    /// a deliberate reset.
+    /// </summary>
+    public void Clear()
     {
         lock (_lock)
         {
             if (_pending.Count == 0)
-                return 0;
-
-            var sent = new List<long>();
-            foreach (long id in _pending)
-            {
-                if (!send(id))
-                    break;
-                sent.Add(id);
-            }
-
-            if (sent.Count > 0)
-            {
-                foreach (long id in sent)
-                    _pending.Remove(id);
-                Save();
-            }
-
-            return sent.Count;
+                return;
+            _pending.Clear();
+            Save();
         }
     }
 

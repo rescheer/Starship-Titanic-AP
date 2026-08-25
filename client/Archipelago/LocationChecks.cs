@@ -83,4 +83,33 @@ public static class LocationChecks
         locationId = 0;
         return false;
     }
+
+    // DeskBot class-upgrade locations (offsets confirmed from
+    // locations.py): "DeskBot - Second Class Upgrade" = offset 1,
+    // "DeskBot - First Class Upgrade" = offset 2. Keyed by the
+    // PassengerClass value (2=Second, 1=First) ClassUpgradeHook reports
+    // the DeskBot attempted to set.
+    private static readonly Dictionary<int, long> ClassUpgradeLocationOffset = new()
+    {
+        [2] = 1, // Second Class
+        [1] = 2, // First Class
+    };
+
+    /// <summary>
+    /// Looks up the AP location id for a blocked DeskBot class-upgrade
+    /// attempt, given the PassengerClass value it tried to set (see
+    /// ClassUpgradeHook.PollAttemptedClass). Returns false for anything
+    /// outside 1/2 - there's no location for that.
+    /// </summary>
+    public static bool TryGetClassUpgradeLocationId(int attemptedClass, out long locationId)
+    {
+        if (ClassUpgradeLocationOffset.TryGetValue(attemptedClass, out long offset))
+        {
+            locationId = LocationIdBase + offset;
+            return true;
+        }
+
+        locationId = 0;
+        return false;
+    }
 }

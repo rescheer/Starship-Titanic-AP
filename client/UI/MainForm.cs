@@ -22,6 +22,11 @@ public sealed class MainForm : Form
     // the server itself is fine with duplicates, so this is just tidiness.
     private readonly HashSet<string> _sentRoomVisitChecks = new(StringComparer.OrdinalIgnoreCase);
 
+    // Last-seen length of _apConnection.GetReceivedItemNames(), so the
+    // class-upgrade sync below only does real work when something's
+    // actually changed instead of recomputing on every tick.
+    private int _lastItemsReceivedCount = -1;
+
     // Cached "current" values, refreshed every tick, used by other tabs so
     // the user isn't stuck re-running lookups.
     private long? _currentGameManager;
@@ -44,6 +49,7 @@ public sealed class MainForm : Form
     private readonly Button _btnApDisconnect = new() { Text = "Disconnect", Width = 100, Enabled = false };
     private readonly Label _lblApStatus = new() { Text = "\u25CF Not connected", AutoSize = true, ForeColor = Color.DimGray };
     private readonly Label _lblPendingChecks = new() { Text = "", AutoSize = true, ForeColor = Color.DimGray };
+    private readonly Button _btnClearPendingChecks = new() { Text = "Clear Pending Checks", Width = 160, AutoSize = true };
 
     // --- Live tab ---
     private readonly Label _lblRoomNodeView = new() { Text = "Room: -   Node: -   View: -", AutoSize = true };
@@ -76,6 +82,9 @@ public sealed class MainForm : Form
     private readonly Button _btnInstallHook = new() { Text = "Install PET Command Hook", Width = 220 };
     private readonly Button _btnUninstallHook = new() { Text = "Uninstall Hook", Width = 220, Enabled = false };
     private readonly Label _lblHookStatus = new() { Text = "Hook not installed", AutoSize = true };
+    private readonly Button _btnInstallClassLockHook = new() { Text = "Install Class Upgrade Lock", Width = 220 };
+    private readonly Button _btnUninstallClassLockHook = new() { Text = "Uninstall Lock", Width = 220, Enabled = false };
+    private readonly Label _lblClassLockHookStatus = new() { Text = "Lock not installed", AutoSize = true };
     private readonly TextBox _txtItemAddr = new() { Width = 150, PlaceholderText = "item address (hex)" };
     private readonly TextBox _txtRoomAddrOverride = new() { Width = 150, PlaceholderText = "room address (hex)" };
     private readonly Button _btnMoveItem = new() { Text = "Move", Width = 70 };
@@ -127,6 +136,7 @@ public sealed class MainForm : Form
 
         _btnApConnect.Click += (_, _) => DoApConnect();
         _btnApDisconnect.Click += (_, _) => _apConnection.Disconnect();
+        _btnClearPendingChecks.Click += (_, _) => DoClearPendingChecks();
         _apConnection.StateChanged += OnApStateChanged;
         _apConnection.MessageReceived += OnApMessageReceived;
 
@@ -138,6 +148,8 @@ public sealed class MainForm : Form
         _btnResetPet.Click += (_, _) => DoResetPetControl();
         _btnInstallHook.Click += (_, _) => DoInstallHook();
         _btnUninstallHook.Click += (_, _) => DoUninstallHook();
+        _btnInstallClassLockHook.Click += (_, _) => DoInstallClassLockHook();
+        _btnUninstallClassLockHook.Click += (_, _) => DoUninstallClassLockHook();
         _btnDisplayMessageText.Click += (_, _) => DoDisplayMessageText();
         _btnSetDestToCurrentRoom.Click += (_, _) => DoSetMailDestToCurrentRoom();
         _btnCopyInventoryAddress.Click += (_, _) => DoCopyInventoryAddress();
@@ -233,7 +245,11 @@ public sealed class MainForm : Form
         layout.Controls.Add(buttonRow);
 
         layout.Controls.Add(_lblApStatus);
-        layout.Controls.Add(_lblPendingChecks);
+
+        var pendingRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        pendingRow.Controls.Add(_lblPendingChecks);
+        pendingRow.Controls.Add(_btnClearPendingChecks);
+        layout.Controls.Add(pendingRow);
 
         page.Controls.Add(layout);
         return page;
@@ -274,6 +290,7 @@ public sealed class MainForm : Form
                 SetApInputsEnabled(false);
                 _btnApDisconnect.Enabled = true;
                 _sentRoomVisitChecks.Clear(); // new server session - resend visit checks it hasn't seen yet
+                _lastItemsReceivedCount = -1; // force a class-upgrade resync next tick, even if the count happens to match
                 if (_currentRoomName is not null)
                     TrySendRoomVisitCheck(_currentRoomName); // already standing in this room - won't get a "room changed" tick
                 UpdatePendingChecksLabel();
@@ -326,6 +343,16 @@ public sealed class MainForm : Form
         _lblPendingChecks.Text = count == 0
             ? ""
             : $"{count} location check{(count == 1 ? "" : "s")} queued, waiting to reconnect";
+    }
+
+    private void DoClearPendingChecks()
+    {
+        int count = _apConnection.PendingCheckCount;
+        _apConnection.ClearPendingChecks();
+        UpdatePendingChecksLabel();
+        ShowActionResult(true, count == 0
+            ? "No pending checks to clear"
+            : $"Cleared {count} pending check{(count == 1 ? "" : "s")}");
     }
 
     private void SetApInputsEnabled(bool enabled)
@@ -411,6 +438,15 @@ public sealed class MainForm : Form
         layout.Controls.Add(hookRow);
         layout.Controls.Add(_lblHookStatus);
         layout.Controls.Add(HelpLabel("Intercepts textLineEntered(). Lines starting with '!' are captured here and blocked from reaching TrueTalk; anything else behaves normally. Installs automatically on attach. Captured commands appear in the feedback line at the top of the window. Verify the stub in x64dbg before relying on this - genuinely experimental compared to the rest of this app."));
+
+        layout.Controls.Add(Spacer());
+        layout.Controls.Add(SectionLabel("Class Upgrade Lock [experimental]"));
+        var classLockRow = new FlowLayoutPanel { AutoSize = true };
+        classLockRow.Controls.Add(_btnInstallClassLockHook);
+        classLockRow.Controls.Add(_btnUninstallClassLockHook);
+        layout.Controls.Add(classLockRow);
+        layout.Controls.Add(_lblClassLockHookStatus);
+        layout.Controls.Add(HelpLabel("Blocks CGameObject::setPassengerClass() so the DeskBot can't change PassengerClass on its own, and reports the attempted class as its matching location check ('DeskBot - Second/First Class Upgrade') - the actual upgrade still only ever applies from receiving the matching item over the multiworld. Installs automatically on attach. Try a legitimate DeskBot upgrade with the lock installed and confirm PassengerClass on the Live tab doesn't move, and that the attempt shows up in the feedback line."));
 
         page.Controls.Add(layout);
         return page;
@@ -549,6 +585,7 @@ public sealed class MainForm : Form
             _btnDetach.Enabled = true;
             ResetCachedState();
             DoInstallHook(); // auto-install the PET talk command hook on attach
+            DoInstallClassLockHook(); // auto-install the class upgrade lock on attach (no-ops until GameOffsets.SetPassengerClassFunc is filled in)
 
             // Resolve the project chain synchronously (rather than waiting
             // for the next tick) so the Items tab can refresh right away.
@@ -576,6 +613,10 @@ public sealed class MainForm : Form
         {
             TextCommandHook.Uninstall(_mem); // restore original bytes before losing the process handle
         }
+        if (ClassUpgradeHook.IsInstalled)
+        {
+            ClassUpgradeHook.Uninstall(_mem); // restore original bytes before losing the process handle
+        }
 
         _mem.Detach();
         _lblStatus.Text = "Not attached";
@@ -589,6 +630,9 @@ public sealed class MainForm : Form
         _lblHookStatus.Text = "Hook not installed";
         _btnInstallHook.Enabled = true;
         _btnUninstallHook.Enabled = false;
+        _lblClassLockHookStatus.Text = "Lock not installed";
+        _btnInstallClassLockHook.Enabled = true;
+        _btnUninstallClassLockHook.Enabled = false;
         _btnAttach.Enabled = true;
         _btnDetach.Enabled = false;
         ResetCachedState();
@@ -672,6 +716,10 @@ public sealed class MainForm : Form
             _lblClass.Text = $"Class: {PassengerClassNames.GetName(passengerClass.Value)}";
         }
 
+        // --- Class upgrade from received AP items: cheap count check
+        // first, only does real work when something's actually changed ---
+        SyncPassengerClassFromItems(gameManager.Value);
+
         // --- Inventory / Mail: only every N ticks (heavier tree walks) ---
         if (_tickCount % InventoryIntervalTicks == 0)
         {
@@ -690,8 +738,13 @@ public sealed class MainForm : Form
             {
                 if (_apConnection.IsConnected)
                 {
-                    bool sent = _apConnection.SendCommand(command);
-                    ShowCapturedCommand(sent ? $"{command} (sent to server)" : $"{command} (send FAILED)");
+                    // SendCommand hands the send off to a background task
+                    // (see ArchipelagoConnection.TrySendAsync) - this
+                    // confirms it was dispatched, not that the server has
+                    // it yet. A genuinely dead connection surfaces via the
+                    // AP status label going to Disconnected, not here.
+                    _apConnection.SendCommand(command);
+                    ShowCapturedCommand($"{command} (sent to server)");
                 }
                 else
                 {
@@ -699,6 +752,63 @@ public sealed class MainForm : Form
                 }
             }
         }
+
+        // --- Class upgrade lock hook: poll every tick, cheap (1 small
+        // read). A blocked DeskBot upgrade attempt still needs to be
+        // reported to AP as its own location check - SendLocationCheck
+        // queues automatically if we're not connected. ---
+        if (ClassUpgradeHook.IsInstalled)
+        {
+            int? attemptedClass = ClassUpgradeHook.PollAttemptedClass(_mem);
+            if (attemptedClass is not null)
+            {
+                if (LocationChecks.TryGetClassUpgradeLocationId(attemptedClass.Value, out long locationId))
+                {
+                    bool handedOff = _apConnection.SendLocationCheck(locationId);
+                    ShowActionResult(handedOff, handedOff
+                        ? $"DeskBot upgrade attempt ({PassengerClassNames.GetName(attemptedClass.Value)}) -> location {locationId}"
+                        : $"DeskBot upgrade attempt ({PassengerClassNames.GetName(attemptedClass.Value)}) queued (offline) -> location {locationId}");
+                }
+                else
+                {
+                    ShowActionResult(false, $"DeskBot upgrade attempt for unrecognized class {attemptedClass.Value}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies the class upgrade implied by AP items received so far, if
+    /// any (see ClassUpgradeTracker). Cheap-checks the received-item count
+    /// first so this only does real work on ticks where something's
+    /// actually new - safe to call unconditionally every tick otherwise.
+    /// Requires the class-upgrade lock hook to already be blocking the
+    /// vanilla DeskBot trigger, or this and vanilla gameplay will fight
+    /// over the same field.
+    /// </summary>
+    private void SyncPassengerClassFromItems(long gameManager)
+    {
+        IReadOnlyDictionary<string, object>? slotData = _apConnection.SlotData;
+        if (slotData is null)
+            return;
+        if (_currentInventoryRoom is null)
+            return; // need the PET control address for SetPassengerClassFull
+
+        string[] receivedItems = _apConnection.GetReceivedItemNames();
+        if (receivedItems.Length == _lastItemsReceivedCount)
+            return; // nothing new since last tick
+        _lastItemsReceivedCount = receivedItems.Length;
+
+        int? targetClass = ClassUpgradeTracker.ComputeClass(receivedItems, slotData);
+        if (targetClass is null)
+            return; // not enough upgrade items yet - leave the current class alone
+
+        int? currentClass = GameState.ReadPassengerClass(_mem, gameManager);
+        if (currentClass == targetClass)
+            return; // already there
+
+        bool ok = GameActions.SetPassengerClassFull(_mem, gameManager, _currentInventoryRoom.Value, targetClass.Value);
+        ShowActionResult(ok, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)}");
     }
 
     /// <summary>
@@ -718,8 +828,8 @@ public sealed class MainForm : Form
         if (!_sentRoomVisitChecks.Add(roomName))
             return; // already sent (or queued) this run
 
-        bool sentImmediately = _apConnection.SendLocationCheck(locationId);
-        ShowActionResult(sentImmediately, sentImmediately
+        bool handedOff = _apConnection.SendLocationCheck(locationId);
+        ShowActionResult(handedOff, handedOff
             ? $"Location check: {roomName} -> {locationId}"
             : $"Location check queued (offline): {roomName} -> {locationId}");
         UpdatePendingChecksLabel();
@@ -1050,6 +1160,42 @@ public sealed class MainForm : Form
         ShowActionResult(ok, "Uninstall PET command hook");
     }
 
+    private void DoInstallClassLockHook()
+    {
+        if (!_mem.IsAttached)
+        {
+            ShowActionResult(false, "Not attached");
+            return;
+        }
+
+        bool ok = ClassUpgradeHook.Install(_mem);
+        if (ok)
+        {
+            _lblClassLockHookStatus.Text = "Installed";
+            _btnInstallClassLockHook.Enabled = false;
+            _btnUninstallClassLockHook.Enabled = true;
+        }
+        ShowActionResult(ok, "Install class upgrade lock");
+    }
+
+    private void DoUninstallClassLockHook()
+    {
+        if (!_mem.IsAttached)
+        {
+            ShowActionResult(false, "Not attached");
+            return;
+        }
+
+        bool ok = ClassUpgradeHook.Uninstall(_mem);
+        if (ok)
+        {
+            _lblClassLockHookStatus.Text = "Lock not installed";
+            _btnInstallClassLockHook.Enabled = true;
+            _btnUninstallClassLockHook.Enabled = false;
+        }
+        ShowActionResult(ok, "Uninstall class upgrade lock");
+    }
+
     private void DoResetPetControl()
     {
         if (!_mem.IsAttached)
@@ -1276,6 +1422,10 @@ public sealed class MainForm : Form
         if (TextCommandHook.IsInstalled)
         {
             TextCommandHook.Uninstall(_mem);
+        }
+        if (ClassUpgradeHook.IsInstalled)
+        {
+            ClassUpgradeHook.Uninstall(_mem);
         }
         _timer.Stop();
         _mem.Dispose();

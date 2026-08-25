@@ -44,6 +44,21 @@ public static class GameOffsets
     public const long DisplayMessageFunc = 0x242A6C0; // CPetControl::displayMessage(StringId, int) - confirmed via class-restriction message trace
     public const long DisplayMessageTextFunc = 0x242A730; // CPetControl::displayMessage(const CString&, int) - the free-text overload
 
+    // CGameObject::setPassengerClass() - the DeskBot's own vanilla
+    // class-upgrade trigger (see Memory/ClassUpgradeHook.cs). Confirmed
+    // live via disassembly: calls CGameObject::getPetControl() (0x23A1E30)
+    // then tail-jumps into CPetControl::reset() (0x2429D10) - both known
+    // addresses resolve to the same module base from this function's own
+    // address, cross-confirming it.
+    public const long SetPassengerClassFunc = 0x23A2740;
+
+    // Previous PassengerClass value, written by setPassengerClass() right
+    // before it overwrites PassengerClass with the new one. Not currently
+    // used for anything, but confirmed live in the same disassembly pass
+    // as SetPassengerClassFunc, so recorded here in case it's useful later
+    // (e.g. detecting what class a blocked upgrade attempt would have set).
+    public const long PreviousPassengerClass = 0xE774;
+
     // --- PET talk input hook, confirmed via live disassembly trace ---
     public const long TextLineEnteredFunc = 0x242D6A0; // CPetConversations::textLineEntered()
     public const long ClearTextControlFunc = 0x240CED0; // CTextControl::setup() - clears the input box, called by textLineEntered()
