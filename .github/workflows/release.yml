@@ -1,0 +1,136 @@
+name: Build and Release
+
+# Runs when you push a tag like "v0.1.0", or manually from the Actions tab
+# (workflow_dispatch) if you want to test a build without cutting a release.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # required so the release job can create a GitHub Release
+
+jobs:
+  # ------------------------------------------------------------------ #
+  # Bundle apworld/starship_titanic/ into a zip, named with a
+  # .apworld extension (an .apworld IS just a zip -- no conversion step
+  # needed, just naming it correctly on the way out).
+  # ------------------------------------------------------------------ #
+  build-apworld:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Zip the apworld folder
+        # cd into apworld/ first so the zip's top-level entry is
+        # "starship_titanic/", not "apworld/starship_titanic/" -- AP
+        # expects the folder name to match the world's module name at
+        # the root of the archive.
+        run: |
+          cd apworld
+          zip -r ../starship_titanic.apworld starship_titanic \
+            -x "*.pyc" -x "*__pycache__*"
+
+      - name: Upload apworld artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: starship_titanic.apworld
+          path: starship_titanic.apworld
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------ #
+  # Build the C# client in Release configuration and zip the output.
+  # Runs on windows-latest since this is a WinForms app targeting a
+  # Windows-specific TFM (e.g. net8.0-windows) -- that won't build on
+  # Linux/macOS runners.
+  # ------------------------------------------------------------------ #
+  build-client:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        working-directory: client
+        run: dotnet restore
+
+      - name: Build (Release)
+        working-directory: client
+        run: dotnet build -c Release
+
+      - name: Locate build output
+        id: locate
+        shell: pwsh
+        # dotnet build's output path depends on the project's target
+        # framework moniker (net8.0-windows, net8.0-windows10.0.19041.0,
+        # etc.), which isn't hardcoded here on purpose -- this finds the
+        # deepest bin\Release\<TFM>\ folder that actually contains a
+        # built .exe, so it keeps working if the TFM changes later.
+        run: |
+          $outDir = Get-ChildItem -Path client -Recurse -Directory |
+            Where-Object { $_.FullName -match '\\bin\\Release\\[^\\]+$' } |
+            Where-Object { Get-ChildItem $_.FullName -Filter "*.exe" -File } |
+            Select-Object -First 1
+
+          if (-not $outDir) {
+            Write-Error "Could not find a Release build output folder containing a .exe. Check the project's target framework / output path and adjust this step."
+            exit 1
+          }
+
+          Write-Host "Found build output at: $($outDir.FullName)"
+          echo "output_dir=$($outDir.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Zip client build output
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "${{ steps.locate.outputs.output_dir }}\*" `
+            -DestinationPath "starship_titanic_client.zip" -Force
+
+      - name: Upload client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: starship_titanic_client.zip
+          path: starship_titanic_client.zip
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------ #
+  # Create the GitHub Release and attach both zips.
+  #
+  # Note: GitHub automatically attaches "Source code (zip)" and
+  # "Source code (tar.gz)" to every published release on its own -- you
+  # don't need a workflow step for that. If you'd rather ship a
+  # custom-named/filtered source archive instead of relying on the
+  # automatic one, say so and I'll add a `git archive` step here.
+  # ------------------------------------------------------------------ #
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-apworld, build-client]
+    steps:
+      - name: Download apworld artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: starship_titanic.apworld
+          path: dist
+
+      - name: Download client artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: starship_titanic_client.zip
+          path: dist
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/starship_titanic.apworld
+            dist/starship_titanic_client.zip
+          # Comment out the next line if you'd rather write release
+          # notes by hand each time instead of auto-generating them.
+          generate_release_notes: true
