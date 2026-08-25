@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>StarshipTitanicAp</AssemblyName>
+    <RootNamespace>StarshipTitanicAp</RootNamespace>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <Platforms>x64</Platforms>
+
+    <!-- Bump this for each release - AppInfo.cs reads it at runtime and
+         MainForm puts it in the title bar, so this is the one place that
+         needs updating. -->
+    <Version>0.1.0</Version>
+    <Product>Starship Titanic AP</Product>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Archipelago.MultiClient.Net" Version="6.7.1" />
+  </ItemGroup>
+
+</Project>
