@@ -26,7 +26,7 @@ Changelog vs. the previous revision:
 """
 from typing import Dict, NamedTuple, Optional
 
-from BaseClasses import Location
+from BaseClasses import Location # pyright: ignore[reportMissingImports]
 
 LOCATION_ID_BASE = 771901000
 

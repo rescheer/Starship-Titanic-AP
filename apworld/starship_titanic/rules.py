@@ -35,7 +35,7 @@ Consistency pass fixes (this revision):
 - "DeskBot - First Class Upgrade" -> "DeskBot - 1st Class Upgrade" to
   match the rename in locations.py.
 """
-from worlds.generic.Rules import set_rule
+from worlds.generic.Rules import set_rule # pyright: ignore[reportMissingImports]
 
 from .items import (
     item_name_groups,

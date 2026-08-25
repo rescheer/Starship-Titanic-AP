@@ -7,7 +7,7 @@ formally onboarded to Archipelago).
 """
 from typing import Dict, NamedTuple, Optional, Set
 
-from BaseClasses import Item, ItemClassification
+from BaseClasses import Item, ItemClassification # pyright: ignore[reportMissingImports]
 
 ITEM_ID_BASE = 771900000
 

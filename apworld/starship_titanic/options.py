@@ -9,7 +9,7 @@ once the client mod side of this project exists to test against.
 """
 from dataclasses import dataclass
 
-from Options import PerGameCommonOptions
+from Options import PerGameCommonOptions # pyright: ignore[reportMissingImports]
 
 
 @dataclass

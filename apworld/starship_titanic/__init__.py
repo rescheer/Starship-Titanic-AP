@@ -27,8 +27,8 @@ Changelog vs. the previous revision:
 """
 from typing import Any, Dict
 
-from BaseClasses import Item, ItemClassification, Tutorial
-from worlds.AutoWorld import World, WebWorld
+from BaseClasses import Item, ItemClassification, Tutorial # pyright: ignore[reportMissingImports]
+from worlds.AutoWorld import World, WebWorld # pyright: ignore[reportMissingImports]
 
 from .items import (
     StarshipTitanicItem,

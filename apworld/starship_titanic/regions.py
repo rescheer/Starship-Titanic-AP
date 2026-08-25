@@ -20,7 +20,7 @@ Changelog vs. the previous revision:
 """
 from typing import Dict, List
 
-from BaseClasses import Region
+from BaseClasses import Region # pyright: ignore[reportMissingImports]
 
 from .locations import location_table, StarshipTitanicLocation
 
