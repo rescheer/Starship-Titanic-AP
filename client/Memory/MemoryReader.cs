@@ -4,13 +4,7 @@ using System.Text;
 
 namespace StarshipTitanicAp;
 
-/// <summary>
-/// Thin wrapper around the Win32 ReadProcessMemory/WriteProcessMemory APIs.
-/// Every read method returns null on failure (invalid handle, unmapped
-/// address, etc.) rather than throwing - callers treat null the same way
-/// the original Python tooling treated None: "not ready right now", not
-/// an error to surface. Write methods return bool for success/failure.
-/// </summary>
+/// <summary>Thin wrapper around the Win32 ReadProcessMemory/WriteProcessMemory APIs.</summary>
 public sealed class MemoryReader : IDisposable
 {
     private const uint PROCESS_QUERY_INFORMATION = 0x0400;
@@ -43,13 +37,15 @@ public sealed class MemoryReader : IDisposable
 
     public bool IsAttached { get; private set; }
     public long ModuleBase { get; private set; }
+    public long ModuleSize { get; private set; }
     public int ProcessId { get; private set; }
     internal IntPtr ProcessHandle => _processHandle;
 
-    /// <summary>
-    /// Attempts to attach to the named process (no ".exe" suffix, matching
-    /// System.Diagnostics.Process naming). Returns true on success.
-    /// </summary>
+    /// <summary>True if addr falls within the attached module's own mapped range.</summary>
+    public bool IsWithinModule(long addr) =>
+        IsAttached && addr >= ModuleBase && addr < ModuleBase + ModuleSize;
+
+    /// <summary>Attempts to attach to the named process. Returns true on success.</summary>
     public bool Attach(string processName)
     {
         Detach();
@@ -66,9 +62,8 @@ public sealed class MemoryReader : IDisposable
             if (_processHandle == IntPtr.Zero)
                 return false;
 
-            // MainModule requires the calling process and target to match
-            // bitness (we build x64, the game is x64, so this is fine).
             ModuleBase = process.MainModule?.BaseAddress.ToInt64() ?? 0;
+            ModuleSize = process.MainModule?.ModuleMemorySize ?? 0;
             if (ModuleBase == 0)
             {
                 Detach();
@@ -100,6 +95,7 @@ public sealed class MemoryReader : IDisposable
         }
         IsAttached = false;
         ModuleBase = 0;
+        ModuleSize = 0;
         ProcessId = 0;
     }
 
@@ -151,11 +147,7 @@ public sealed class MemoryReader : IDisposable
         return ok && bytesWritten.ToInt64() == data.Length;
     }
 
-    /// <summary>
-    /// Reads a short run of printable ASCII starting at address, stopping
-    /// at the first non-printable byte or the buffer end. Returns null if
-    /// nothing printable was found at all.
-    /// </summary>
+    /// <summary>Reads a short run of printable ASCII starting at address, stopping at the first non-printable byte.</summary>
     public string? ReadShortAsciiString(long address, int maxLength = 32)
     {
         byte[]? raw = ReadBytes(address, maxLength);

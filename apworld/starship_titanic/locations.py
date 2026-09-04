@@ -1,40 +1,23 @@
 """
-Starship Titanic - Location (check) definitions.
-
-ID space: 771901000 - 771901999 (kept separate from item IDs; see items.py
-for the ID-base disclaimer).
-
-Each entry: name -> (region it belongs to, id offset, event item name or
-None). Locations with an event item are logic-only milestones locked to
-that event item; they never hold a real shuffled item.
-
-Changelog vs. the previous revision:
-- "DeskBot - 2nd Class Upgrade" / "DeskBot - 1st Class Upgrade" are no
-  longer event locations -- Progressive Passenger Class Upgrade (see
-  items.py) is now a real shuffled item, so these two checks just hold
-  whatever the fill places there like any other location. Region access
-  is what now depends on the *count* of that item, not these locations
-  directly.
-- Added one "Visited" check per region (offsets 200+).
-- "SGT Class Lobbys" renamed to "SGT Class Lobby" throughout, to match the
-  singular naming used by every other region.
-- Added the "Top of the Well" region and its first-visit check.
-- Consistency pass: "DeskBot - First Class Upgrade" renamed to
-  "DeskBot - 1st Class Upgrade" -- every other "1st Class"/"2nd Class"
-  location and region in this table uses the numeral form, and this was
-  the one holdout still spelling it out.
+Starship Titanic - Location check definitions
 """
-from typing import Dict, NamedTuple, Optional
+import collections
+from typing import Dict, Optional
 
 from BaseClasses import Location # pyright: ignore[reportMissingImports]
 
-LOCATION_ID_BASE = 771901000
+LOCATION_ID_BASE = 771900000
 
+_next_titanic_offset = 0
 
-class STLocationData(NamedTuple):
-    region: str
-    offset: int
-    event_item: Optional[str] = None
+_STLocationDataBase = collections.namedtuple("STLocationData", ["region", "event_item", "offset"])
+
+class STLocationData(_STLocationDataBase):
+    def __new__(cls, region: str, event_item: Optional[str] = None) -> "STLocationData":
+        global _next_titanic_offset
+        offset = _next_titanic_offset
+        _next_titanic_offset += 1
+        return super().__new__(cls, region, event_item, offset)
 
 
 class StarshipTitanicLocation(Location):
@@ -43,145 +26,215 @@ class StarshipTitanicLocation(Location):
 
 location_table: Dict[str, STLocationData] = {
     # ---------------------------------------------------------------- #
-    # Embarkation Lobby (SGT hub)
+    # Embarkation Lobby
     # ---------------------------------------------------------------- #
-    "Embarkation Lobby - Opening Credits": STLocationData("Embarkation Lobby", 0),
-    "DeskBot - 2nd Class Upgrade": STLocationData("Embarkation Lobby", 1),
-    "DeskBot - 1st Class Upgrade": STLocationData("Embarkation Lobby", 2),
+    # POI/Visit
+    "Embarkation Lobby - Succ-U-Bus": STLocationData("Embarkation Lobby"),
+    "Embarkation Lobby - Visited": STLocationData("Embarkation Lobby"),
+    # Item
+    # Puzzle
+    "DeskBot - 2nd Class Upgrade": STLocationData("Embarkation Lobby"),
+    "DeskBot - 1st Class Upgrade": STLocationData("Embarkation Lobby"),
+    # Other
+
+    # ---------------------------------------------------------------- #
+    # Top of the Well
+    # ---------------------------------------------------------------- #
+    # POI/Visit
+    "Top of the Well - Visited": STLocationData("Top of the Well"),
+    # Item
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
     # Parrot Lobby
     # ---------------------------------------------------------------- #
-    "Parrot Lobby - Feather": STLocationData("Parrot Lobby", 10),
-    "Parrot Lobby - Save Designer Room Number": STLocationData("Parrot Lobby", 11),
-    "Parrot Lobby - Perch": STLocationData("Parrot Lobby", 12),
-    "Parrot Lobby - Crushed Television": STLocationData("Parrot Lobby", 13),
-    "Parrot Lobby - Titania's Nose": STLocationData("Parrot Lobby", 14),
+    # POI/Visit
+    "Parrot Lobby - Succ-U-Bus": STLocationData("Parrot Lobby"),
+    "Parrot Lobby - Visited": STLocationData("Parrot Lobby"),
+    # Item
+    "Parrot Lobby - Feather": STLocationData("Parrot Lobby"),
+    "Parrot Lobby - Perch": STLocationData("Parrot Lobby"),
+    "Parrot Lobby - Titania's Nose": STLocationData("Parrot Lobby"),
+    "Parrot Lobby - Titania's Core": STLocationData("Parrot Lobby"),
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
     # Bilge Room (Mother Succ-U-Bus)
     # ---------------------------------------------------------------- #
-    "Bilge Room - Titania's Olfactory Center": STLocationData("Bilge Room", 20),
-    "Bilge Room - Blue Fuse": STLocationData("Bilge Room", 21),
+    # POI/Visit
+    "Bilge Room - Succ-U-Bus (Mother)": STLocationData("Bilge Room"),
+    "Bilge Room - Visited": STLocationData("Bilge Room"),
+    # Item
+    "Bilge Room - Blue Fuse": STLocationData("Bilge Room"),
+    "Bilge Room - Titania's Olfactory Center": STLocationData("Bilge Room"),
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
-    # Titania's Room / Fuse Box
+    # Titania's Room / Fuse Box / Bomb Room
     # ---------------------------------------------------------------- #
-    "Fuse Box - Remove the Red Fuse": STLocationData("Titania's Room", 30),
-    "Titania's Room - Disarm the Bomb": STLocationData("Titania's Room", 31),
-    "Fuse Box - Remove the Yellow Fuse": STLocationData("Titania's Room", 32, "Yellow Fuse Removed"),
-    "Fuse Box - Install the Green Fuse": STLocationData("Titania's Room", 33, "Arboretum Working"),
-    "Titania's Room - Assemble Titania": STLocationData("Titania's Room", 34, "Titania Repaired"),
+    # POI/Visit
+    "Bomb Room - Succ-U-Bus": STLocationData("Titania's Room"),
+    "Titania's Room - Visited": STLocationData("Titania's Room"),
+    # Item
+    # Puzzle
+    "Titania's Room - Repair Titania": STLocationData("Titania's Room", "Titania Repaired"),
+    # Other
 
     # ---------------------------------------------------------------- #
-    # Creator's Room (optional e-mail content, gated by Red Fuse)
+    # Creator's Chamber
     # ---------------------------------------------------------------- #
-    "Creator's Room - Leovinus' E-Mail": STLocationData("Creator's Room", 40),
-    "Creator's Room - Scraliontis' E-Mail": STLocationData("Creator's Room", 41),
-    "Creator's Room - Brobostigon's E-Mail": STLocationData("Creator's Room", 42),
+    # POI/Visit
+    "Creator's Chamber - Succ-U-Bus": STLocationData("Creator's Chamber"),
+    "Creator's Chamber - Visited": STLocationData("Creator's Chamber"),
+    # Item
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
-    # Sculpture Room
+    # Sculpture Chamber
     # ---------------------------------------------------------------- #
-    "Sculpture Room - Adjust the BarBot": STLocationData("Sculpture Room", 50),
+    # POI/Visit
+    "Sculpture Chamber - Succ-U-Bus": STLocationData("Sculpture Chamber"),
+    "Sculpture Chamber - Visited": STLocationData("Sculpture Chamber"),
+    # Item
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
-    # SGT Class Lobby (restaurant + small room, generic across 28-38)
+    # SGT Class Stateroom/Lobby
     # ---------------------------------------------------------------- #
-    "SGT Class Room - Magazine": STLocationData("SGT Class Lobby", 60),
-    "SGT Class Lobby - Order a Snack": STLocationData("SGT Class Lobby", 61),
-    "SGT Class Lobby Side Room - Long Stick": STLocationData("SGT Class Lobby", 62),
-    "SGT Class Restaurant - Pureed Starlings": STLocationData("SGT Class Lobby", 63),
-    "SGT Class Restaurant - Titania's Core": STLocationData("SGT Class Lobby", 64),
+    # POI/Visit
+    "SGT Class Lobby - Succ-U-Bus": STLocationData("SGT Class Lobby"),
+    "SGT Class Lobby - Visited": STLocationData("SGT Class Lobby"),
+    "SGT Class Stateroom - Visited": STLocationData("SGT Class Stateroom"),
+    # Item
+    "SGT Class Lobby - Magazine": STLocationData("SGT Class Lobby"),
+    "SGT Class Lobby - Long Stick": STLocationData("SGT Class Lobby"),
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
-    # 2nd Class Room
+    # 2nd Class Stateroom/Lobby
     # ---------------------------------------------------------------- #
-    "2nd Class Room - Save Designer Room Number": STLocationData("2nd Class Lobby", 70),
-    "2nd Class Room - Titania's Ear (Pistachio Bowl)": STLocationData("2nd Class Lobby", 71),
+    # POI/Visit
+    "2nd Class Lobby - Succ-U-Bus": STLocationData("2nd Class Lobby"),
+    "2nd Class Lobby - Visited": STLocationData("2nd Class Lobby"),
+    "2nd Class Stateroom - Succ-U-Bus": STLocationData("2nd Class Lobby"),
+    "2nd Class Stateroom - Visited": STLocationData("2nd Class Stateroom"),
+    # Item
+    "2nd Class Stateroom - Titania's Ear (Pistachio Bowl)": STLocationData("2nd Class Lobby"),
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
-    # Bottom of the Well / Broken Elevator
+    # Bottom of the Well
     # ---------------------------------------------------------------- #
-    "Bottom of the Well - LiftBot Head": STLocationData("Bottom of the Well", 80),
-    "Broken Elevator - Titania's Eye (Elevator)": STLocationData("Broken Elevator", 90),
+    # POI/Visit
+    "Bottom of the Well - Succ-U-Bus": STLocationData("Bottom of the Well"),
+    "Bottom of the Well - Visited": STLocationData("Bottom of the Well"),
+    # Item
+    "Bottom of the Well - LiftBot Head": STLocationData("Bottom of the Well"),
+    "Bottom of the Well - Crushed Television": STLocationData("Bottom of the Well"),
+    # Puzzle
+    # Other
+    
+    # ---------------------------------------------------------------- #
+    # Broken Elevator
+    # ---------------------------------------------------------------- #
+    # POI/Visit
+    # Item
+    "Broken Elevator - Titania's Eye (Elevator)": STLocationData("Bottom of the Well"),
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
-    # 1st Class Room
+    # 1st Class Stateroom/Lobby
     # ---------------------------------------------------------------- #
-    "1st Class Room - Chevron Code": STLocationData("1st Class Lobby", 100),
-
-    # ---------------------------------------------------------------- #
-    # Chevron Room (Floor 7 / Elevator 2 / Room 3)
-    # ---------------------------------------------------------------- #
-    "Chevron Room - Titania's Eye (Chevron)": STLocationData("Chevron Room", 110),
+    # POI/Visit
+    "1st Class Stateroom - Succ-U-Bus": STLocationData("1st Class Lobby"),
+    "1st Class Stateroom - Visited": STLocationData("1st Class Stateroom"),
+    "1st Class Lobby - Succ-U-Bus": STLocationData("1st Class Lobby"),
+    "1st Class Lobby - Visited": STLocationData("1st Class Lobby"),
+    # Item
+    "1st Class Stateroom - Titania's Eye (Light)": STLocationData("1st Class Lobby"),
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
     # Promenade Deck
     # ---------------------------------------------------------------- #
-    "Promenade Deck - Hammer": STLocationData("Promenade Deck", 120),
+    # POI/Visit
+    "Promenade Deck - Succ-U-Bus": STLocationData("Promenade Deck"),
+    "Promenade Deck - Visited": STLocationData("Promenade Deck"),
+    # Item
+    "Promenade Deck - Hammer": STLocationData("Promenade Deck"),
+    # "Promenade Deck - Pureed Starlings": STLocationData("Promenade Deck"),
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
     # Arboretum
     # ---------------------------------------------------------------- #
-    "Arboretum - Lemon": STLocationData("Arboretum", 130),
-    "Arboretum - Hose": STLocationData("Arboretum", 131),
-    "Arboretum - Titania's Speech Center": STLocationData("Arboretum", 132),
-    "Arboretum - Titania's Mouth": STLocationData("Arboretum", 133),
+    # POI/Visit
+    "Arboretum - Succ-U-Bus": STLocationData("Arboretum"),
+    "Arboretum - Visited": STLocationData("Arboretum"),
+    # Item
+    "Arboretum - Lemon": STLocationData("Arboretum"),
+    "Arboretum - Hose": STLocationData("Arboretum"),
+    "Arboretum - Titania's Speech Center": STLocationData("Arboretum"),
+    "Arboretum - Titania's Mouth": STLocationData("Arboretum"),
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
     # Bar
     # ---------------------------------------------------------------- #
-    "Bar - Titania's Vision Center": STLocationData("Bar", 140),
+    # POI/Visit
+    "Bar - Succ-U-Bus": STLocationData("Bar"),
+    "Bar - Visited": STLocationData("Bar"),
+    # Item
+    "Bar - Titania's Vision Center": STLocationData("Bar", "Titania's Vision Center"),
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
     # Music Room
     # ---------------------------------------------------------------- #
-    "Music Room - Record the Cylinder": STLocationData("Music Room", 150),
-    "Music Room - Titania's Ear (Phonograph)": STLocationData("Music Room", 151),
+    # POI/Visit
+    "Music Room - Succ-U-Bus": STLocationData("Music Room"),
+    "Music Room - Visited": STLocationData("Music Room"),
+    # Item
+    "Music Room - Titania's Ear (Phonograph)": STLocationData("Music Room"),
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
     # 1st Class Restaurant
     # ---------------------------------------------------------------- #
-    "1st Class Restaurant - Maitre'D Bot's Loose Arm": STLocationData("1st Class Restaurant", 160),
-    "1st Class Restaurant - Defeat the Maitre'D Bot": STLocationData(
-        "1st Class Restaurant", 161, "Maitre'D Bot Defeated"
-    ),
-    "1st Class Restaurant - Napkin": STLocationData("1st Class Restaurant", 162),
-    "1st Class Restaurant - Green Fuse": STLocationData("1st Class Restaurant", 163),
-    "1st Class Restaurant - Maitre'D Bot's Key Arm": STLocationData("1st Class Restaurant", 164),
-    "1st Class Restaurant - Titania's Auditory Center": STLocationData("1st Class Restaurant", 165),
+    # POI/Visit
+    "1st Class Restaurant - Succ-U-Bus": STLocationData("1st Class Restaurant"),
+    "1st Class Restaurant - Visited": STLocationData("1st Class Restaurant"),
+    # Item
+    "1st Class Restaurant - Maitre'D Bot's Left Arm": STLocationData("1st Class Restaurant"),
+    "1st Class Restaurant - Napkin": STLocationData("1st Class Restaurant"),
+    "1st Class Restaurant - Green Fuse": STLocationData("1st Class Restaurant"),
+    "1st Class Restaurant - Maitre'D Bot's Right Arm": STLocationData("1st Class Restaurant"),
+    "1st Class Restaurant - Titania's Auditory Center": STLocationData("1st Class Restaurant", "Titania's Auditory Center"),
+    # Puzzle
+    # Other
 
     # ---------------------------------------------------------------- #
     # Bridge / Ending
     # ---------------------------------------------------------------- #
-    "Bridge - Set Course for Home": STLocationData("Bridge", 170, "Victory"),
-
-    # ---------------------------------------------------------------- #
-    # "Visited" -- one per region, no in-fiction item,
-    # just a check for reaching that room at all. Access is governed
-    # entirely by the region's entrance rule in rules.py, so none of
-    # these need a location-level rule of their own.
-    # ---------------------------------------------------------------- #
-    "Embarkation Lobby - Visited": STLocationData("Embarkation Lobby", 200),
-    "Top of the Well - Visited": STLocationData("Top of the Well", 201),
-    "Parrot Lobby - Visited": STLocationData("Parrot Lobby", 202),
-    "Bilge Room - Visited": STLocationData("Bilge Room", 203),
-    "Titania's Room - Visited": STLocationData("Titania's Room", 204),
-    "Creator's Room - Visited": STLocationData("Creator's Room", 205),
-    "Sculpture Room - Visited": STLocationData("Sculpture Room", 206),
-    "SGT Class Lobby - Visited": STLocationData("SGT Class Lobby", 207),
-    "2nd Class Lobby - Visited": STLocationData("2nd Class Lobby", 208),
-    "Bottom of the Well - Visited": STLocationData("Bottom of the Well", 209),
-    "Broken Elevator - Visited": STLocationData("Broken Elevator", 210),
-    "1st Class Lobby - Visited": STLocationData("1st Class Lobby", 211),
-    "Chevron Room - Visited": STLocationData("Chevron Room", 212),
-    "Promenade Deck - Visited": STLocationData("Promenade Deck", 213),
-    "Arboretum - Visited": STLocationData("Arboretum", 214),
-    "Bar - Visited": STLocationData("Bar", 215),
-    "Music Room - Visited": STLocationData("Music Room", 216),
-    "1st Class Restaurant - Visited": STLocationData("1st Class Restaurant", 217),
-    "Bridge - Visited": STLocationData("Bridge", 218),
+    # POI/Visit
+    "Bridge - Visited": STLocationData("Bridge"),
+    # Item
+    # Puzzle
+    "The End - Return Home": STLocationData("Bridge", "Victory"),
+    # Other
 }
 
 location_name_to_id: Dict[str, int] = {

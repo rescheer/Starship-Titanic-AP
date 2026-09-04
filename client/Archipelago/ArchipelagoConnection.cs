@@ -14,40 +14,11 @@ public enum ApConnectionState
     ConnectionFailed,
 }
 
-/// <summary>
-/// Thin wrapper around an Archipelago.MultiClient.Net session. Owns the
-/// connect/disconnect lifecycle and reports state via <see cref="StateChanged"/>.
-///
-/// StateChanged can fire from a background thread (the connect attempt runs
-/// via Task.Run, and socket callbacks arrive on the library's own thread) -
-/// callers on a UI thread must marshal back themselves (e.g. via
-/// Control.BeginInvoke), the same way MainForm does for everything else.
-/// </summary>
+/// <summary>Thin wrapper around an Archipelago.MultiClient.Net session, owning the connect/disconnect lifecycle.</summary>
 public sealed class ArchipelagoConnection : IDisposable
 {
-    // Reported to the AP server as the game this client implements; must
-    // match the name used by the Starship Titanic AP world.
     private const string GameName = "Starship Titanic";
 
-    // Detecting a dead connection: the library's SocketClosed event only
-    // fires for a socket the local machine actually knows is closed (a
-    // clean close handshake, or a failed send). If the server process
-    // dies without either side sending a close frame, the local socket
-    // can sit there looking "open" indefinitely - and a blocking send
-    // against it can hang for a long time (however long the OS takes to
-    // notice the peer is gone), not just fail to be detected. That hang
-    // was happening on the calling thread, which for every send in this
-    // class used to be the UI thread (WinForms Timer ticks call straight
-    // into SendLocationCheck/SendCommand) - so a killed server didn't
-    // just go undetected, it froze the whole app.
-    //
-    // Fix: every actual socket write now runs on a background thread via
-    // TrySendAsync, bounded by SendTimeoutMs. The calling thread is never
-    // blocked, and a send that doesn't complete in time is itself treated
-    // as proof the connection is dead - which restores real dead-
-    // connection detection without needing a synthetic heartbeat probe at
-    // all (an earlier attempt at one kept causing side effects - see git
-    // history / prior conversation - and is not worth repeating here).
     private const int SendTimeoutMs = 5000;
 
     private ArchipelagoSession? _session;
@@ -59,51 +30,82 @@ public sealed class ArchipelagoConnection : IDisposable
     public bool IsConnected => _session is not null;
     public int PendingCheckCount => _checkQueue.Count;
 
-    /// <summary>
-    /// Drops every queued-but-unsent location check without sending it -
-    /// see LocationCheckQueue.Clear for why this exists (stale checks
-    /// surviving a deliberate server reset during testing).
-    /// </summary>
+    /// <summary>Snapshot of every location name currently queued but not yet confirmed sent.</summary>
+    public string[] GetPendingCheckNames() => _checkQueue.Snapshot().Select(c => c.LocationName).ToArray();
+
+    /// <summary>Resolves an AP location name to its numeric id via the connected session's data package.</summary>
+    public long? ResolveLocationId(string locationName)
+    {
+        if (_session is not { } session)
+            return null;
+
+        long id = session.Locations.GetLocationIdFromName(GameName, locationName);
+        return id == -1 ? null : id;
+    }
+
+    /// <summary>Resolves a location id back to its AP display name via the connected session's data package.</summary>
+    public string? ResolveLocationName(long locationId)
+    {
+        return _session?.Locations.GetLocationNameFromId(locationId);
+    }
+
+    /// <summary>Checked/total location counts for this slot.</summary>
+    public (int Checked, int Total)? GetLocationCheckSummary()
+    {
+        if (_session is not { } session)
+            return null;
+
+        return (session.Locations.AllLocationsChecked.Count, session.Locations.AllLocations.Count);
+    }
+
+    /// <summary>Checked/total location counts for this slot, scoped to the given location names.</summary>
+    public (int Checked, int Total)? GetLocationCheckSummary(IReadOnlyCollection<string> locationNames)
+    {
+        if (_session is not { } session)
+            return null;
+
+        var checkedIds = session.Locations.AllLocationsChecked;
+        int total = 0;
+        int checkedCount = 0;
+        foreach (string name in locationNames)
+        {
+            long id = session.Locations.GetLocationIdFromName(GameName, name);
+            if (id == -1)
+                continue;
+            total++;
+            if (checkedIds.Contains(id))
+                checkedCount++;
+        }
+        return (checkedCount, total);
+    }
+
+    /// <summary>Whether the server already has this location marked checked for this slot.</summary>
+    public bool IsLocationChecked(string locationName)
+    {
+        if (_session is not { } session)
+            return false;
+
+        long id = session.Locations.GetLocationIdFromName(GameName, locationName);
+        return id != -1 && session.Locations.AllLocationsChecked.Contains(id);
+    }
+
+    /// <summary>Drops every queued-but-unsent location check without sending it.</summary>
     public void ClearPendingChecks() => _checkQueue.Clear();
 
-    /// <summary>
-    /// The slot data the server sent back on login (fill_slot_data() in
-    /// the .apworld) - e.g. this world's "progressive_class_upgrade_item",
-    /// "second_class_tier", "first_class_tier" keys (see
-    /// ClassUpgradeTracker). Null until a successful connection.
-    /// </summary>
+    /// <summary>The slot data the server sent back on login.</summary>
     public IReadOnlyDictionary<string, object>? SlotData { get; private set; }
 
-    // Every item name received this connection, in order, including the
-    // replayed history of everything received in past sessions (the
-    // server resends all of it on every reconnect - see the note on the
-    // ItemReceived subscription below). Cleared at the start of each
-    // ConnectAsync. Guarded by a lock since it's written from whatever
-    // thread the library's ItemReceived event fires on and read from
-    // GetReceivedItemNames() on the UI thread's tick loop.
+    /// <summary>The server's seed_name, captured once login succeeds.</summary>
+    public string? SeedName { get; private set; }
+
+    private bool _pendingChecksFlushedThisSession;
+
     private readonly object _itemsLock = new();
     private readonly List<string> _receivedItemNames = new();
 
-    // Defense-in-depth against any future resync replay (server-initiated
-    // desync recovery, not just the client-initiated Sync heartbeat that
-    // caused this exact bug once already - see the comment above
-    // ArchipelagoSession? _session for the full story and why there's no
-    // active heartbeat anymore). A ReceivedItems packet reset to index 0
-    // re-delivers the full history through ItemReceived; without this,
-    // every already-recorded item would silently get counted again.
-    // (ItemId, LocationId) uniquely identifies a specific granted item, so
-    // legitimate duplicates (the same item genuinely placed at two
-    // different locations) still count correctly - only an exact replay
-    // of the same (item, location) pair gets filtered.
     private readonly HashSet<(long ItemId, long LocationId)> _seenItemLocationPairs = new();
 
-    /// <summary>
-    /// Snapshot of every item name received so far this connection, in
-    /// order. Deliberately raw names, not counts or classifications -
-    /// interpreting what they mean (e.g. how many class upgrades) is
-    /// game-specific and belongs in something like ClassUpgradeTracker,
-    /// not here.
-    /// </summary>
+    /// <summary>Snapshot of every item name received so far this connection, in order.</summary>
     public string[] GetReceivedItemNames()
     {
         lock (_itemsLock)
@@ -112,23 +114,14 @@ public sealed class ArchipelagoConnection : IDisposable
 
     public event Action<ApConnectionState, string>? StateChanged;
 
-    /// <summary>
-    /// Fires for every server log-line the AP client library surfaces via
-    /// session.MessageLog (item sends/receives, hints, chat, join/leave,
-    /// etc.), already formatted as plain text via LogMessage.ToString().
-    /// Like StateChanged, this can fire from a background thread.
-    /// </summary>
+    /// <summary>Fires for every server log-line the AP client library surfaces, formatted as plain text.</summary>
     public event Action<string>? MessageReceived;
 
-    /// <summary>
-    /// Fires once per item as it's received (including the replayed
-    /// history on every reconnect - see GetReceivedItemNames). Just the
-    /// item's display name; for anything beyond "an item with this name
-    /// arrived", use GetReceivedItemNames() instead of trying to
-    /// accumulate state from this event yourself. Can fire from a
-    /// background thread.
-    /// </summary>
+    /// <summary>Fires once per item as it's received.</summary>
     public event Action<string>? ItemReceived;
+
+    /// <summary>Fires when a location check is newly added to the pending-check queue.</summary>
+    public event Action<string>? CheckQueued;
 
     public async Task ConnectAsync(string server, string slot, string password)
     {
@@ -143,10 +136,10 @@ public sealed class ArchipelagoConnection : IDisposable
             return;
         }
 
-        DisconnectInternal(); // tear down any previous session first
+        DisconnectInternal();
         lock (_itemsLock)
         {
-            _receivedItemNames.Clear(); // fresh history for this connection attempt
+            _receivedItemNames.Clear();
             _seenItemLocationPairs.Clear();
         }
 
@@ -165,28 +158,18 @@ public sealed class ArchipelagoConnection : IDisposable
 
         session.Socket.SocketClosed += reason =>
         {
-            // Only surface an unexpected drop as a state change if this is
-            // still the active session (Disconnect() already nulls _session
-            // out before tearing the socket down).
             if (ReferenceEquals(_session, session))
             {
                 _session = null;
                 SlotData = null;
+                SeedName = null;
+                _pendingChecksFlushedThisSession = false;
                 RaiseState(ApConnectionState.Disconnected, $"Disconnected: {reason}");
             }
         };
 
-        // Subscribed here, before TryConnectAndLogin, rather than after a
-        // successful login - the library replays the full history of
-        // already-received items through this same event on every
-        // (re)connect, and that replay can start as part of the login
-        // call itself, before it returns. Subscribing early is how you're
-        // meant to catch it (per the library's own docs).
         session.Items.ItemReceived += helper =>
         {
-            // DequeueItem() returns an ItemInfo - ItemName is null if it
-            // couldn't be resolved (e.g. DataPackage not loaded yet), in
-            // which case there's nothing meaningful to record.
             ItemInfo item = helper.DequeueItem();
             string? name = item.ItemName;
             if (name is null)
@@ -195,7 +178,7 @@ public sealed class ArchipelagoConnection : IDisposable
             lock (_itemsLock)
             {
                 if (!_seenItemLocationPairs.Add((item.ItemId, item.LocationId)))
-                    return; // exact replay of an already-recorded (item, location) pair - see the field's doc comment
+                    return;
                 _receivedItemNames.Add(name);
             }
             ItemReceived?.Invoke(name);
@@ -219,9 +202,8 @@ public sealed class ArchipelagoConnection : IDisposable
         {
             _session = session;
             SlotData = success.SlotData;
+            SeedName = session.RoomState.Seed;
             session.MessageLog.OnMessageReceived += message => MessageReceived?.Invoke(message.ToString());
-
-            await FlushPendingChecksAsync(session);
 
             RaiseState(ApConnectionState.Connected, $"Connected as {slot}");
         }
@@ -239,18 +221,7 @@ public sealed class ArchipelagoConnection : IDisposable
         }
     }
 
-    /// <summary>
-    /// Sends a chat message to the server as a SayPacket. commandText is
-    /// sent exactly as given - no '!' is added, so pass it already
-    /// prefixed if you want the AP server's command processor to treat it
-    /// as a command (e.g. "!hint") rather than plain chat.
-    ///
-    /// The actual send happens on a background thread (see TrySendAsync) -
-    /// this returns as soon as it's handed off, not once delivery is
-    /// confirmed, so the return value only means "there's a session to
-    /// send through", not "the server has it". Returns false if there's
-    /// no active session at all.
-    /// </summary>
+    /// <summary>Sends a chat message to the server as a SayPacket.</summary>
     public bool SendCommand(string commandText)
     {
         if (_session is not { } session)
@@ -260,79 +231,73 @@ public sealed class ArchipelagoConnection : IDisposable
         return true;
     }
 
-    /// <summary>
-    /// Reports a completed location check to the server. Safe to call
-    /// repeatedly for the same id - the server treats duplicate checks as
-    /// a no-op, so callers don't need to track what's already been sent.
-    ///
-    /// Always queues the id first (see LocationCheckQueue), then attempts
-    /// the actual send on a background thread, removing it from the queue
-    /// only once that send is confirmed to have gone through. If there's
-    /// no session, or the send fails or times out, it's simply left
-    /// queued - retried automatically on next connect. Returns false only
-    /// for the immediately-known "not connected" case; true means "handed
-    /// off", not "confirmed delivered".
-    /// </summary>
-    public bool SendLocationCheck(long locationId)
+    /// <summary>Reports a completed location check to the server, identified by its AP location name.</summary>
+    public bool SendLocationCheck(string locationName)
     {
-        if (_session is not { } session)
-        {
-            _checkQueue.Enqueue(locationId);
-            return false;
-        }
+        if (_checkQueue.Enqueue(locationName, SeedName))
+            CheckQueued?.Invoke(locationName);
 
-        _checkQueue.Enqueue(locationId); // optimistic - removed below once the send actually confirms
-        _ = SendLocationCheckAsync(session, locationId);
+        if (_session is not { } session)
+            return false;
+
+        long? locationId = ResolveLocationId(locationName);
+        if (locationId is null)
+            return false;
+
+        _ = SendLocationCheckAsync(session, locationName, locationId.Value);
         return true;
     }
 
-    private async Task SendLocationCheckAsync(ArchipelagoSession session, long locationId)
+    private async Task SendLocationCheckAsync(ArchipelagoSession session, string locationName, long locationId)
     {
         bool ok = await TrySendAsync(session, () => session.Locations.CompleteLocationChecks(locationId));
         if (ok)
-            _checkQueue.Remove(locationId);
+            _checkQueue.Remove(locationName);
     }
 
-    /// <summary>
-    /// Attempts to send every queued check now that we're connected.
-    /// Awaited right as the session is established, before the Connected
-    /// state is raised, so anything still pending after this genuinely
-    /// couldn't be delivered (rather than a timing fluke) - same intent
-    /// as before, just each send is now bounded by SendTimeoutMs instead
-    /// of running synchronously and unboundedly on the caller's thread.
-    /// Stops at the first failure/timeout rather than churning through
-    /// the rest of the batch against a connection that's likely already
-    /// gone again.
-    /// </summary>
+    /// <summary>Tells this connection it's now safe to replay pending checks against the currently connected seed.</summary>
+    public void NotifyGameVerifiedForSeed()
+    {
+        if (_session is not { } session)
+            return;
+        if (_pendingChecksFlushedThisSession)
+            return;
+        _pendingChecksFlushedThisSession = true;
+
+        _ = FlushPendingChecksAsync(session);
+    }
+
+    /// <summary>Attempts to send every queued check tagged for the currently connected seed.</summary>
     private async Task FlushPendingChecksAsync(ArchipelagoSession session)
     {
-        foreach (long id in _checkQueue.Snapshot())
+        foreach (PendingCheck check in _checkQueue.Snapshot())
         {
             if (!ReferenceEquals(_session, session))
-                return; // session already moved on - let the next connect retry
+                return;
+
+            // A null SeedName means the check was queued with no save seed set (e.g. before a seed tag was
+            // ever recorded) - never assume that's safe to flush. Only send checks explicitly tagged with
+            // the currently connected seed.
+            if (check.SeedName is null || !string.Equals(check.SeedName, SeedName, StringComparison.Ordinal))
+                continue;
+
+            long id = session.Locations.GetLocationIdFromName(GameName, check.LocationName);
+            if (id == -1)
+                continue;
 
             bool ok = await TrySendAsync(session, () => session.Locations.CompleteLocationChecks(id));
             if (!ok)
                 return;
 
-            _checkQueue.Remove(id);
+            _checkQueue.Remove(check.LocationName);
         }
     }
 
-    /// <summary>
-    /// Runs a blocking send on a background thread with a bounded
-    /// timeout, so a socket that's silently hung (the OS hasn't yet
-    /// noticed the peer is gone) can never freeze the calling thread -
-    /// which for every caller in this class is the UI thread. If the send
-    /// doesn't complete within SendTimeoutMs, or throws, the connection is
-    /// declared dead: on a healthy connection a local send call completes
-    /// near-instantly, so either outcome is good evidence something's
-    /// actually wrong, not just slow.
-    /// </summary>
+    /// <summary>Runs a blocking send on a background thread with a bounded timeout.</summary>
     private async Task<bool> TrySendAsync(ArchipelagoSession session, Action send)
     {
         if (!ReferenceEquals(_session, session))
-            return false; // already moved on to a different (or no) session
+            return false;
 
         try
         {
@@ -345,7 +310,7 @@ public sealed class ArchipelagoConnection : IDisposable
                 return false;
             }
 
-            await sendTask; // observe/rethrow any exception the send itself threw
+            await sendTask;
             return true;
         }
         catch
@@ -358,15 +323,14 @@ public sealed class ArchipelagoConnection : IDisposable
     private void HandleDeadConnection(ArchipelagoSession session, string message)
     {
         if (!ReferenceEquals(_session, session))
-            return; // a newer connection already took over - not this one's news to report
+            return;
 
         _session = null;
         SlotData = null;
+        SeedName = null;
+        _pendingChecksFlushedThisSession = false;
         RaiseState(ApConnectionState.Disconnected, message);
 
-        // Best-effort, fire-and-forget cleanup - we already know this
-        // socket isn't behaving, so there's nothing to gain from waiting
-        // on it further.
 #pragma warning disable CS4014
         try { session.Socket.DisconnectAsync(); } catch { /* best-effort */ }
 #pragma warning restore CS4014
@@ -386,11 +350,9 @@ public sealed class ArchipelagoConnection : IDisposable
         {
             _session = null;
             SlotData = null;
+            SeedName = null;
+            _pendingChecksFlushedThisSession = false;
 
-            // Called from sync contexts (Disconnect(), Dispose(), and the
-            // top of ConnectAsync before the new session exists) where we
-            // can't await, so this is intentionally fire-and-forget - we
-            // don't need to know the socket finished closing before moving on.
 #pragma warning disable CS4014
             try { session.Socket.DisconnectAsync(); } catch { /* best-effort */ }
 #pragma warning restore CS4014

@@ -2,33 +2,13 @@ using System.Runtime.InteropServices;
 
 namespace StarshipTitanicAp;
 
-/// <summary>
-/// Installs a persistent inline hook on CPetConversations::textLineEntered(),
-/// confirmed live via disassembly (see project notes). Unlike RemoteCaller's
-/// one-shot CreateRemoteThread calls, this patches the function's own entry
-/// bytes with a detour to a stub that stays resident for the rest of the
-/// session.
-///
-/// Behavior: if the typed line starts with '!', the stub copies it into a
-/// small mailbox buffer (polled via PollCommand), calls the confirmed
-/// _textInput clear function directly, and returns WITHOUT running any of
-/// the original function - so CTextInputMsg / TrueTalk never sees it.
-/// Anything not starting with '!' falls through to the original,
-/// unmodified function via a trampoline (re-executing the 19 bytes we
-/// overwrote, then jumping back past them).
-///
-/// IMPORTANT: this is genuinely experimental compared to the rest of this
-/// app's remote-call mechanisms. Before relying on it, verify the
-/// installed stub in x64dbg (Ctrl+G to the reported stub address) and
-/// confirm it disassembles as a sensible check-then-branch, not garbage.
-/// Test normal (non-'!') typing first to confirm the trampoline path is
-/// transparent before testing the block path.
-/// </summary>
+/// <summary>Installs a persistent inline hook on CPetConversations::textLineEntered() to intercept '!' commands.</summary>
 public static class TextCommandHook
 {
     private const int OriginalBytesLength = 19; // 8 pushes (12 bytes) + sub rsp,0xE8 (7 bytes)
     private const int MailboxTextSize = 120;     // keep <=120 so all copy-loop displacements fit in disp8 if ever changed
-    private const int MailboxTotalSize = 1 + MailboxTextSize; // [0]=ready flag, [1..]=text bytes
+    private const int ConversationsAddrMailboxOffset = 1 + MailboxTextSize; // right after [0]=ready flag, [1..120]=text
+    private const int MailboxTotalSize = ConversationsAddrMailboxOffset + 8; // + 8 bytes for the captured _conversations address
 
     private static bool _installed;
     private static long _hookedFuncAddr;
@@ -37,6 +17,9 @@ public static class TextCommandHook
     private static long _mailboxAddr;
 
     public static bool IsInstalled => _installed;
+
+    /// <summary>CPetConversations's own live address, captured as a side effect of the hook firing.</summary>
+    public static long ConversationsAddr { get; private set; }
 
     public static bool Install(MemoryReader mem)
     {
@@ -59,14 +42,16 @@ public static class TextCommandHook
             return false;
 
         // --- Build the stub, two-pass (compute lengths, then patch the jne offset) ---
+        byte[] captureBlock = BuildCaptureConversationsBlock(mailboxAddr);
         byte[] commandBlock = BuildCommandBlock(mailboxAddr, clearFuncAddr);
         byte[] notCommandBlock = BuildNotCommandBlock(original, funcAddr);
         byte[] checkBlock = BuildCheckBlock(commandBlock.Length);
 
-        byte[] stub = new byte[checkBlock.Length + commandBlock.Length + notCommandBlock.Length];
-        Buffer.BlockCopy(checkBlock, 0, stub, 0, checkBlock.Length);
-        Buffer.BlockCopy(commandBlock, 0, stub, checkBlock.Length, commandBlock.Length);
-        Buffer.BlockCopy(notCommandBlock, 0, stub, checkBlock.Length + commandBlock.Length, notCommandBlock.Length);
+        byte[] stub = new byte[captureBlock.Length + checkBlock.Length + commandBlock.Length + notCommandBlock.Length];
+        Buffer.BlockCopy(captureBlock, 0, stub, 0, captureBlock.Length);
+        Buffer.BlockCopy(checkBlock, 0, stub, captureBlock.Length, checkBlock.Length);
+        Buffer.BlockCopy(commandBlock, 0, stub, captureBlock.Length + checkBlock.Length, commandBlock.Length);
+        Buffer.BlockCopy(notCommandBlock, 0, stub, captureBlock.Length + checkBlock.Length + commandBlock.Length, notCommandBlock.Length);
 
         long stubAddr = RemoteCaller.AllocateAndWrite(mem, stub);
         if (stubAddr == 0)
@@ -111,18 +96,22 @@ public static class TextCommandHook
         _hookedFuncAddr = 0;
         _stubAddr = 0;
         _mailboxAddr = 0;
+        ConversationsAddr = 0;
         return restored;
     }
 
-    /// <summary>
-    /// Checks the mailbox for a newly submitted '!' command. Returns the
-    /// command text (without the leading '!') if one is waiting, and
-    /// clears the ready flag. Returns null if nothing is waiting.
-    /// </summary>
+    /// <summary>Checks the mailbox for a newly submitted '!' command.</summary>
     public static string? PollCommand(MemoryReader mem)
     {
         if (!_installed)
             return null;
+
+        if (ConversationsAddr == 0)
+        {
+            long? captured = mem.ReadInt64(_mailboxAddr + ConversationsAddrMailboxOffset);
+            if (captured is not null && captured.Value != 0)
+                ConversationsAddr = captured.Value;
+        }
 
         byte[]? readyByte = mem.ReadBytes(_mailboxAddr, 1);
         if (readyByte is null || readyByte[0] == 0)
@@ -138,8 +127,6 @@ public static class TextCommandHook
         int length = nullIdx >= 0 ? nullIdx : textBytes.Length;
         string text = System.Text.Encoding.ASCII.GetString(textBytes, 0, length);
 
-        // Strip the leading '!' if present (it should always be, since
-        // that's what the stub checks for before copying).
         return text.StartsWith("!") ? text[1..] : text;
     }
 
@@ -149,6 +136,22 @@ public static class TextCommandHook
     // ------------------------------------------------------------------
     // Stub construction
     // ------------------------------------------------------------------
+
+    /// <summary>Captures rcx (CPetConversations's own `this`) into the mailbox before anything else runs.</summary>
+    private static byte[] BuildCaptureConversationsBlock(long mailboxAddr)
+    {
+        var b = new List<byte>();
+        long captureDst = mailboxAddr + ConversationsAddrMailboxOffset;
+
+        // mov r10, imm64 (destination address in mailbox)
+        b.AddRange(new byte[] { 0x49, 0xBA });
+        b.AddRange(BitConverter.GetBytes(captureDst));
+
+        // mov qword ptr [r10], rcx
+        b.AddRange(new byte[] { 0x49, 0x89, 0x0A });
+
+        return b.ToArray();
+    }
 
     private static byte[] BuildCheckBlock(int commandBlockLength)
     {
@@ -185,7 +188,7 @@ public static class TextCommandHook
         // mov byte ptr [r11], 1
         b.AddRange(new byte[] { 0x41, 0xC6, 0x03, 0x01 });
 
-        // lea rcx, [rcx+0x4B0]   (rcx still holds original 'this' - untouched so far)
+        // lea rcx, [rcx+0x4B0]   (rcx still holds original 'this')
         b.AddRange(new byte[] { 0x48, 0x8D, 0x89 });
         b.AddRange(BitConverter.GetBytes((int)GameOffsets.TextInputFieldOffset));
 

@@ -1,16 +1,11 @@
 namespace StarshipTitanicAp;
 
-/// <summary>
-/// Room ID -> display name, read directly from the game's own tree
-/// objects (CRoomItem+0x78, confirmed via Arboretum=48 and Bar=31,
-/// both matching the exit-link numbers found in the tree's own data).
-/// IDs not present here are either unused or one of the "NoName"
-/// internal containers (inventory, etc.), not real rooms.
-/// </summary>
+/// <summary>Maps room IDs to their display names.</summary>
 public static class RoomNames
 {
     private static readonly Dictionary<int, string> Names = new()
     {
+        // Unused rooms commented out
         [2] = "EmbLobby",
         [3] = "Home",
         [5] = "MoonEmbLobby",
@@ -34,7 +29,7 @@ public static class RoomNames
         [37] = "Titania",
         [38] = "BottomOfWell",
         [39] = "CreatorsChamber",
-        [40] = "TestRoom - Adam",
+        // [40] = "TestRoom - Adam",
         [42] = "CreatorsChamberOn",
         [43] = "Bridge",
         [44] = "SculptureChamber",
@@ -44,12 +39,12 @@ public static class RoomNames
         [48] = "Arboretum",
         [49] = "1stClassRestaurant",
         [50] = "HiddenRoom",
-        [51] = "Please delete yarda yarda",
+        // [51] = "Please delete yarda yarda",
         [52] = "FrozenArboretum",
         [53] = "MusicRoomLobby",
         [55] = "SecClassLittleLift",
         [56] = "Cheat Room",
-        [57] = "Canal",
+        // [57] = "Canal",
     };
 
     /// <summary>Returns the room's display name, or a fallback string if the ID isn't recognized.</summary>

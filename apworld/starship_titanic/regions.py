@@ -1,22 +1,5 @@
 """
-Starship Titanic - Region graph.
-
-Regions are deliberately coarse (one per "area" from the walkthrough) rather
-than per-room, since the source material's logic gates operate at that
-granularity. Entrance rules encode the class-upgrade/item gates from the
-logic model; per-location rules (for checks that need something extra beyond
-simply reaching the region) live in rules.py.
-
-Changelog vs. the previous revision:
-- Added "Top of the Well" as a hub region between Embarkation Lobby and
-  most of the rest of the ship (per the walkthrough: it's where the
-  elevators, the hidden door to Titania's Room, and the stairs all are).
-  Bilge Room is the one exception -- its service elevator is explicitly "in the
-  Embarkation lobby," so it stays a direct child of Embarkation Lobby.
-- "SGT Class Lobbys" renamed to "SGT Class Lobby".
-- Region access for 2nd Class Lobby / Bottom of the Well / 1st Class
-  Lobby now flows through Top of the Well rather than directly off
-  Embarkation Lobby.
+Starship Titanic - Region graph
 """
 from typing import Dict, List
 
@@ -34,49 +17,53 @@ ALL_REGIONS: List[str] = [
     "Menu",
     "Embarkation Lobby",
     "Top of the Well",
+    "Bottom of the Well",
     "Parrot Lobby",
     "Bilge Room",
     "Titania's Room",
-    "Creator's Room",
-    "Sculpture Room",
-    "SGT Class Lobby",
-    "2nd Class Lobby",
-    "Bottom of the Well",
-    "Broken Elevator",
-    "1st Class Lobby",
-    "Chevron Room",
+    "Creator's Chamber",
+    "Sculpture Chamber",
     "Promenade Deck",
     "Arboretum",
     "Bar",
     "Music Room",
     "1st Class Restaurant",
     "Bridge",
+    "SGT Class Lobby",
+    "2nd Class Lobby",
+    "1st Class Lobby",
+    "1st Class Stateroom",
+    "2nd Class Stateroom",
+    "SGT Class Stateroom",
 ]
 
-# (from_region, to_region) -> used purely for documentation/creation order;
-# actual access rules are attached in rules.py via
-# multiworld.get_entrance(name, player).access_rule = ...
-# Entrance names follow the "A -> B" convention.
+# (from_region, to_region)
 REGION_CONNECTIONS: List[tuple] = [
+    # Always Available
     ("Menu", "Embarkation Lobby"),
+    # SGT Class
     ("Embarkation Lobby", "Bilge Room"),
     ("Embarkation Lobby", "Top of the Well"),
     ("Top of the Well", "Parrot Lobby"),
     ("Top of the Well", "Titania's Room"),
-    ("Top of the Well", "Sculpture Room"),
     ("Top of the Well", "SGT Class Lobby"),
-    ("Top of the Well", "2nd Class Lobby"),
+    ("SGT Class Lobby", "SGT Class Stateroom"),
     ("Top of the Well", "Bottom of the Well"),
+    ("Top of the Well", "2nd Class Lobby"),
     ("Top of the Well", "1st Class Lobby"),
-    ("Titania's Room", "Creator's Room"),
+    # 2nd Class
+    ("2nd Class Lobby", "2nd Class Stateroom"),
+    ("Top of the Well", "Sculpture Chamber"),
+    ("Top of the Well", "Creator's Chamber"),
+    ("Top of the Well", "Promenade Deck"),
+    ("Top of the Well", "Bar"),
+    ("Top of the Well", "Music Room"),
+    # 1st Class
+    ("1st Class Lobby", "1st Class Stateroom"),
+    ("Top of the Well", "Arboretum"),
+    ("Top of the Well", "1st Class Restaurant"),
+    # After Titania Repair
     ("Titania's Room", "Bridge"),
-    ("Bottom of the Well", "Broken Elevator"),
-    ("1st Class Lobby", "Chevron Room"),
-    ("1st Class Lobby", "Promenade Deck"),
-    ("1st Class Lobby", "Arboretum"),
-    ("1st Class Lobby", "Bar"),
-    ("1st Class Lobby", "Music Room"),
-    ("1st Class Lobby", "1st Class Restaurant"),
 ]
 
 

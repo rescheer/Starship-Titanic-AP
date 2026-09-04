@@ -1,29 +1,5 @@
 """
-Starship Titanic - Archipelago World (first pass, revision 2).
-
-Built from a walkthrough-derived puzzle-logic model. This has NOT been
-tested against a live Archipelago core -- validate with
-`python Generate.py` (or the WebHost generator) against your installed AP
-version before relying on it, and check API calls like Region.connect(),
-place_locked_item(), and the Options dataclass pattern against that
-version's BaseClasses/Options modules, since these have drifted across AP
-releases.
-
-See CHECKS_AND_ITEMS.md (shipped alongside this world, and also handed to
-whoever is building the client-side mod) for the full human-readable
-reference this code implements.
-
-Changelog vs. the previous revision:
-- create_items() now respects STItemData.quantity, since Progressive
-  Passenger Class Upgrade needs 2 copies in the pool.
-- create_items() now explicitly pads the pool with filler to match the
-  non-event location count exactly, rather than assuming the AP core
-  auto-generates filler for a per-player location/item surplus. It
-  doesn't, at least not reliably across forks/versions -- relying on that
-  produced a real FillError in practice (a "Player X had N more locations
-  than items" log line followed by dozens of permanently unfilled
-  locations, one per excess slot per player). Pool size and non-event
-  location count are now asserted equal after padding.
+Starship Titanic - Archipelago World.
 """
 from typing import Any, Dict
 
@@ -62,9 +38,9 @@ class StarshipTitanicWeb(WebWorld):
 
 class StarshipTitanicWorld(World):
     """
-    Starship Titanic: guide a lost passenger through Mother, the Fuse Box,
-    both class upgrades, and Titania's eleven scattered parts to repair the
-    ship's AI and pilot her home.
+    Starship Titanic: wander through a wayward starship full of barely-
+    functioning robots, solving puzzles and colleecting eleven
+    scattered parts to repair the ship's AI and make it back home.
     """
 
     game = "Starship Titanic"
@@ -93,17 +69,10 @@ class StarshipTitanicWorld(World):
 
         pool = []
         for name, data in item_table.items():
-            if data.code is None:  # events never enter the pool
+            if data.code is None:
                 continue
             pool.extend(self.create_item(name) for _ in range(data.quantity))
 
-        # Do NOT rely on the core to auto-pad a per-player location/item
-        # count mismatch with filler -- that behavior isn't guaranteed
-        # across AP forks/versions, and silently assuming it exists causes
-        # exactly the failure this comment is replacing: a
-        # "Player X had N more locations than items" log line followed by
-        # Fill.FillError because nothing actually filled the gap. Pad
-        # explicitly, every time, so generation never depends on that.
         deficit = non_event_locations - len(pool)
         if deficit > 0:
             pool.extend(self.create_item(self.get_filler_item_name()) for _ in range(deficit))
@@ -127,9 +96,6 @@ class StarshipTitanicWorld(World):
         return self.random.choice(filler_item_names)
 
     def fill_slot_data(self) -> Dict[str, Any]:
-        # Handed to the client mod at connect time. Kept small and stable
-        # so the client doesn't need to know Archipelago's internal item
-        # IDs -- it can just match on these readable event/location names.
         return {
             "titania_parts": sorted(item_name_groups["Titania Parts"]),
             "progressive_class_upgrade_item": "Progressive Passenger Class Upgrade",

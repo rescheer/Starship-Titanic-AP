@@ -2,16 +2,10 @@ using System.Text.Json;
 
 namespace StarshipTitanicAp;
 
-/// <summary>
-/// Queues location checks that couldn't be sent (not connected, or the
-/// send itself failed) and retries them whenever a connection becomes
-/// available. Persisted to disk so a check survives the app being closed
-/// and reopened while still disconnected, not just a same-run reconnect.
-///
-/// Location IDs are naturally deduplicated (backed by a HashSet) - AP
-/// treats resending an already-completed check as a no-op anyway, so
-/// there's no reason to track the same id twice even locally.
-/// </summary>
+/// <summary>A single queued-but-unsent location check, paired with the AP seed_name it was queued under.</summary>
+public readonly record struct PendingCheck(string LocationName, string? SeedName);
+
+/// <summary>Queues location checks that couldn't be sent and retries them whenever a connection becomes available.</summary>
 public sealed class LocationCheckQueue
 {
     private static readonly string FilePath = Path.Combine(
@@ -20,11 +14,13 @@ public sealed class LocationCheckQueue
         "pending_checks.json");
 
     private readonly object _lock = new();
-    private readonly HashSet<long> _pending;
+    private readonly Dictionary<string, string?> _pending;
 
     public LocationCheckQueue()
     {
-        _pending = new HashSet<long>(Load());
+        _pending = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (PendingCheck check in Load())
+            _pending[check.LocationName] = check.SeedName;
     }
 
     public int Count
@@ -32,54 +28,43 @@ public sealed class LocationCheckQueue
         get { lock (_lock) return _pending.Count; }
     }
 
-    /// <summary>
-    /// Adds a location id to the queue if it isn't already there, and
-    /// persists immediately - so a check made right before the app is
-    /// killed or crashes isn't lost.
-    /// </summary>
-    public void Enqueue(long locationId)
+    /// <summary>Adds a location name to the queue if it isn't already there and persists immediately.</summary>
+    public bool Enqueue(string locationName, string? seedName)
     {
         lock (_lock)
         {
-            if (_pending.Add(locationId))
+            if (_pending.ContainsKey(locationName))
+                return false;
+            _pending[locationName] = seedName;
+            Save();
+            return true;
+        }
+    }
+
+    /// <summary>Point-in-time snapshot of every queued check.</summary>
+    public PendingCheck[] Snapshot()
+    {
+        lock (_lock)
+        {
+            var result = new PendingCheck[_pending.Count];
+            int i = 0;
+            foreach (KeyValuePair<string, string?> kvp in _pending)
+                result[i++] = new PendingCheck(kvp.Key, kvp.Value);
+            return result;
+        }
+    }
+
+    /// <summary>Removes a single name once its send is confirmed successful.</summary>
+    public void Remove(string locationName)
+    {
+        lock (_lock)
+        {
+            if (_pending.Remove(locationName))
                 Save();
         }
     }
 
-    /// <summary>
-    /// Point-in-time snapshot of every queued id, for a caller that wants
-    /// to attempt sending them itself (e.g. asynchronously, one at a time,
-    /// off the calling thread) rather than handing this class a
-    /// synchronous send callback.
-    /// </summary>
-    public long[] Snapshot()
-    {
-        lock (_lock)
-            return _pending.ToArray();
-    }
-
-    /// <summary>
-    /// Removes a single id once its send is confirmed successful. No-op,
-    /// not an error, if it's already gone (e.g. removed by a concurrent
-    /// attempt, or never queued in the first place).
-    /// </summary>
-    public void Remove(long locationId)
-    {
-        lock (_lock)
-        {
-            if (_pending.Remove(locationId))
-                Save();
-        }
-    }
-
-    /// <summary>
-    /// Drops every queued check without sending it. For clearing out
-    /// stale entries after a server reset during testing/development -
-    /// the queue isn't scoped to a particular server/seed, so checks
-    /// queued against one session will happily get replayed against
-    /// whatever session is connected next, which is exactly wrong after
-    /// a deliberate reset.
-    /// </summary>
+    /// <summary>Drops every queued check without sending it.</summary>
     public void Clear()
     {
         lock (_lock)
@@ -91,23 +76,29 @@ public sealed class LocationCheckQueue
         }
     }
 
-    private static List<long> Load()
+    private static List<PendingCheck> Load()
     {
         try
         {
             if (!File.Exists(FilePath))
-                return new List<long>();
+                return new List<PendingCheck>();
 
             string json = File.ReadAllText(FilePath);
-            return JsonSerializer.Deserialize<List<long>>(json) ?? new List<long>();
+            Dictionary<string, string?>? dict = JsonSerializer.Deserialize<Dictionary<string, string?>>(json);
+            if (dict is null)
+                return new List<PendingCheck>();
+
+            var result = new List<PendingCheck>(dict.Count);
+            foreach (KeyValuePair<string, string?> kvp in dict)
+                result.Add(new PendingCheck(kvp.Key, kvp.Value));
+            return result;
         }
         catch
         {
-            return new List<long>();
+            return new List<PendingCheck>();
         }
     }
 
-    /// <summary>Caller must hold _lock.</summary>
     private void Save()
     {
         try
@@ -121,7 +112,7 @@ public sealed class LocationCheckQueue
         }
         catch
         {
-            // Best-effort - see ConnectionSettings.cs for the same reasoning.
+            // Best-effort.
         }
     }
 }

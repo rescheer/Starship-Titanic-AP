@@ -1,5 +1,5 @@
 # Starship Titanic - Archipelago Mod
-A Starship Titanic .apworld and client for use with [Archipelago](https://archipelago.gg/). Both are in an **early alpha state**, and should not currently be used in live games.
+A Starship Titanic client for use with [Archipelago](https://archipelago.gg/). Both are in an **early alpha state**, and should not currently be used in live games.
 
 **For use with the Steam version of Starship Titanic** 
 
@@ -8,7 +8,7 @@ Requires [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/
 ## Installation
 1. Download the [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) if you do not already have it
 2. Extract the client anywhere on your PC
-3. Double-click the .apworld to add it to your Archipelago custom worlds
+3. Download the .apworld at [TODO] to add it to your Archipelago custom worlds
 4. In the Archipelago launcher, run the "Generate Template Options" tool to generate a template .yaml file in your Player/Templates folder
 5. Edit the .yaml raw or with your preferred editor
 6. Provide the .yaml file to the host of the room, or visit [archipelago.gg](https://archipelago.gg/tutorial/) for details on generating your own multiworld

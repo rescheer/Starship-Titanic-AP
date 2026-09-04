@@ -1,115 +1,166 @@
 namespace StarshipTitanicAp;
 
-/// <summary>
-/// Maps this app's RoomNames (internal engine room names, read from game
-/// memory) to the "&lt;Region&gt; - Arrive for the First Time" location IDs
-/// defined in the starship_titanic .apworld (locations.py, offsets
-/// 200-218, one per AP region). Several engine rooms map to the same
-/// region on purpose - e.g. all SGT Class Floor sub-rooms - matching the
-/// world's "regions are coarser than physical rooms" design (see
-/// regions.py).
-///
-/// A handful of engine rooms are deliberately left unmapped rather than
-/// guessed - sending a wrong/premature check is worse than sending none.
-/// See the NOTE below for what's missing and why.
-/// </summary>
+/// <summary>Maps this app's internal engine concepts to the AP location name strings defined in the .apworld.</summary>
 public static class LocationChecks
 {
-    private const long LocationIdBase = 771901000;
-
-    // engine room name (RoomNames.cs) -> AP location id offset (locations.py)
-    private static readonly Dictionary<string, long> RoomToLocationOffset = new(StringComparer.OrdinalIgnoreCase)
+    // engine room name (RoomNames.cs) -> AP location name (locations.py)
+    private static readonly Dictionary<string, string> RoomToLocationName = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["EmbLobby"] = 200,
-        ["MoonEmbLobby"] = 200,           // best-effort: presumed same physical lobby, later game state - verify
-        ["TopOfWell"] = 201,
-        ["ParrotLobby"] = 202,
-        ["BilgeRoom"] = 203,
-        ["BilgeRoomWith"] = 203,
-        ["Titania"] = 204,
-        ["CreatorsChamber"] = 205,
-        ["CreatorsChamberOn"] = 205,
-        ["SculptureChamber"] = 206,
-        ["SgtLobby"] = 207,
-        ["SGTLittleLift"] = 207,
-        ["SGTLeisure"] = 207,
-        ["SGTState"] = 207,
-        ["secClassState"] = 208,
-        ["2ndClassLobby"] = 208,
-        ["SecClassLittleLift"] = 208,
-        ["BottomOfWell"] = 209,
-        ["Lift"] = 210,                   // best-effort: presumed "Broken Elevator" - verify
-        ["1stClassState"] = 211,
-        ["1stClassLobby"] = 211,
-        ["PromenadeDeck"] = 213,
-        ["Arboretum"] = 214,
-        ["FrozenArboretum"] = 214,
-        ["Bar"] = 215,
-        ["MusicRoom"] = 216,
-        ["MusicRoomLobby"] = 216,
-        ["1stClassRestaurant"] = 217,
-        ["Bridge"] = 218,
-
-        // NOTE - deliberately NOT mapped, no confident match from room
-        // names alone (cross-check against RoomNames.cs's full list):
-        //   "Chevron Room" (AP region offset 212) has no obvious dedicated
-        //     entry in RoomNames.cs - the chevron puzzle is likely reached
-        //     by dialing a specific floor/elevator/room code into one of
-        //     the generic state rooms (secClassState/1stClassState) rather
-        //     than being its own distinct room id, so there's nothing
-        //     reliable to key off yet.
-        //   ServiceElevator, Pellerator, Dome, Canal, Home, TheEnd,
-        //     "TestRoom - Adam", HiddenRoom, "Please delete yarda yarda",
-        //     "Cheat Room" - either dev/cut-content rooms or ones with no
-        //     obvious matching AP region.
-        // Fill these in (and double check the "best-effort" ones above)
-        // once confirmed against actual gameplay.
+        // Always available
+        ["EmbLobby"] = "Embarkation Lobby - Visited",
+        ["MoonEmbLobby"] = "Embarkation Lobby - Visited",  // the EmbLobby before the opening credits
+        ["TopOfWell"] = "Top of the Well - Visited",
+        ["BottomOfWell"] = "Bottom of the Well - Visited",
+        ["ParrotLobby"] = "Parrot Lobby - Visited",
+        ["BilgeRoom"] = "Bilge Room - Visited",
+        ["BilgeRoomWith"] = "Bilge Room - Visited",
+        ["Titania"] = "Titania's Room - Visited",
+        ["CreatorsChamber"] = "Creator's Chamber - Visited",
+        ["CreatorsChamberOn"] = "Creator's Chamber - Visited",
+        ["SculptureChamber"] = "Sculpture Chamber - Visited",
+        // SGT Class
+        ["SgtLobby"] = "SGT Class Lobby - Visited",
+        ["SGTLittleLift"] = "SGT Class Lobby - Visited",
+        ["SGTLeisure"] = "SGT Class Lobby - Visited",
+        ["SGTState"] = "SGT Class Stateroom - Visited",
+        // 2nd Class
+        ["secClassState"] = "2nd Class Stateroom - Visited",
+        ["2ndClassLobby"] = "2nd Class Lobby - Visited",
+        ["SecClassLittleLift"] = "2nd Class Lobby - Visited",
+        ["Bar"] = "Bar - Visited",
+        ["MusicRoom"] = "Music Room - Visited",
+        ["MusicRoomLobby"] = "Music Room - Visited",
+        ["PromenadeDeck"] = "Promenade Deck - Visited",
+        // 1st Class
+        ["1stClassState"] = "1st Class Stateroom - Visited",
+        ["1stClassLobby"] = "1st Class Lobby - Visited",
+        ["Arboretum"] = "Arboretum - Visited",
+        ["FrozenArboretum"] = "Arboretum - Visited",
+        ["1stClassRestaurant"] = "1st Class Restaurant - Visited",
+        // After Titania Repair
+        ["Bridge"] = "Bridge - Visited",
+        ["TheEnd"] = "The End - Return Home",
     };
 
-    /// <summary>
-    /// Looks up the AP location id for a room's "Arrive for the First
-    /// Time" check. Returns false for rooms with no known mapping (see
-    /// the NOTE above) - callers should just skip sending anything in
-    /// that case rather than guess.
-    /// </summary>
-    public static bool TryGetLocationId(string roomName, out long locationId)
+    // Point-of-interest locations, keyed by the exact (Room, Node, View)
+    private static readonly Dictionary<RoomNodeView, string> PointOfInterestLocationName = new()
     {
-        if (RoomToLocationOffset.TryGetValue(roomName, out long offset))
+        [new RoomNodeView(45, 2, 2)] = "Bilge Room - Succ-U-Bus (Mother)",  // Bilge Room without body
+        [new RoomNodeView(47, 1, 2)] = "Bilge Room - Succ-U-Bus (Mother)",  // Bilge Room with body
+        [new RoomNodeView(2, 2, 4)]  = "Embarkation Lobby - Succ-U-Bus",
+        [new RoomNodeView(5, 2, 4)]  = "Embarkation Lobby - Succ-U-Bus",   // MoonEmbLobby
+        [new RoomNodeView(9, 2, 1)]  = "Parrot Lobby - Succ-U-Bus",
+        [new RoomNodeView(38, 6, 1)] = "Bottom of the Well - Succ-U-Bus",
+        [new RoomNodeView(11, 3, 3)] = "SGT Class Lobby - Succ-U-Bus",
+        [new RoomNodeView(16, 3, 1)] = "Promenade Deck - Succ-U-Bus",
+        [new RoomNodeView(53, 2, 1)] = "Music Room - Succ-U-Bus",
+        [new RoomNodeView(31, 5, 1)] = "Bar - Succ-U-Bus",
+        [new RoomNodeView(49, 6, 1)] = "1st Class Restaurant - Succ-U-Bus",
+        [new RoomNodeView(48, 8, 1)] = "Arboretum - Succ-U-Bus",          // Arboretum (unfrozen)
+        [new RoomNodeView(52, 7, 1)] = "Arboretum - Succ-U-Bus",          // Frozen Arboretum
+        [new RoomNodeView(39, 3, 1)] = "Creator's Chamber - Succ-U-Bus",
+        [new RoomNodeView(42, 3, 1)] = "Creator's Chamber - Succ-U-Bus",  // pre red fuse and lever-pull
+        [new RoomNodeView(44, 8, 1)] = "Sculpture Chamber - Succ-U-Bus",
+        [new RoomNodeView(37, 5, 3)] = "Bomb Room - Succ-U-Bus",
+        [new RoomNodeView(6, 2, 1)]  = "2nd Class Stateroom - Succ-U-Bus",
+        [new RoomNodeView(34, 9, 1)] = "2nd Class Lobby - Succ-U-Bus",
+        [new RoomNodeView(7, 8, 1)]  = "1st Class Stateroom - Succ-U-Bus",
+        [new RoomNodeView(20, 8, 1)] = "1st Class Lobby - Succ-U-Bus",
+    };
+
+    // DeskBot class-upgrade locations, keyed by the PassengerClass value (2=Second, 1=First)
+    private static readonly Dictionary<int, string> ClassUpgradeLocationName = new()
+    {
+        [2] = "DeskBot - 2nd Class Upgrade",
+        [1] = "DeskBot - 1st Class Upgrade",
+    };
+
+    public static readonly IReadOnlyCollection<string> SuccUBusStationLocationNames =
+        PointOfInterestLocationName.Values
+            .Where(name => name.Contains("Succ-U-Bus", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToArray();
+
+    /// <summary>Human-readable display name for an engine room name, for UI purposes only.</summary>
+    public static string GetReadableRoomName(string roomName)
+    {
+        const string suffix = " - Visited";
+        if (RoomToLocationName.TryGetValue(roomName, out string? locationName))
         {
-            locationId = LocationIdBase + offset;
+            return locationName.EndsWith(suffix, StringComparison.Ordinal)
+                ? locationName[..^suffix.Length]
+                : locationName;
+        }
+
+        return roomName;
+    }
+
+    /// <summary>Looks up the AP location name for a room's "Visited" check.</summary>
+    public static bool TryGetLocationName(string roomName, out string locationName)
+    {
+        if (RoomToLocationName.TryGetValue(roomName, out string? name))
+        {
+            locationName = name;
             return true;
         }
 
-        locationId = 0;
+        locationName = "";
         return false;
     }
 
-    // DeskBot class-upgrade locations (offsets confirmed from
-    // locations.py): "DeskBot - Second Class Upgrade" = offset 1,
-    // "DeskBot - First Class Upgrade" = offset 2. Keyed by the
-    // PassengerClass value (2=Second, 1=First) ClassUpgradeHook reports
-    // the DeskBot attempted to set.
-    private static readonly Dictionary<int, long> ClassUpgradeLocationOffset = new()
+    /// <summary>Looks up the AP location name for visiting an exact (Room, Node, View) point of interest.</summary>
+    public static bool TryGetPointOfInterestLocationName(RoomNodeView rnv, out string locationName)
     {
-        [2] = 1, // Second Class
-        [1] = 2, // First Class
-    };
-
-    /// <summary>
-    /// Looks up the AP location id for a blocked DeskBot class-upgrade
-    /// attempt, given the PassengerClass value it tried to set (see
-    /// ClassUpgradeHook.PollAttemptedClass). Returns false for anything
-    /// outside 1/2 - there's no location for that.
-    /// </summary>
-    public static bool TryGetClassUpgradeLocationId(int attemptedClass, out long locationId)
-    {
-        if (ClassUpgradeLocationOffset.TryGetValue(attemptedClass, out long offset))
+        if (PointOfInterestLocationName.TryGetValue(rnv, out string? name))
         {
-            locationId = LocationIdBase + offset;
+            locationName = name;
             return true;
         }
 
-        locationId = 0;
+        locationName = "";
         return false;
     }
+
+    /// <summary>Looks up the AP location name for a blocked DeskBot class-upgrade attempt.</summary>
+    public static bool TryGetClassUpgradeLocationName(int attemptedClass, out string locationName)
+    {
+        if (ClassUpgradeLocationName.TryGetValue(attemptedClass, out string? name))
+        {
+            locationName = name;
+            return true;
+        }
+
+        locationName = "";
+        return false;
+    }
+
+    /// <summary>Looks up the AP location name for picking up a tracked item.</summary>
+    public static bool TryGetItemPickupLocationName(string itemName, out string locationName)
+    {
+        if (Items.TryGet(itemName, out ItemDefinition item) && item.PickupLocationName is not null)
+        {
+            locationName = item.PickupLocationName;
+            return true;
+        }
+
+        locationName = "";
+        return false;
+    }
+
+    /// <summary>Looks up the AP item name for a tracked item pickup.</summary>
+    public static bool TryGetApItemName(string itemName, out string apItemName)
+    {
+        if (Items.TryGet(itemName, out ItemDefinition item) && item.ApItemName is not null)
+        {
+            apItemName = item.ApItemName;
+            return true;
+        }
+
+        apItemName = "";
+        return false;
+    }
+
+    /// <summary>Looks up the engine item name for a granted AP item name.</summary>
+    public static bool TryGetEngineItemName(string apItemName, out string itemName) =>
+        Items.TryGetForApItemName(apItemName, out itemName);
 }
