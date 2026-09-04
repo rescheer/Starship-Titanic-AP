@@ -209,8 +209,8 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # Music Room
     # ---------------------------------------------------------------- #
     world.set_rule(
-        world.get_location("Music Room - Titania's Ear (Phonograph)")
-        & CanReachRegion("Music Room")
+        world.get_location("Music Room - Titania's Ear (Phonograph)"),
+        CanReachRegion("Music Room")
     )
 
     # ---------------------------------------------------------------- #
