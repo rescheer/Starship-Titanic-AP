@@ -35,6 +35,7 @@ public sealed partial class MainForm : Form
     private readonly HashSet<int> _sentStateroomAssignedChecks = new();
     private int _lastItemsReceivedCount = -1;
     private int _lastTableAccessItemsCount = -1;
+    private int _lastStateroomItemsReceivedCount = -1;
 
     private long? _currentGameManager;
     private long? _currentProject;
@@ -124,6 +125,8 @@ public sealed partial class MainForm : Form
         _btnUninstallMaitreDHook.Click += (_, _) => DoUninstallMaitreDHook();
         _btnInstallGetLiftEye2GateHook.Click += (_, _) => DoInstallGetLiftEye2GateHook();
         _btnUninstallGetLiftEye2GateHook.Click += (_, _) => DoUninstallGetLiftEye2GateHook();
+        _btnInstallRoomAssignHook.Click += (_, _) => DoInstallRoomAssignHook();
+        _btnUninstallRoomAssignHook.Click += (_, _) => DoUninstallRoomAssignHook();
         _btnDisplayMessageText.Click += (_, _) => DoDisplayMessageText();
         _btnSetDestToCurrentRoom.Click += (_, _) => DoSetMailDestToCurrentRoom();
         _btnCopyInventoryAddress.Click += (_, _) => DoCopyInventoryAddress();

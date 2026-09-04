@@ -202,6 +202,41 @@ public sealed partial class MainForm
         // gets the real petReassignRoom() room-assignment side effect that just sending the check here would miss.
     }
 
+    /// <summary>Applies the stateroom assignment(s) implied by "Progressive Stateroom" AP items received so far,
+    /// if any are still outstanding. Unlike SyncPassengerClassFromItems (a plain field write), each assignment
+    /// has to run through GameActions.AssignNextRoom - see RoomAssignHook's own doc comment for why. Catches up
+    /// more than one tier in a single pass (e.g. two items granted while offline) the same way
+    /// TrySendStateroomAssignedChecks does, assigning SGT/Third first, then Second, then First, in order.</summary>
+    private void SyncStateroomFromItems(long gameManager)
+    {
+        IReadOnlyDictionary<string, object>? slotData = _apConnection.SlotData;
+        if (slotData is null)
+            return;
+        if (_currentInventoryRoom is not { } petControlAddr)
+            return;
+
+        string[] receivedItems = _apConnection.GetReceivedItemNames();
+        if (receivedItems.Length == _lastStateroomItemsReceivedCount)
+            return;
+        _lastStateroomItemsReceivedCount = receivedItems.Length;
+
+        int? targetCount = StateroomAssignTracker.ComputeTargetAssignedCount(receivedItems, slotData);
+        if (targetCount is null)
+            return;
+
+        int achievedCount = GameActions.GetAchievedStateroomClass(_mem, petControlAddr);
+        for (int next = achievedCount + 1; next <= targetCount.Value; next++)
+        {
+            if (StateroomAssignTracker.ClassForAssignedCount(next) is not { } rawClass)
+                break;
+
+            bool ok = GameActions.AssignNextRoom(_mem, gameManager, petControlAddr, rawClass);
+            ShowActionResult(ok, $"Stateroom assignment from items: {PassengerClassNames.GetName(rawClass)}");
+            if (!ok)
+                break;
+        }
+    }
+
     /// <summary>The DeskBot's own RNV in the Embarkation Lobby, where both class-upgrade interactions happen.</summary>
     private static readonly RoomNodeView DeskBotRnv = new(2, 4, 1);
 

@@ -18,6 +18,9 @@ public sealed partial class MainForm
     private readonly Button _btnInstallGetLiftEye2GateHook = new() { Text = "Install Eye Gate", Width = 220 };
     private readonly Button _btnUninstallGetLiftEye2GateHook = new() { Text = "Uninstall Gate", Width = 220, Enabled = false };
     private readonly Label _lblGetLiftEye2GateHookStatus = new() { Text = "Gate not installed", AutoSize = true };
+    private readonly Button _btnInstallRoomAssignHook = new() { Text = "Install Room Assign Lock", Width = 220 };
+    private readonly Button _btnUninstallRoomAssignHook = new() { Text = "Uninstall Lock", Width = 220, Enabled = false };
+    private readonly Label _lblRoomAssignHookStatus = new() { Text = "Lock not installed", AutoSize = true };
     private readonly CheckBox _chkAllowInitialUpgrade = new()
     {
         Text = "Allow initial upgrade (None -> Third) - no AP item for this yet",
@@ -324,6 +327,42 @@ public sealed partial class MainForm
             _btnUninstallGetLiftEye2GateHook.Enabled = false;
         }
         ShowActionResult(ok, "Uninstall broken-elevator Eye gate");
+    }
+
+    private void DoInstallRoomAssignHook()
+    {
+        if (!_mem.IsAttached)
+        {
+            ShowActionResult(false, "Not attached");
+            return;
+        }
+
+        bool ok = RoomAssignHook.Install(_mem);
+        if (ok)
+        {
+            _lblRoomAssignHookStatus.Text = "Installed";
+            _btnInstallRoomAssignHook.Enabled = false;
+            _btnUninstallRoomAssignHook.Enabled = true;
+        }
+        ShowActionResult(ok, "Install room assignment lock");
+    }
+
+    private void DoUninstallRoomAssignHook()
+    {
+        if (!_mem.IsAttached)
+        {
+            ShowActionResult(false, "Not attached");
+            return;
+        }
+
+        bool ok = RoomAssignHook.Uninstall(_mem);
+        if (ok)
+        {
+            _lblRoomAssignHookStatus.Text = "Lock not installed";
+            _btnInstallRoomAssignHook.Enabled = true;
+            _btnUninstallRoomAssignHook.Enabled = false;
+        }
+        ShowActionResult(ok, "Uninstall room assignment lock");
     }
 
     private void DoResetPetControl()

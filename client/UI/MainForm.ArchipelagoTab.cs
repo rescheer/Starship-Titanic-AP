@@ -98,6 +98,7 @@ public sealed partial class MainForm
                 _saveSeedGuardTagMismatches = 0;
                 _lastItemsReceivedCount = -1;
                 _lastTableAccessItemsCount = -1;
+                _lastStateroomItemsReceivedCount = -1;
                 if (_currentRoomName is not null)
                     TrySendRoomVisitCheck(_currentRoomName);
                 if (_lastRoomNodeView is not null)

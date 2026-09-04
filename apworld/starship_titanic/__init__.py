@@ -101,4 +101,8 @@ class StarshipTitanicWorld(World):
             "progressive_class_upgrade_item": "Progressive Passenger Class Upgrade",
             "second_class_tier": 1,
             "first_class_tier": 2,
+            "progressive_stateroom_item": "Progressive Stateroom",
+            "sgt_stateroom_tier": 1,
+            "second_stateroom_tier": 2,
+            "first_stateroom_tier": 3,
         }

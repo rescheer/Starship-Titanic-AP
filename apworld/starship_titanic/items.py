@@ -42,7 +42,17 @@ _progression_items: Dict[str, int] = {
     "Blue Fuse": 14,
     "Green Fuse": 15,
     "Yellow Fuse": 16,
-    "Restaurant Table Reservation": 17, 
+    "Restaurant Table Reservation": 17,
+}
+
+# --------------------------------------------------------------------------
+# Progressive Stateroom Assignment
+# --------------------------------------------------------------------------
+_progressive_room_items: Dict[str, int] = {
+    "Progressive Stateroom": 18,
+}
+_progressive_room_quantities: Dict[str, int] = {
+    "Progressive Stateroom": 3,
 }
 
 # --------------------------------------------------------------------------
@@ -122,6 +132,14 @@ for name, offset in _progressive_items.items():
         quantity=_progressive_quantities[name],
     )
 
+for name, offset in _progressive_room_items.items():
+    item_table[name] = STItemData(
+        ITEM_ID_BASE + offset,
+        ItemClassification.progression,
+        "Progressive",
+        quantity=_progressive_room_quantities[name],
+    )
+
 for name, offset in _titania_parts.items():
     item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, "Titania Part")
 
@@ -146,7 +164,7 @@ item_name_groups: Dict[str, Set[str]] = {
     "Fuses": {"Blue Fuse", "Green Fuse", "Red Fuse", "Yellow Fuse"},
     "Filler": set(_filler_items.keys()),
     "Traps": set(_trap_items.keys()),
-    "Progressive": set(_progressive_items.keys()),
+    "Progressive": set(_progressive_items.keys()) | set(_progressive_room_items.keys()),
 }
 
 filler_item_names = list(_filler_items.keys())
@@ -155,3 +173,8 @@ trap_item_names = list(_trap_items.keys())
 PROGRESSIVE_CLASS_UPGRADE = "Progressive Passenger Class Upgrade"
 SECOND_CLASS_TIER = 1
 FIRST_CLASS_TIER = 2
+
+PROGRESSIVE_STATEROOM = "Progressive Stateroom"
+SGT_STATEROOM_TIER = 1
+SECOND_STATEROOM_TIER = 2
+FIRST_STATEROOM_TIER = 3

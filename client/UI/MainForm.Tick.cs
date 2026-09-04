@@ -155,6 +155,7 @@ public sealed partial class MainForm
         // restart. Reconciling PassengerClass against AP items here first ensures nothing downstream reads that
         // stale/spoofed value before it's corrected.
         SyncPassengerClassFromItems(gameManager.Value);
+        SyncStateroomFromItems(gameManager.Value);
 
         ProcessPendingUnrestoreChecks(gameManager.Value);
 
@@ -243,6 +244,15 @@ public sealed partial class MainForm
                 {
                     ShowActionResult(false, $"DeskBot upgrade attempt for unrecognized class {attemptedClass.Value}");
                 }
+            }
+        }
+
+        if (RoomAssignHook.IsInstalled)
+        {
+            int? attemptedClass = RoomAssignHook.PollAttemptedClass(_mem);
+            if (attemptedClass is not null)
+            {
+                AppendLog($"RoomAssignHook: blocked petReassignRoom({PassengerClassNames.GetName(attemptedClass.Value)}) from taking effect - room assignment stays item-gated");
             }
         }
 

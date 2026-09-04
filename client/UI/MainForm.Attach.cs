@@ -19,6 +19,7 @@ public sealed partial class MainForm
             DoInstallClassLockHook();
             DoInstallMaitreDHook();
             DoInstallGetLiftEye2GateHook();
+            DoInstallRoomAssignHook();
 
             long? gameManager = GameState.ResolveGameManager(_mem);
             _currentGameManager = gameManager;
@@ -58,6 +59,10 @@ public sealed partial class MainForm
         if (GetLiftEye2GateHook.IsInstalled)
         {
             GetLiftEye2GateHook.Uninstall(_mem);
+        }
+        if (RoomAssignHook.IsInstalled)
+        {
+            RoomAssignHook.Uninstall(_mem);
         }
 
         _mem.Detach();

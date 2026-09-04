@@ -73,6 +73,15 @@ public sealed partial class MainForm
         layout.Controls.Add(_lblGetLiftEye2GateHookStatus);
         layout.Controls.Add(HelpLabel("Prevents a real softlock: the broken elevator's Titania's Eye pickup (CGetLiftEye2::MouseDragStartMsg) never checks the underlying Eye item's own _canTake at all - it forwards a CPassOnDragStartMsg straight to it - so this app injects an extra condition into that function's own \"checkPoint succeeded\" branch: the pickup only proceeds once the LiftBot Head is both AP-granted and physically in the player's inventory, otherwise it's blocked exactly like a failed checkPoint() (same as the vanilla function's own miss case - no message from the game itself), and this app shows its own message explaining why. A plain RNV arrival reminder can't do this job since the elevator's (Room, Node, View) is shared by every lift in the game. Installs automatically on attach. Try dragging the Eye without the Head in hand and confirm the pickup is blocked and the warning appears."));
 
+        layout.Controls.Add(Spacer());
+        layout.Controls.Add(SectionLabel("Room Assignment Lock [experimental]"));
+        var roomAssignLockRow = new FlowLayoutPanel { AutoSize = true };
+        roomAssignLockRow.Controls.Add(_btnInstallRoomAssignHook);
+        roomAssignLockRow.Controls.Add(_btnUninstallRoomAssignHook);
+        layout.Controls.Add(roomAssignLockRow);
+        layout.Controls.Add(_lblRoomAssignHookStatus);
+        layout.Controls.Add(HelpLabel("Blocks CGameObject::petReassignRoom() for every class - including SGT/Third, unlike the Class Upgrade Lock above - so a stateroom is never assigned except by this app itself. Assignment now applies only from receiving a 'Progressive Stateroom' item over the multiworld (GameActions.AssignNextRoom, which briefly lifts this lock to let the real function run for real, then reinstalls it). Installs automatically on attach. Try a legitimate DeskBot upgrade with the lock installed and confirm no new stateroom gets assigned until the matching item arrives."));
+
         page.Controls.Add(layout);
         return page;
     }

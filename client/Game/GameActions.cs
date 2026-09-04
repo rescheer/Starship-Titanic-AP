@@ -19,6 +19,28 @@ public static class GameActions
         return reset && dirty;
     }
 
+    /// <summary>Actually performs a room assignment for the given class (1=First, 2=Second, 3=Third/SGT) by
+    /// temporarily lifting RoomAssignHook's block, invoking the real petReassignRoom() so its own glyph-allocation
+    /// logic runs for real (picking/dedup-ing a room the same way the vanilla DeskBot interaction would), then
+    /// re-installing the hook so every other (non-AP-driven) attempt stays blocked. Used exclusively by
+    /// StateroomAssignTracker's item-driven progression - unlike PassengerClass, "which room" isn't a plain field
+    /// write, so it can't be spoofed the way SetPassengerClass is.</summary>
+    public static bool AssignNextRoom(MemoryReader mem, long gameManager, long petControlAddr, int newClass)
+    {
+        if (!RoomAssignHook.IsInstalled)
+            return false;
+        if (!RoomAssignHook.Uninstall(mem))
+            return false;
+
+        long funcAddr = mem.ModuleBase + GameOffsets.PetReassignRoomFunc;
+        bool called = RemoteCaller.Call(mem, funcAddr, rcx: gameManager, rdx: newClass);
+
+        bool reinstalled = RoomAssignHook.Install(mem);
+
+        bool refreshed = ResetPetControl(mem, petControlAddr) && MarkAllDirty(mem, gameManager);
+        return called && reinstalled && refreshed;
+    }
+
     /// <summary>Moves an item into the given room via the game's own detach()/attach() logic.</summary>
     public static bool MoveItemToRoom(MemoryReader mem, long itemAddr, long roomAddr, int flag1 = 0, int arg5 = 0, int arg6 = 1)
     {

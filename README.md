@@ -31,7 +31,7 @@ Locations in this apworld include:
 - Visiting rooms for the first time
 - And more planned
 
-Items include most carryable inventory items in the game as well as two Progressive Class Upgrades, which unlock more areas of the ship to explore.
+Items include most carryable inventory items in the game as well as two Progressive Class Upgrades, which unlock more areas of the ship to explore, and three Progressive Staterooms, which assign your next stateroom (SGT, then 2nd, then 1st Class).
 
 ## AI Disclosure
 - Generative AI was consulted and used in client development, especially to assist in all of the memory hacking used to make the client function. This is a learning project for me, so I'm writing more and more of my own client code as the project progresses, as well as rewriting some of the machine-authored foundational code.

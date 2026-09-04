@@ -12,6 +12,10 @@ from .items import (
     PROGRESSIVE_CLASS_UPGRADE,
     SECOND_CLASS_TIER,
     FIRST_CLASS_TIER,
+    PROGRESSIVE_STATEROOM,
+    SGT_STATEROOM_TIER,
+    SECOND_STATEROOM_TIER,
+    FIRST_STATEROOM_TIER,
 )
 
 if TYPE_CHECKING:
@@ -21,6 +25,10 @@ TITANIA_PARTS = item_name_groups["Titania Parts"]
 
 HAS_SECOND_CLASS = Has(PROGRESSIVE_CLASS_UPGRADE, count=SECOND_CLASS_TIER)
 HAS_FIRST_CLASS = Has(PROGRESSIVE_CLASS_UPGRADE, count=FIRST_CLASS_TIER)
+
+HAS_SGT_ROOM = Has(PROGRESSIVE_STATEROOM, count=SGT_STATEROOM_TIER)
+HAS_SECOND_ROOM = Has(PROGRESSIVE_STATEROOM, count=SECOND_STATEROOM_TIER)
+HAS_FIRST_ROOM = Has(PROGRESSIVE_STATEROOM, count=FIRST_STATEROOM_TIER)
 
 
 def set_rules(world: StarshipTitanicWorld) -> None:
@@ -73,17 +81,22 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         & CanReachRegion("Embarkation Lobby")
     )
     world.set_rule(
+        # Event
         world.get_location("DeskBot - SGT Stateroom Assigned"),
         CanReachRegion("Embarkation Lobby")
     )
     world.set_rule(
+        # Event
         world.get_location("DeskBot - 2nd Class Stateroom Assigned"),
-        Has("Magazine")
+        HAS_SGT_ROOM
+        & Has("Magazine")
         & CanReachRegion("Embarkation Lobby")
     )
     world.set_rule(
+        # Event
         world.get_location("DeskBot - 1st Class Stateroom Assigned"),
-        CanReachRegion("Sculpture Chamber")
+        HAS_SECOND_CLASS
+        & CanReachRegion("Sculpture Chamber")
         & CanReachRegion("Embarkation Lobby")
     )
 
@@ -170,6 +183,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     )
 
     world.set_rule(
+        # Event
         world.get_location("1st Class Restaurant - Titania's Auditory Center"),
         HAS_FIRST_CLASS
         & Has("Maitre'D Bot's Right Arm")
@@ -200,6 +214,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     )
 
     world.set_rule(
+        # Event
         world.get_location("Titania's Room - Repair Titania"),
         HasAll(*TITANIA_PARTS, "Titania's Auditory Center")
         & CanReachRegion("Titania's Room")
@@ -211,6 +226,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     )
     
     world.set_rule(
+        # Event
         world.get_location("The End - Return Home"),
         CanReachRegion("Bridge")
     )
