@@ -55,8 +55,25 @@ public static class GameOffsets
     public const long SetPassengerClassFunc = 0x23A2740;
 
     // CGameObject::petReassignRoom() - called by the DeskBot right after setPassengerClass();
-    // same calling convention (rcx = this/gameManager, edx = class number).
+    // same calling convention (rcx = this/gameManager, edx = class number). This is just a wrapper: it calls
+    // getPetControl() on rcx, computes CPetRooms* = result+PetRoomsOffset, then tail-jumps into the real
+    // CPetRooms::reassignRoom() body (see ReassignRoomBodyFunc below) with rcx=that CPetRooms*, edx=class number
+    // unchanged. RoomAssignHook hooks THIS address, since it's the one real natural callers (the DeskBot) use.
     public const long PetReassignRoomFunc = 0x23A3230;
+
+    // CPetRooms::reassignRoom(PassengerClass) - the real body PetReassignRoomFunc's wrapper tail-jumps into.
+    // Derived from that wrapper's own jmp displacement, then confirmed live: reads _elevatorBroken at
+    // [this+0x284] (matching CPetRooms::reassignRoom's known source), operates on _glyphs at [this+0x10]
+    // (matches PetRoomsGlyphsOffset) and writes glyph->_mode at [glyph+0x48] (matches
+    // PetRoomsGlyphModeOffset) - an exact structural match, not just a similar-looking address. Callable
+    // directly with rcx = petControlAddr + PetRoomsOffset (CPetRooms* this), edx = class number - this skips
+    // the wrapper's own getPetControl() call entirely, which matters because that call climbs the CTreeItem
+    // parent chain starting from rcx, and going in with rcx=gameManager (as the wrapper does) crashed with an
+    // access violation two hops up a bogus parent chain - gameManager is reached via a separate static offset
+    // chain (Step1/Step2/GameManager), not via the tree, so it isn't a valid climb start point. getPetControl()
+    // itself is fine when called with a real tree-embedded item address (see PetMoveToHiddenRoomFunc, which
+    // already does this successfully via RemoteCaller) - the bug is specific to using gameManager for it.
+    public const long ReassignRoomBodyFunc = 0x2437440;
 
     // Previous PassengerClass value, written by setPassengerClass() right
     // before it overwrites PassengerClass with the new one.

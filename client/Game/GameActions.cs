@@ -20,25 +20,27 @@ public static class GameActions
     }
 
     /// <summary>Actually performs a room assignment for the given class (1=First, 2=Second, 3=Third/SGT) by
-    /// temporarily lifting RoomAssignHook's block, invoking the real petReassignRoom() so its own glyph-allocation
-    /// logic runs for real (picking/dedup-ing a room the same way the vanilla DeskBot interaction would), then
-    /// re-installing the hook so every other (non-AP-driven) attempt stays blocked. Used exclusively by
-    /// StateroomAssignTracker's item-driven progression - unlike PassengerClass, "which room" isn't a plain field
-    /// write, so it can't be spoofed the way SetPassengerClass is.</summary>
+    /// calling CPetRooms::reassignRoom() directly (GameOffsets.ReassignRoomBodyFunc) so its own glyph-allocation
+    /// logic runs for real (picking/dedup-ing a room the same way the vanilla DeskBot interaction would). Used
+    /// exclusively by StateroomAssignTracker's item-driven progression - unlike PassengerClass, "which room"
+    /// isn't a plain field write, so it can't be spoofed the way SetPassengerClass is.
+    ///
+    /// Deliberately bypasses RoomAssignHook's hooked entry point (PetReassignRoomFunc) entirely rather than
+    /// temporarily uninstalling it: that entry is just a wrapper that turns gameManager into a CPetRooms* via
+    /// getPetControl() before tail-jumping into the real body - and calling that wrapper with rcx=gameManager
+    /// crashed the game (access violation inside getPetControl()'s tree-parent-climb, never exercised with
+    /// gameManager before now - see GameOffsets.ReassignRoomBodyFunc's doc comment for the full analysis). Since
+    /// we already independently have petControlAddr, we can compute the same CPetRooms* ourselves and call the
+    /// real body directly, skipping that climb altogether - and skipping the hook entirely means there's no
+    /// window where a natural attempt could slip through unblocked.</summary>
     public static bool AssignNextRoom(MemoryReader mem, long gameManager, long petControlAddr, int newClass)
     {
-        if (!RoomAssignHook.IsInstalled)
-            return false;
-        if (!RoomAssignHook.Uninstall(mem))
-            return false;
-
-        long funcAddr = mem.ModuleBase + GameOffsets.PetReassignRoomFunc;
-        bool called = RemoteCaller.Call(mem, funcAddr, rcx: gameManager, rdx: newClass);
-
-        bool reinstalled = RoomAssignHook.Install(mem);
+        long petRoomsAddr = petControlAddr + GameOffsets.PetRoomsOffset;
+        long funcAddr = mem.ModuleBase + GameOffsets.ReassignRoomBodyFunc;
+        bool called = RemoteCaller.Call(mem, funcAddr, rcx: petRoomsAddr, rdx: newClass);
 
         bool refreshed = ResetPetControl(mem, petControlAddr) && MarkAllDirty(mem, gameManager);
-        return called && reinstalled && refreshed;
+        return called && refreshed;
     }
 
     /// <summary>Moves an item into the given room via the game's own detach()/attach() logic.</summary>
