@@ -509,7 +509,7 @@ public sealed partial class MainForm
         // responsible for actually clearing this on a genuine save/tree reload.
         long? inventoryRoom = GameState.FindInventoryRoom(_mem, project.Value);
         if (inventoryRoom is not null)
-        _currentInventoryRoom = inventoryRoom;
+            _currentInventoryRoom = inventoryRoom;
         SetAddressRow("Player Inventory (CPetControl)", _currentInventoryRoom);
 
         SetAddressRow("Conversations (CPetConversations)",
@@ -637,6 +637,24 @@ public sealed partial class MainForm
 
                     if (fireCheck)
                         SendItemPickupCheck(item.Name);
+
+                    // A genuine natural pickup (fireCheck) is subject to the same ungranted-item hide rule as
+                    // every other item's natural pickup below - without this, picking up the Magazine before its
+                    // AP item is granted would leave it sitting in inventory instead of being pulled pending grant.
+                    if (fireCheck && !granted && !ItemTracking.IsOneDirectionalItem(item.Name) && _chkTakeUngrantedItems.Checked)
+                    {
+                        bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _currentInventoryRoom.Value, gameManager);
+                        if (moved)
+                        {
+                            GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Hidden, true, ItemPulledFrom.None));
+                            DoRefreshAllItems();
+                        }
+                        ShowActionResult(moved, moved
+                            ? $"{item.Name} picked up - not yet granted, hidden pending AP grant"
+                            : $"{item.Name} picked up - not yet granted, but failed to hide it");
+                        continue;
+                    }
+
                     GameActions.WriteItemPersistedState(_mem, item.Address,
                         new ItemPersistedState(ItemStage.Inventory, fireCheck || persisted.CheckFired, ItemPulledFrom.None));
                     continue;
@@ -705,7 +723,11 @@ public sealed partial class MainForm
                 continue;
             }
 
-            if (persisted.Stage == ItemStage.None && granted)
+            // One-directional items (e.g. Feathers) have no home parent to proactively deliver from - they only
+            // enter play via their own in-game trigger (the parrot escaping, etc.), and forcibly reparenting them
+            // into mail before that trigger fires would break the mechanism that produces them. Leave them be;
+            // their check still fires normally once they naturally land in inventory (see the inInventory branch).
+            if (persisted.Stage == ItemStage.None && granted && !ItemTracking.IsOneDirectionalItem(item.Name))
             {
                 bool ok = DeliverToMail(item, gameManager);
                 if (ok)

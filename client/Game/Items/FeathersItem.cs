@@ -9,5 +9,6 @@ internal static class FeathersItem
         PickupLocationName = "Parrot Lobby - Feather",
         DefaultParent = new DefaultParent("CarryParrot", "CCarryParrot"),
         IsRestorationExcluded = true,
+        IsOneDirectional = true,
     };
 }

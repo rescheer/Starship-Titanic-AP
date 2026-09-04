@@ -49,9 +49,12 @@ public sealed partial class MainForm
         if (project is null)
             return;
 
+        // See UpdateInventory's matching comment: FindMailManRoom is the same shallow, budget-capped walk that
+        // has been observed to transiently fail in certain rooms even though the address is still valid - only
+        // ever replace the cached address with a fresh non-null result, never null it back out on a miss.
         long? mailManRoom = GameState.FindMailManRoom(_mem, project.Value);
         if (mailManRoom is not null)
-        _currentMailManRoom = mailManRoom;
+            _currentMailManRoom = mailManRoom;
         SetAddressRow("Mail Inventory (CMailMan)", _currentMailManRoom);
 
         if (_currentMailManRoom is null)
