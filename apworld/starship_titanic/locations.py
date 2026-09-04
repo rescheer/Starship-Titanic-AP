@@ -125,7 +125,7 @@ location_table: Dict[str, STLocationData] = {
     "2nd Class Stateroom - Succ-U-Bus": STLocationData("2nd Class Lobby"),
     "2nd Class Stateroom - Visited": STLocationData("2nd Class Stateroom"),
     # Item
-    "2nd Class Stateroom - Titania's Ear (Pistachio Bowl)": STLocationData("2nd Class Lobby"),
+    "2nd Class Stateroom - Titania's Ear (Pistachio Bowl)": STLocationData("2nd Class Stateroom"),
     # Puzzle
     # Other
 
