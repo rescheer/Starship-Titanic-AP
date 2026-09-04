@@ -187,7 +187,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
 
     world.set_rule(
         world.get_location("Titania's Room - Repair Titania"),
-        HasAll(*TITANIA_PARTS, "Titania's Vision Center", "Titania's Auditory Center")
+        HasAll(*TITANIA_PARTS, "Titania's Auditory Center")
         & CanReachRegion("Titania's Room")
     )
 
