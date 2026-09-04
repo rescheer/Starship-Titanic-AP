@@ -500,12 +500,20 @@ public sealed partial class MainForm
         if (project is null)
             return;
 
+        // FindInventoryRoom is a shallow, budget-capped tree walk (see its own doc comment) that has been
+        // observed to transiently fail to find the PET control while standing in certain rooms (e.g. Bottom of
+        // the Well), even though the address itself is still perfectly valid. Only ever replace the cached
+        // address with a fresh non-null result - never let a transient failure null it back out - so a momentary
+        // miss doesn't strand every address-dependent system (ReconcileTrackedItems bails outright when this is
+        // null) until the player happens to leave the room. OnTick's own project-change handling is still what's
+        // responsible for actually clearing this on a genuine save/tree reload.
         long? inventoryRoom = GameState.FindInventoryRoom(_mem, project.Value);
+        if (inventoryRoom is not null)
         _currentInventoryRoom = inventoryRoom;
-        SetAddressRow("Player Inventory (CPetControl)", inventoryRoom);
+        SetAddressRow("Player Inventory (CPetControl)", _currentInventoryRoom);
 
         SetAddressRow("Conversations (CPetConversations)",
-            inventoryRoom is not null ? GameState.ResolveConversationsAddr(inventoryRoom.Value) : null);
+            _currentInventoryRoom is not null ? GameState.ResolveConversationsAddr(_currentInventoryRoom.Value) : null);
     }
 
     /// <summary>Runs the full-tree item-state reconciliation pass for every tracked item.</summary>

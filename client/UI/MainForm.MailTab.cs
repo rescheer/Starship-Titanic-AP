@@ -50,16 +50,17 @@ public sealed partial class MainForm
             return;
 
         long? mailManRoom = GameState.FindMailManRoom(_mem, project.Value);
+        if (mailManRoom is not null)
         _currentMailManRoom = mailManRoom;
-        SetAddressRow("Mail Inventory (CMailMan)", mailManRoom);
+        SetAddressRow("Mail Inventory (CMailMan)", _currentMailManRoom);
 
-        if (mailManRoom is null)
+        if (_currentMailManRoom is null)
         {
             _lblMailCount.Text = "CMailMan not resolved";
             return;
         }
 
-        List<GameState.MailItem> items = GameState.ReadMailItems(_mem, mailManRoom.Value);
+        List<GameState.MailItem> items = GameState.ReadMailItems(_mem, _currentMailManRoom.Value);
         UpdateInfoMailCount(items.Count(i => i.DestRoomFlags == GameOffsets.ToolPlacedSentinel));
 
         bool changed = _lastMailItems is null
