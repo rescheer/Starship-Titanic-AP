@@ -92,7 +92,6 @@ public sealed partial class MainForm
                 _btnApDisconnect.Enabled = true;
                 _sentRoomVisitChecks.Clear();
                 _sentPointOfInterestChecks.Clear();
-                _sentStateroomAssignedChecks.Clear();
                 _saveSeedGuardState = SaveSeedGuardState.Unverified;
                 _saveSeedGuardBeamBridgeMisses = 0;
                 _saveSeedGuardTagMismatches = 0;
@@ -103,7 +102,6 @@ public sealed partial class MainForm
                     TrySendRoomVisitCheck(_currentRoomName);
                 if (_lastRoomNodeView is not null)
                     TrySendPointOfInterestCheck(_lastRoomNodeView.Value);
-                TrySendStateroomAssignedChecks();
                 UpdatePendingChecksLabel();
                 ConnectionSettings.Save(new ConnectionSettings.Data
                 {

@@ -32,7 +32,6 @@ public sealed partial class MainForm : Form
 
     private readonly HashSet<string> _sentRoomVisitChecks = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<RoomNodeView> _sentPointOfInterestChecks = new();
-    private readonly HashSet<int> _sentStateroomAssignedChecks = new();
     private int _lastItemsReceivedCount = -1;
     private int _lastTableAccessItemsCount = -1;
     private int _lastStateroomItemsReceivedCount = -1;

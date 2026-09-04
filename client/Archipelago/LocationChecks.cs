@@ -75,15 +75,6 @@ public static class LocationChecks
         [1] = "DeskBot - 1st Class Upgrade",
     };
 
-    // Stateroom-assigned event locations, keyed by achieved stateroom class (see
-    // GameActions.GetAchievedStateroomClass: 1=SGT/3rd, 2=2nd, 3=1st)
-    private static readonly Dictionary<int, string> StateroomAssignedLocationName = new()
-    {
-        [1] = "DeskBot - SGT Stateroom Assigned",
-        [2] = "DeskBot - 2nd Class Stateroom Assigned",
-        [3] = "DeskBot - 1st Class Stateroom Assigned",
-    };
-
     public static readonly IReadOnlyCollection<string> SuccUBusStationLocationNames =
         PointOfInterestLocationName.Values
             .Where(name => name.Contains("Succ-U-Bus", StringComparison.OrdinalIgnoreCase))
@@ -134,20 +125,6 @@ public static class LocationChecks
     public static bool TryGetClassUpgradeLocationName(int attemptedClass, out string locationName)
     {
         if (ClassUpgradeLocationName.TryGetValue(attemptedClass, out string? name))
-        {
-            locationName = name;
-            return true;
-        }
-
-        locationName = "";
-        return false;
-    }
-
-    /// <summary>Looks up the AP location name for first achieving a given stateroom class (see
-    /// GameActions.GetAchievedStateroomClass).</summary>
-    public static bool TryGetStateroomAssignedLocationName(int achievedClass, out string locationName)
-    {
-        if (StateroomAssignedLocationName.TryGetValue(achievedClass, out string? name))
         {
             locationName = name;
             return true;

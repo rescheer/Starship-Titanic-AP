@@ -70,6 +70,9 @@ def set_all_entrance_rules(world: StarshipTitanicWorld) -> None:
 
 
 def set_all_location_rules(world: StarshipTitanicWorld) -> None:
+    # ---------------------------------------------------------------- #
+    # Embarkation Lobby
+    # ---------------------------------------------------------------- #
     world.set_rule(
         world.get_location("DeskBot - 2nd Class Upgrade"),
         Has("Magazine")
@@ -80,26 +83,47 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         CanReachRegion("Sculpture Chamber")
         & CanReachRegion("Embarkation Lobby")
     )
+
+    # ---------------------------------------------------------------- #
+    # Top of the Well
+    # ---------------------------------------------------------------- #
+    # (no location rules)
+
+    # ---------------------------------------------------------------- #
+    # Bottom of the Well / Broken ELevator
+    # ---------------------------------------------------------------- #
     world.set_rule(
-        # Event
-        world.get_location("DeskBot - SGT Stateroom Assigned"),
-        CanReachRegion("Embarkation Lobby")
-    )
-    world.set_rule(
-        # Event
-        world.get_location("DeskBot - 2nd Class Stateroom Assigned"),
-        HAS_SGT_ROOM
-        & Has("Magazine")
-        & CanReachRegion("Embarkation Lobby")
-    )
-    world.set_rule(
-        # Event
-        world.get_location("DeskBot - 1st Class Stateroom Assigned"),
-        HAS_SECOND_CLASS
-        & CanReachRegion("Sculpture Chamber")
-        & CanReachRegion("Embarkation Lobby")
+        world.get_location("Broken Elevator - Titania's Eye (Elevator)"),
+        Has("LiftBot Head")
+        & CanReachRegion("Top of the Well") | CanReachRegion("Bottom of the Well")
     )
 
+    # ---------------------------------------------------------------- #
+    # Parrot Lobby
+    # ---------------------------------------------------------------- #
+    world.set_rule(
+        world.get_location("Parrot Lobby - Feather"),
+        CanReachRegion("Parrot Lobby")
+        & CanReachRegion("Top of the Well")
+    )
+    
+    world.set_rule(
+        world.get_location("Parrot Lobby - Titania's Nose"),
+        Has("Hose")
+        & CanReachRegion("Parrot Lobby")
+    )
+
+    world.set_rule(
+        world.get_location("Parrot Lobby - Titania's Core"),
+        HasAll("Napkin", "Yellow Fuse")
+        & CanReachRegion("Titania's Room")
+        & CanReachRegion("SGT Class Lobby")
+        & CanReachRegion("Parrot Lobby")
+    )
+
+    # ---------------------------------------------------------------- #
+    # Bilge Room
+    # ---------------------------------------------------------------- #
     world.set_rule(
         world.get_location("Bilge Room - Titania's Olfactory Center"),
         Has("Feather")
@@ -111,41 +135,33 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         & CanReachRegion("Bilge Room")
     )
 
+    # ---------------------------------------------------------------- #
+    # Titania's Room
+    # ---------------------------------------------------------------- #
     world.set_rule(
-        world.get_location("Parrot Lobby - Titania's Nose"),
-        Has("Hose")
-        & CanReachRegion("Parrot Lobby")
+        # Event
+        world.get_location("Titania's Room - Repair Titania"),
+        HasAll(*TITANIA_PARTS, "Titania's Auditory Center")
+        & CanReachRegion("Titania's Room")
     )
 
-    world.set_rule(
-        world.get_location("2nd Class Stateroom - Titania's Ear (Pistachio Bowl)"),
-        Has("Magazine")
-        & HAS_SECOND_CLASS
-        & CanReachRegion("Parrot Lobby")
-        & CanReachRegion("2nd Class Stateroom")
-    )
+    # ---------------------------------------------------------------- #
+    # Creator's Chamber
+    # ---------------------------------------------------------------- #
+    # (no location rules)
 
-    world.set_rule(
-        world.get_location("Broken Elevator - Titania's Eye (Elevator)"),
-        Has("LiftBot Head")
-    )
+    # ---------------------------------------------------------------- #
+    # Sculpture Chamber
+    # ---------------------------------------------------------------- #
+    # (no location rules)
 
+    # ---------------------------------------------------------------- #
+    # Promenade Deck
+    # ---------------------------------------------------------------- #
     world.set_rule(
         world.get_location("Promenade Deck - Hammer"),
         Has("Perch")
         & CanReachRegion("Promenade Deck")
-    )
-
-    world.set_rule(
-        world.get_location("SGT Class Lobby - Long Stick"),
-        Has("Hammer")
-        & CanReachRegion("SGT Class Lobby")
-    )
-
-    world.set_rule(
-        world.get_location("Arboretum - Lemon"),
-        Has("Long Stick")
-        & CanReachRegion("Arboretum")
     )
 
     """ world.set_rule(
@@ -156,38 +172,13 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         & CanReachRegion("Titania's Room")
     ) """
 
+    # ---------------------------------------------------------------- #
+    # Arboretum
+    # ---------------------------------------------------------------- #
     world.set_rule(
-        world.get_location("Bar - Titania's Vision Center"),
-        HasAll("Lemon", "Crushed TV", "Bar Glass", "Blue Fuse")
-        & CanReachRegion("Bar")
-        & CanReachRegion("Promenade Deck")
-    )
-
-    world.set_rule(
-        world.get_location("Music Room - Titania's Ear (Phonograph)"),
-        HAS_SECOND_CLASS
-        & CanReachRegion("Music Room")
-    )
-
-    # All these locations are on the locked table in the 1st class restaurant
-    first_class_restaurant_table_locations = (
-        "1st Class Restaurant - Napkin",
-        "1st Class Restaurant - Green Fuse",
-        "1st Class Restaurant - Maitre'D Bot's Right Arm",
-    )
-    for loc_name in first_class_restaurant_table_locations:
-        world.set_rule(world.get_location(loc_name),
-            Has("Restaurant Table Reservation")
-            & HAS_FIRST_CLASS
-            & CanReachRegion("1st Class Restaurant")
-    )
-
-    world.set_rule(
-        # Event
-        world.get_location("1st Class Restaurant - Titania's Auditory Center"),
-        HAS_FIRST_CLASS
-        & Has("Maitre'D Bot's Right Arm")
-        & CanReachRegion("1st Class Restaurant")
+        world.get_location("Arboretum - Lemon"),
+        Has("Long Stick")
+        & CanReachRegion("Arboretum")
     )
 
     world.set_rule(
@@ -200,36 +191,109 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     world.set_rule(
         world.get_location("Arboretum - Titania's Mouth"),
         HasAll("Green Fuse", "Maitre'D Bot's Left Arm", "Maitre'D Bot's Right Arm")
-        & HAS_FIRST_CLASS
         & CanReachRegion("Arboretum")
         & CanReachRegion("Titania's Room")
     )
 
+    # ---------------------------------------------------------------- #
+    # Bar
+    # ---------------------------------------------------------------- #
     world.set_rule(
-        world.get_location("Parrot Lobby - Titania's Core"),
-        HasAll("Napkin", "Yellow Fuse")
-        & CanReachRegion("Titania's Room")
-        & CanReachRegion("SGT Class Lobby")
-        & CanReachRegion("Parrot Lobby")
+        world.get_location("Bar - Titania's Vision Center"),
+        HasAll("Lemon", "Crushed TV", "Bar Glass", "Blue Fuse")
+        & CanReachRegion("Bar")
+        & CanReachRegion("Promenade Deck")
     )
+
+    # ---------------------------------------------------------------- #
+    # Music Room
+    # ---------------------------------------------------------------- #
+    world.set_rule(
+        world.get_location("Music Room - Titania's Ear (Phonograph)")
+        & CanReachRegion("Music Room")
+    )
+
+    # ---------------------------------------------------------------- #
+    # 1st Class Restaurant
+    # ---------------------------------------------------------------- #
+    # All these locations are on the locked table in the 1st class restaurant
+    first_class_restaurant_table_locations = (
+        "1st Class Restaurant - Napkin",
+        "1st Class Restaurant - Green Fuse",
+        "1st Class Restaurant - Maitre'D Bot's Right Arm",
+    )
+    for loc_name in first_class_restaurant_table_locations:
+        world.set_rule(world.get_location(loc_name),
+            Has("Restaurant Table Reservation")
+            & CanReachRegion("1st Class Restaurant")
+        )
 
     world.set_rule(
         # Event
-        world.get_location("Titania's Room - Repair Titania"),
-        HasAll(*TITANIA_PARTS, "Titania's Auditory Center")
-        & CanReachRegion("Titania's Room")
+        world.get_location("1st Class Restaurant - Titania's Auditory Center"),
+        Has("Maitre'D Bot's Right Arm")
+        & CanReachRegion("1st Class Restaurant")
     )
 
+    # ---------------------------------------------------------------- #
+    # Bridge
+    # ---------------------------------------------------------------- #
     world.set_rule(
         world.get_location("Bridge - Visited"),
         CanReachRegion("Bridge")
     )
-    
+
     world.set_rule(
         # Event
         world.get_location("The End - Return Home"),
         CanReachRegion("Bridge")
     )
+
+    # ---------------------------------------------------------------- #
+    # SGT Class Lobby
+    # ---------------------------------------------------------------- #
+    world.set_rule(
+        world.get_location("SGT Class Lobby - Magazine"),
+        HAS_SGT_ROOM
+        & CanReachRegion("SGT Class Stateroom")
+        )
+
+    world.set_rule(
+        world.get_location("SGT Class Lobby - Long Stick"),
+        Has("Hammer")
+        & CanReachRegion("SGT Class Lobby")
+    )
+
+    # ---------------------------------------------------------------- #
+    # 2nd Class Lobby
+    # ---------------------------------------------------------------- #
+    # (no location rules)
+
+    # ---------------------------------------------------------------- #
+    # 1st Class Lobby
+    # ---------------------------------------------------------------- #
+    # (no location rules)
+
+    # ---------------------------------------------------------------- #
+    # 1st Class Stateroom
+    # ---------------------------------------------------------------- #
+    # (no location rules)
+
+    # ---------------------------------------------------------------- #
+    # 2nd Class Stateroom
+    # ---------------------------------------------------------------- #
+    world.set_rule(
+        world.get_location("2nd Class Stateroom - Titania's Ear (Pistachio Bowl)"),
+        Has("Magazine")
+        & HAS_SECOND_ROOM
+        & CanReachRegion("Parrot Lobby")
+        & CanReachRegion("2nd Class Stateroom")
+    )
+
+    # ---------------------------------------------------------------- #
+    # SGT Class Stateroom
+    # ---------------------------------------------------------------- #
+    # (no location rules)
 
 
 def set_completion_condition(world: StarshipTitanicWorld) -> None:

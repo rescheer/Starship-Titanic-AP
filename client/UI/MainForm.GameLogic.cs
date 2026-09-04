@@ -205,8 +205,8 @@ public sealed partial class MainForm
     /// <summary>Applies the stateroom assignment(s) implied by "Progressive Stateroom" AP items received so far,
     /// if any are still outstanding. Unlike SyncPassengerClassFromItems (a plain field write), each assignment
     /// has to run through GameActions.AssignNextRoom - see RoomAssignHook's own doc comment for why. Catches up
-    /// more than one tier in a single pass (e.g. two items granted while offline) the same way
-    /// TrySendStateroomAssignedChecks does, assigning SGT/Third first, then Second, then First, in order.</summary>
+    /// more than one tier in a single pass (e.g. two items granted while offline), assigning SGT/Third first,
+    /// then Second, then First, in order.</summary>
     private void SyncStateroomFromItems(long gameManager)
     {
         IReadOnlyDictionary<string, object>? slotData = _apConnection.SlotData;
@@ -477,31 +477,6 @@ public sealed partial class MainForm
 
         bool ok = GameActions.GrantScraliontisTableAccess(_mem, tableAddr.Value);
         ShowActionResult(ok, "Table Access granted -> Maitre'D's table unlocked");
-    }
-
-    /// <summary>Sends the AP location check(s) for each stateroom class the player has newly achieved (see
-    /// GameActions.GetAchievedStateroomClass) since this was last polled - e.g. a jump straight from 0 to 2
-    /// (achieved class after an out-of-order AP-item upgrade) sends both the SGT and 2nd class checks so neither
-    /// gets silently skipped.</summary>
-    private void TrySendStateroomAssignedChecks()
-    {
-        if (_currentInventoryRoom is not { } petControlAddr)
-            return;
-
-        int achievedClass = GameActions.GetAchievedStateroomClass(_mem, petControlAddr);
-        for (int cls = 1; cls <= achievedClass; cls++)
-        {
-            if (!_sentStateroomAssignedChecks.Add(cls))
-                continue;
-            if (!LocationChecks.TryGetStateroomAssignedLocationName(cls, out string locationName))
-                continue;
-
-            bool handedOff = _apConnection.SendLocationCheck(locationName);
-            ShowActionResult(handedOff, handedOff
-                ? $"Stateroom assigned -> {locationName}"
-                : $"Stateroom assigned queued (offline) -> {locationName}");
-            UpdatePendingChecksLabel();
-        }
     }
 
     /// <summary>Sends the AP location check for a room's "Arrive for the First Time" location.</summary>
