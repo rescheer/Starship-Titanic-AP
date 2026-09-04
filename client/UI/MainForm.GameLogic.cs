@@ -444,6 +444,31 @@ public sealed partial class MainForm
         ShowActionResult(ok, "Table Access granted -> Maitre'D's table unlocked");
     }
 
+    /// <summary>Sends the AP location check(s) for each stateroom class the player has newly achieved (see
+    /// GameActions.GetAchievedStateroomClass) since this was last polled - e.g. a jump straight from 0 to 2
+    /// (achieved class after an out-of-order AP-item upgrade) sends both the SGT and 2nd class checks so neither
+    /// gets silently skipped.</summary>
+    private void TrySendStateroomAssignedChecks()
+    {
+        if (_currentInventoryRoom is not { } petControlAddr)
+            return;
+
+        int achievedClass = GameActions.GetAchievedStateroomClass(_mem, petControlAddr);
+        for (int cls = 1; cls <= achievedClass; cls++)
+        {
+            if (!_sentStateroomAssignedChecks.Add(cls))
+                continue;
+            if (!LocationChecks.TryGetStateroomAssignedLocationName(cls, out string locationName))
+                continue;
+
+            bool handedOff = _apConnection.SendLocationCheck(locationName);
+            ShowActionResult(handedOff, handedOff
+                ? $"Stateroom assigned -> {locationName}"
+                : $"Stateroom assigned queued (offline) -> {locationName}");
+            UpdatePendingChecksLabel();
+        }
+    }
+
     /// <summary>Sends the AP location check for a room's "Arrive for the First Time" location.</summary>
     private void TrySendRoomVisitCheck(string roomName)
     {

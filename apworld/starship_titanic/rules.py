@@ -72,6 +72,20 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         CanReachRegion("Sculpture Chamber")
         & CanReachRegion("Embarkation Lobby")
     )
+    world.set_rule(
+        world.get_location("DeskBot - SGT Stateroom Assigned"),
+        CanReachRegion("Embarkation Lobby")
+    )
+    world.set_rule(
+        world.get_location("DeskBot - 2nd Class Stateroom Assigned"),
+        Has("Magazine")
+        & CanReachRegion("Embarkation Lobby")
+    )
+    world.set_rule(
+        world.get_location("DeskBot - 1st Class Stateroom Assigned"),
+        CanReachRegion("Sculpture Chamber")
+        & CanReachRegion("Embarkation Lobby")
+    )
 
     world.set_rule(
         world.get_location("Bilge Room - Titania's Olfactory Center"),

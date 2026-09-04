@@ -35,6 +35,9 @@ location_table: Dict[str, STLocationData] = {
     # Puzzle
     "DeskBot - 2nd Class Upgrade": STLocationData("Embarkation Lobby"),
     "DeskBot - 1st Class Upgrade": STLocationData("Embarkation Lobby"),
+    "DeskBot - SGT Stateroom Assigned": STLocationData("Embarkation Lobby", "SGT Stateroom Assigned"),
+    "DeskBot - 2nd Class Stateroom Assigned": STLocationData("Embarkation Lobby", "2nd Class Stateroom Assigned"),
+    "DeskBot - 1st Class Stateroom Assigned": STLocationData("Embarkation Lobby", "1st Class Stateroom Assigned"),
     # Other
 
     # ---------------------------------------------------------------- #
