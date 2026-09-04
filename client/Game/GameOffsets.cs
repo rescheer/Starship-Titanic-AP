@@ -250,6 +250,17 @@ public static class GameOffsets
     public const long PriorSibling = HeaderOffset + 0x10;
     public const long FirstChild = HeaderOffset + 0x18;
 
+    // CParrotNutBowlActor::_state (titanic/game/parrot_nut_bowl_actor.h) - the Pistachio Bowl puzzle's progress:
+    // 0 before the nut-rustle, 1 once the parrot-eats-the-nuts animation has played, 2 once the bowl has unlocked
+    // and renders pickable. Confirmed live (byte values 0x00/0x01/0x02 observed through the sequence). This is
+    // the class's second declared field - a bool _puzzleDone (1 byte) is declared first in source and, per the
+    // same layout rule confirmed for CCarry's own first derived field (ItemFieldsForm.cs's "_unused5 (CCarry
+    // candidate)" landing 4-byte-aligned at 0x124 after CGameObject's 1-byte _visible at 0x120), would sit
+    // unaligned right at 0x121 with no padding (it only needs 1-byte alignment) - pushing _state to the next
+    // 4-byte boundary at 0x124, which matches what was observed here. _puzzleDone itself is unconfirmed/unused.
+    public const long ParrotNutBowlActorStateOffset = 0x124;
+    public const int ParrotNutBowlActorStateUnlocked = 2; // bowl unlocked, ear rendered pickable
+
     // Window scanned for a name-string pointer on each tree node.
     public const long NameScanStart = HeaderOffset + 0x20;
     public const long NameScanEnd = HeaderOffset + 0x60;

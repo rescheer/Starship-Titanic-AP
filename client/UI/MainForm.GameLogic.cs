@@ -934,11 +934,43 @@ public sealed partial class MainForm
             string? parentName = parentAddress is long p ? GameState.TryReadName(_mem, p) : null;
             var item = new CarryItemLocation(name, itemAddress, parentAddress, parentName);
 
+            if (TryCompleteEar1IfBowlUnlocked(item, gameManager))
+            {
+                ShowActionResult(true, $"{name} left un-picked-up after the bowl unlocked - completed the pickup instead of reverting it");
+                continue;
+            }
+
             bool moved = RevertRestoration(item, persisted, gameManager);
             ShowActionResult(moved, moved
                 ? $"{name} left un-picked-up - returned to where it was before restoration"
                 : $"{name} failed to revert from restoration");
         }
+    }
+
+    /// <summary>Ear1 (Pistachio Bowl)'s pickup puzzle can't be safely left mid-sequence and re-captured: once the
+    /// nut-rustle/parrot-eat sequence resolves, the bowl unlocks and renders with its drag graphic, but if the
+    /// player leaves the view without dragging it into inventory, re-entering resets the whole sequence back to
+    /// its start (see ParrotNutBowlActorStateOffset's doc comment) - so there's no stable "just unlocked, not yet
+    /// grabbed" state to restore back to on a later visit. Rather than reverting Ear1 like a normal left-behind
+    /// restoration in that case, force it straight into inventory as if the drag had completed;
+    /// ReconcileTrackedItems's own Stage==Restored + inInventory branch then grants the pickup check exactly like
+    /// a genuine natural pickup would.</summary>
+    private bool TryCompleteEar1IfBowlUnlocked(CarryItemLocation item, long gameManager)
+    {
+        if (!string.Equals(item.Name, "Ear1", StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (item.ParentAddress is not { } parentAddr || _currentInventoryRoom is not { } inventoryRoom)
+            return false;
+
+        long? actorAddr = GameState.FindDescendant(_mem, parentAddr, "ParrotNutBowlActor", "CParrotNutBowlActor");
+        if (actorAddr is null)
+            return false;
+
+        int? state = _mem.ReadInt32(actorAddr.Value + GameOffsets.ParrotNutBowlActorStateOffset);
+        if (state != GameOffsets.ParrotNutBowlActorStateUnlocked)
+            return false;
+
+        return GameActions.MoveItemSmart(_mem, item.Address, inventoryRoom, inventoryRoom, gameManager);
     }
 
     /// <summary>The actual move-back for TryUnrestoreItemsLeavingRnv, per ItemPulledFrom.</summary>
