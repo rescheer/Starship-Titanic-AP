@@ -186,6 +186,7 @@ public sealed partial class MainForm
         }
 
         SyncTableAccessFromItems();
+        TrySendStateroomAssignedChecks();
 
         UpdatePendingChecksLabel();
 

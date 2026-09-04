@@ -416,6 +416,31 @@ public static class GameActions
         return false;
     }
 
+    /// <summary>Counts CPetRooms glyphs that have ever been assigned as the player's own stateroom - i.e. Mode is
+    /// RgmAssignedRoom or RgmPrevAssignedRoom, excluding RgmUnassigned (_mode == 0, a glyph allocated but never
+    /// actually assigned) and named-room glyphs (see RoomFlags.IsNamedRoom), which aren't randomly-assigned
+    /// stateroom classes. reassignRoom() only ever demotes the previously-assigned glyph to RgmPrevAssignedRoom
+    /// rather than removing it, and each stateroom class (SGT/3rd, 2nd, 1st) is assigned exactly once, so this
+    /// count equals the number of stateroom classes the player has ever reached.</summary>
+    public static int CountEverAssignedRooms(MemoryReader mem, long petControlAddr)
+    {
+        int count = 0;
+        foreach (RoomGlyph glyph in EnumerateGlyphs(mem, petControlAddr))
+        {
+            if (RoomFlags.IsNamedRoom(glyph.RoomFlags))
+                continue;
+            if (glyph.Mode == GameOffsets.RgmAssignedRoom || glyph.Mode == GameOffsets.RgmPrevAssignedRoom)
+                count++;
+        }
+        return count;
+    }
+
+    /// <summary>Derives the stateroom class the player has achieved from <see cref="CountEverAssignedRooms"/>:
+    /// 0 = none, 1 = SGT/3rd Class, 2 = 2nd Class, 3 = 1st Class. Clamped to 3 in case of an unexpected extra
+    /// glyph.</summary>
+    public static int GetAchievedStateroomClass(MemoryReader mem, long petControlAddr) =>
+        Math.Min(CountEverAssignedRooms(mem, petControlAddr), 3);
+
     /// <summary>Reads a CPetRoomsGlyph's _mode (see GameOffsets.RgmUnassigned/RgmAssignedRoom/RgmPrevAssignedRoom).</summary>
     public static int? ReadGlyphMode(MemoryReader mem, long glyphAddr) =>
         mem.ReadInt32(glyphAddr + GameOffsets.PetRoomsGlyphModeOffset);
