@@ -278,6 +278,17 @@ public static class GameOffsets
     public const long ParrotNutBowlActorStateOffset = 0x124;
     public const int ParrotNutBowlActorStateUnlocked = 2; // bowl unlocked, ear rendered pickable
 
+    // CLight::_eyePresent (titanic/game/light.h) - true while the light fixture still holds its bulb, flipped
+    // false by CLight::ActMsg("Eye Removed") once the bulb/eye is taken. Confirmed live via before/after diff on
+    // the four CLight fixtures at Room 7 ("1stClassState") / Node 6 / View 4 ("6WTL"/"6WTR"/"6WBL"/"6WBR") - only
+    // "6WTL" (the fixture holding Titania's Eye (Light)/Eye1) changed, 0x01 -> 0x00, at this offset, the instant
+    // the bellbot hand-off cutscene finished. The other three fixtures and every byte outside this offset (across
+    // a 0x800-byte window) were unchanged. Not yet wired to anything - the Eye1 pickup check currently relies on
+    // the item's normal full-state-machine tracking (ReconcileTrackedItems) once the CEye object itself reparents
+    // into the inventory room, which was observed to fire correctly on a second attempt after an earlier miss;
+    // this offset is saved here in case that natural-pickup detection turns out to need a direct assist.
+    public const long LightEyePresentOffset = 0x194;
+
     // Window scanned for a name-string pointer on each tree node.
     public const long NameScanStart = HeaderOffset + 0x20;
     public const long NameScanEnd = HeaderOffset + 0x60;

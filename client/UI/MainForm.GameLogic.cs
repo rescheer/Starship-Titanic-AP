@@ -975,17 +975,33 @@ public sealed partial class MainForm
         if (_pendingUnrestoreChecks.Count == 0)
             return;
 
+        RoomNodeView? currentRnv = GameState.ReadRoomNodeView(_mem, gameManager);
+
         for (int i = _pendingUnrestoreChecks.Count - 1; i >= 0; i--)
         {
             (string name, long itemAddress, int dueTick) = _pendingUnrestoreChecks[i];
             if (_tickCount < dueTick)
                 continue;
 
-            _pendingUnrestoreChecks.RemoveAt(i);
-
             ItemPersistedState persisted = GameActions.ReadItemPersistedState(_mem, itemAddress);
             if (persisted.Stage != ItemStage.Restored)
-                continue; // already picked up and reconciled - nothing to revert
+            {
+                _pendingUnrestoreChecks.RemoveAt(i); // already picked up and reconciled - nothing to revert
+                continue;
+            }
+
+            // Titania's Eye (Light)'s bellbot hand-off keeps the player sitting at a fixed cutscene RNV for the
+            // whole dialogue+hand-off, well before the real CEye object reparents into inventory - reverting here
+            // would pull a genuine in-progress hand-off out from under the still-playing cutscene (confirmed
+            // live). Keep deferring the decision for as long as the player is still there; the entry only reaches
+            // a real revert-or-not decision once they've actually left it.
+            if (string.Equals(name, "Eye1", StringComparison.OrdinalIgnoreCase) && currentRnv == Eye1HandoffCutsceneRnv)
+            {
+                _pendingUnrestoreChecks[i] = (name, itemAddress, _tickCount + UnrestoreCheckDelayTicks);
+                continue;
+            }
+
+            _pendingUnrestoreChecks.RemoveAt(i);
 
             long? parentAddress = _mem.ReadInt64(itemAddress + GameOffsets.Parent);
             string? parentName = parentAddress is long p ? GameState.TryReadName(_mem, p) : null;
@@ -994,6 +1010,12 @@ public sealed partial class MainForm
             if (TryCompleteEar1IfBowlUnlocked(item, gameManager))
             {
                 ShowActionResult(true, $"{name} left un-picked-up after the bowl unlocked - completed the pickup instead of reverting it");
+                continue;
+            }
+
+            if (IsEye1MidBellbotHandoff(item))
+            {
+                ShowActionResult(true, $"{name} handed off by the bellbot - leaving it for the natural pickup to land instead of reverting");
                 continue;
             }
 
@@ -1028,6 +1050,35 @@ public sealed partial class MainForm
             return false;
 
         return GameActions.MoveItemSmart(_mem, item.Address, inventoryRoom, inventoryRoom, gameManager);
+    }
+
+    /// <summary>Belt-and-suspenders backstop for once the player has actually left Eye1HandoffCutsceneRnv:
+    /// confirmed live that CLight's _eyePresent field on the fixture ("6WTL", under Eye1's home View) only flips
+    /// false once the bellbot's dialogue+hand-off cutscene actually finishes - not when it starts - so it can't be
+    /// used to detect "hand-off in progress" while still sitting at that RNV (an earlier version of this fix
+    /// tried that and still lost the race; ProcessPendingUnrestoreChecks's own RNV-based deferral handles that
+    /// part instead). What this catches is the case where the object hasn't reparented into inventory yet right
+    /// as they step away from that RNV: if _eyePresent has already flipped, the hand-off is real regardless, so
+    /// skip the revert and let ReconcileTrackedItems's own Stage==Restored + inInventory branch fire the pickup
+    /// check once the object's parent actually updates - forcing a move of our own is what caused the original
+    /// race in the first place.</summary>
+    private bool IsEye1MidBellbotHandoff(CarryItemLocation item)
+    {
+        if (!string.Equals(item.Name, "Eye1", StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (_currentProject is not { } project)
+            return false;
+
+        long? homeParent = GameState.ResolveHomeParent(_mem, project, "Eye1");
+        if (homeParent is null)
+            return false;
+
+        long? lightAddr = GameState.FindDescendant(_mem, homeParent.Value, "6WTL", "CLight");
+        if (lightAddr is null)
+            return false;
+
+        byte[]? eyePresent = _mem.ReadBytes(lightAddr.Value + GameOffsets.LightEyePresentOffset, 1);
+        return eyePresent is { Length: 1 } && eyePresent[0] == 0;
     }
 
     /// <summary>The actual move-back for TryUnrestoreItemsLeavingRnv, per ItemPulledFrom.</summary>

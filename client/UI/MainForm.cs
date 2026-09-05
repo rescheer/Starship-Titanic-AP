@@ -50,6 +50,13 @@ public sealed partial class MainForm : Form
     private readonly List<(string ItemName, long ItemAddress, int DueTick)> _pendingUnrestoreChecks = new();
     private const int UnrestoreCheckDelayTicks = InventoryIntervalTicks + 4; // let ReconcileTrackedItems run at least once, plus buffer
 
+    /// <summary>The (Room, Node, View) shown during the bellbot's Titania's Eye (Light) dialogue/hand-off
+    /// cutscene, confirmed live. Asking the bellbot moves the player here for the whole exchange, well before the
+    /// real CEye object reparents into inventory - ProcessPendingUnrestoreChecks defers its revert decision for
+    /// Eye1 for as long as the player is sitting at this RNV, rather than reverting a genuine in-progress hand-off
+    /// out from under the still-playing cutscene.</summary>
+    private static readonly RoomNodeView Eye1HandoffCutsceneRnv = new(7, 11, 1);
+
     private bool _conversationsAddrShown;
     private string? _currentRoomName;
 
