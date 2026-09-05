@@ -110,6 +110,7 @@ _trap_items: Dict[str, int] = {
 # Events
 # --------------------------------------------------------------------------
 _event_items: Set[str] = {
+    "2nd Class Upgrade",
     "Titania's Auditory Center",
     "Titania Repaired",
     "Victory",

@@ -33,7 +33,7 @@ location_table: Dict[str, STLocationData] = {
     "Embarkation Lobby - Visited": STLocationData("Embarkation Lobby"),
     # Item
     # Puzzle
-    "DeskBot - 2nd Class Upgrade": STLocationData("Embarkation Lobby"),
+    "DeskBot - 2nd Class Upgrade": STLocationData("Embarkation Lobby", "2nd Class Upgrade"),
     "DeskBot - 1st Class Upgrade": STLocationData("Embarkation Lobby"),
     # Other
 
@@ -196,7 +196,7 @@ location_table: Dict[str, STLocationData] = {
     "Bar - Succ-U-Bus": STLocationData("Bar"),
     "Bar - Visited": STLocationData("Bar"),
     # Item
-    "Bar - Titania's Vision Center": STLocationData("Bar", "Titania's Vision Center"),
+    "Bar - Titania's Vision Center": STLocationData("Bar"),
     # Puzzle
     # Other
 
