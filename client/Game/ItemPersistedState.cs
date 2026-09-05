@@ -37,7 +37,7 @@ public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFire
 
     public static ItemPersistedState Decode(int raw) => new(
         (ItemStage)(raw & 0xFF),
-        ((raw >> 8) & 0xFF) != 0,
+        ((raw >> 8) & 1) != 0,
         (ItemPulledFrom)((raw >> 16) & 0xFF),
         ((raw >> 9) & 1) != 0);
 

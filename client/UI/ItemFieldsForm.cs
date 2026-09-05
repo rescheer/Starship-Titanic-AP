@@ -155,7 +155,7 @@ public sealed class ItemFieldsForm : Form
                 if (f.Offset == 0x100)
                 {
                     ItemPersistedState st = ItemPersistedState.Decode(raw);
-                    notes = $"Stage={st.Stage}, CheckFired={st.CheckFired}, PulledFrom={st.PulledFrom}";
+                    notes = $"Stage={st.Stage}, CheckFired={st.CheckFired}, PulledFrom={st.PulledFrom}, ToolDelivered={st.ToolDelivered}";
                 }
                 return (raw.ToString(), notes);
             }
