@@ -1,5 +1,5 @@
 # Starship Titanic - Archipelago Mod
-A Starship Titanic client for use with [Archipelago](https://archipelago.gg/). Both are in an **early alpha state**, and should not currently be used in live games.
+A Starship Titanic client for use with [Archipelago](https://archipelago.gg/). Both are in **alpha**, and should be used in live games with caution.
 
 **For use with the Steam version of Starship Titanic** 
 
