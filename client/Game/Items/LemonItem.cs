@@ -20,5 +20,6 @@ internal static class LemonItem
         // SkipFirstChildReorderOnRestore.
         RestoreFieldOverride = new RestoreFieldOverride(35, 162, 115, 242, 8, -1, KeepVisible: false),
         SkipFirstChildReorderOnRestore = true,
+        RequiresCanTakeOverride = true,
     };
 }
