@@ -53,9 +53,9 @@ public static class LocationChecks
     {
         [new RoomNodeView(45, 2, 2)] = "Bilge Room - Succ-U-Bus (Mother)",  // Bilge Room without body
         [new RoomNodeView(47, 1, 2)] = "Bilge Room - Succ-U-Bus (Mother)",  // Bilge Room with body
-        [new RoomNodeView(2, 2, 4)]  = "Embarkation Lobby - Succ-U-Bus",
-        [new RoomNodeView(5, 2, 4)]  = "Embarkation Lobby - Succ-U-Bus",   // MoonEmbLobby
-        [new RoomNodeView(9, 2, 1)]  = "Parrot Lobby - Succ-U-Bus",
+        [new RoomNodeView(2, 2, 4)] = "Embarkation Lobby - Succ-U-Bus",
+        [new RoomNodeView(5, 2, 4)] = "Embarkation Lobby - Succ-U-Bus",   // MoonEmbLobby
+        [new RoomNodeView(9, 2, 1)] = "Parrot Lobby - Succ-U-Bus",
         [new RoomNodeView(38, 6, 1)] = "Bottom of the Well - Succ-U-Bus",
         [new RoomNodeView(11, 3, 3)] = "SGT Class Lobby - Succ-U-Bus",
         [new RoomNodeView(16, 3, 1)] = "Promenade Deck - Succ-U-Bus",
@@ -63,14 +63,15 @@ public static class LocationChecks
         [new RoomNodeView(31, 5, 1)] = "Bar - Succ-U-Bus",
         [new RoomNodeView(49, 6, 1)] = "1st Class Restaurant - Succ-U-Bus",
         [new RoomNodeView(48, 8, 1)] = "Arboretum - Succ-U-Bus",          // Arboretum (unfrozen)
+        [new RoomNodeView(48, 7, 1)] = "Arboretum - Succ-U-Bus",          // Arboretum (unfrozen - before taking hose)
         [new RoomNodeView(52, 7, 1)] = "Arboretum - Succ-U-Bus",          // Frozen Arboretum
         [new RoomNodeView(39, 3, 1)] = "Creator's Chamber - Succ-U-Bus",
         [new RoomNodeView(42, 3, 1)] = "Creator's Chamber - Succ-U-Bus",  // pre red fuse and lever-pull
         [new RoomNodeView(44, 8, 1)] = "Sculpture Chamber - Succ-U-Bus",
         [new RoomNodeView(37, 5, 3)] = "Bomb Room - Succ-U-Bus",
-        [new RoomNodeView(6, 2, 1)]  = "2nd Class Stateroom - Succ-U-Bus",
+        [new RoomNodeView(6, 2, 1)] = "2nd Class Stateroom - Succ-U-Bus",
         [new RoomNodeView(34, 9, 1)] = "2nd Class Lobby - Succ-U-Bus",
-        [new RoomNodeView(7, 8, 1)]  = "1st Class Stateroom - Succ-U-Bus",
+        [new RoomNodeView(7, 8, 1)] = "1st Class Stateroom - Succ-U-Bus",
         [new RoomNodeView(20, 8, 1)] = "1st Class Lobby - Succ-U-Bus",
     };
 
