@@ -81,6 +81,7 @@ public sealed partial class MainForm
             _saveSeedGuardState = SaveSeedGuardState.Unverified;
             _saveSeedGuardBeamBridgeMisses = 0;
             _saveSeedGuardTagMismatches = 0;
+            GameActions.ClearHiddenRoomAddressCache();
             SetAddressRow("_project", _currentProject);
         }
         if (_currentProject is not null)
