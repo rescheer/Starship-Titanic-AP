@@ -8,7 +8,5 @@ internal static class FeathersItem
         ApItemName = "Feather",
         PickupLocationName = "Parrot Lobby - Feather",
         DefaultParent = new DefaultParent("CarryParrot", "CCarryParrot"),
-        IsRestorationExcluded = true,
-        IsOneDirectional = true,
     };
 }

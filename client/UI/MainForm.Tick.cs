@@ -206,6 +206,8 @@ public sealed partial class MainForm
                     AppendLog($"ClassUpgradeHook: blocked setPassengerClass({PassengerClassNames.GetName(attemptedClass.Value)}) from taking effect - real class stays item-gated");
 
                     bool handedOff = _apConnection.SendLocationCheck(locationName);
+                    if (LocationChecks.TryGetClassUpgradeEventLocationName(attemptedClass.Value, out string eventLocationName))
+                        _apConnection.SendLocationCheck(eventLocationName);
                     ShowActionResult(handedOff, handedOff
                         ? $"DeskBot upgrade attempt ({PassengerClassNames.GetName(attemptedClass.Value)}) -> {locationName}"
                         : $"DeskBot upgrade attempt ({PassengerClassNames.GetName(attemptedClass.Value)}) queued (offline) -> {locationName}");

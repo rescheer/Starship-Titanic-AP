@@ -564,6 +564,7 @@ public sealed partial class MainForm
         bool anyMailChange = false;
 
         SyncLiftEyeGate(items, receivedItems);
+        TryRestoreFeatherToParrot(items, gameManager);
 
         foreach (CarryItemLocation item in items)
         {
@@ -655,20 +656,17 @@ public sealed partial class MainForm
                     // SuccUBus stations, which must NOT re-trigger its check - so this can't be widened to "any
                     // item currently in the mail with a real (non-tool-placed) destination".
                     //
-                    // The Magazine is the sole exception: it has no in-world home (see ItemHomeLocations.cs) and is
-                    // spawned directly into the mail system by the SGT TV puzzle, bypassing DeliverToMail entirely -
-                    // so this is its only real natural-pickup moment, and its persisted state on arrival here may
-                    // just be residual data from a freshly game-constructed object rather than a real prior write.
-                    // Its own _destRoomFlags still distinguishes a genuine game-placed delivery (fire the check)
-                    // from this app having proactively mailed an already-granted-but-unfound copy (tool-placed, no
-                    // check, same as every other item's proactive-delivery case).
-                    bool fireCheck = false;
-                    if (!persisted.CheckFired && string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase))
-                    {
-                        int? destRoomFlags = _mem.ReadInt32(item.Address + GameOffsets.ItemDestRoomFlags);
-                        bool toolPlaced = destRoomFlags is int drf && unchecked((uint)drf) == GameOffsets.ToolPlacedSentinel;
-                        fireCheck = !toolPlaced;
-                    }
+                    // The Magazine is the sole exception: it has no in-world home (see ItemHomeLocations.cs) and can
+                    // reach Stage.Mail either via this app's own proactive delivery (an AP grant landing before the
+                    // player found it naturally - no check here, same as every other item's proactive-delivery
+                    // case) or via the SGT TV puzzle's own script placing it there directly (a genuine natural
+                    // delivery - this is that pickup). ItemPersistedState.ToolDelivered records which one it was
+                    // at the moment it entered Mail, since the engine's own _destRoomFlags sentinel that used to
+                    // distinguish this doesn't survive to this point - live testing showed the game's own mail-
+                    // retrieval processing overwrites it with a real value before this code gets to read it back.
+                    bool fireCheck = !persisted.CheckFired
+                        && string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
+                        && !persisted.ToolDelivered;
 
                     if (fireCheck)
                         SendItemPickupCheck(item.Name);
@@ -758,16 +756,16 @@ public sealed partial class MainForm
                 continue;
             }
 
-            // One-directional items (e.g. Feathers) have no home parent to proactively deliver from - they only
-            // enter play via their own in-game trigger (the parrot escaping, etc.), and forcibly reparenting them
-            // into mail before that trigger fires would break the mechanism that produces them. Leave them be;
-            // their check still fires normally once they naturally land in inventory (see the inInventory branch).
+            // One-directional items have no home parent to proactively deliver from - they only enter play via
+            // their own in-game trigger, and forcibly reparenting them into mail before that trigger fires would
+            // break the mechanism that produces them. Leave them be; their check still fires normally once they
+            // naturally land in inventory (see the inInventory branch).
             if (persisted.Stage == ItemStage.None && granted && !ItemTracking.IsOneDirectionalItem(item.Name))
             {
                 bool ok = DeliverToMail(item, gameManager);
                 if (ok)
                 {
-                    GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None));
+                    GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolDelivered: true));
                     anyMailChange = true;
                     DoRefreshAllItems();
                 }
@@ -861,7 +859,14 @@ public sealed partial class MainForm
             ItemPersistedState persisted = GameActions.ReadItemPersistedState(_mem, item.Address);
 
             bool eligibleFromInventory = persisted.Stage == ItemStage.Inventory && !persisted.CheckFired;
-            bool eligibleFromMail = persisted.Stage == ItemStage.Mail && !persisted.CheckFired;
+
+            // For the Magazine specifically, Stage.Mail can also hold a genuine natural delivery already in
+            // progress (the SGT TV puzzle's own script placed it there for the player to retrieve for real - see
+            // ItemPersistedState.ToolDelivered) - pulling that back out to "restore" it here would yank it out of
+            // its own natural mail-delivery flow instead of leaving the app done with it. Every other item only
+            // ever reaches Stage.Mail via this app's own proactive delivery, so ToolDelivered is always true for
+            // them and this check is a no-op.
+            bool eligibleFromMail = persisted.Stage == ItemStage.Mail && !persisted.CheckFired && persisted.ToolDelivered;
 
             if (eligibleFromInventory || eligibleFromMail)
             {
@@ -924,6 +929,40 @@ public sealed partial class MainForm
                 ShowActionResult(moved, $"{name} self-healed back to its home parent");
             }
         }
+    }
+
+    /// <summary>Feathers has no fixed home RNV to restore at - its real home is the CarryParrot object itself,
+    /// which travels with the player rather than sitting in a static room view - so it uses its own restoration
+    /// condition instead of the generic RNV-arrival flow (TryRestoreItemsAtHomeRnv): as soon as the CarryParrot is
+    /// physically in the player's inventory, Feathers restores onto it directly.</summary>
+    private void TryRestoreFeatherToParrot(List<CarryItemLocation> items, long gameManager)
+    {
+        if (_currentInventoryRoom is null)
+            return;
+        if (FindByName(items, ItemTracking.CarryParrotName) is not { } parrot || parrot.ParentAddress != _currentInventoryRoom.Value)
+            return;
+        if (FindByName(items, "Feathers") is not { } feather)
+            return;
+
+        ItemPersistedState persisted = GameActions.ReadItemPersistedState(_mem, feather.Address);
+        bool eligibleFromInventory = persisted.Stage == ItemStage.Inventory && !persisted.CheckFired;
+        bool eligibleFromMail = persisted.Stage == ItemStage.Mail && !persisted.CheckFired;
+        if (!eligibleFromInventory && !eligibleFromMail)
+            return;
+
+        ItemPulledFrom pulledFrom = eligibleFromMail ? ItemPulledFrom.Mail : ItemPulledFrom.Inventory;
+        bool moved = GameActions.MoveItemSmart(_mem, feather.Address, parrot.Address, _currentInventoryRoom, gameManager);
+        if (moved)
+        {
+            GameActions.WriteItemPersistedState(_mem, feather.Address, new ItemPersistedState(ItemStage.Restored, false, pulledFrom));
+            GameActions.SetItemVisible(_mem, feather.Address, false);
+            GameActions.MoveToFirstChild(_mem, feather.Address, parrot.Address);
+            ScheduleDirtyReassert();
+            DoRefreshAllItems();
+        }
+        ShowActionResult(moved, moved
+            ? "Feathers restored onto the CarryParrot for a real natural pickup (was granted before being found)"
+            : "Feathers failed to restore onto the CarryParrot");
     }
 
     /// <summary>Queues a delayed re-check for any item still sitting Restored-but-unpicked at the RNV just being
@@ -1129,7 +1168,13 @@ public sealed partial class MainForm
             return false;
         bool moved = GameActions.MoveItemSmart(_mem, item.Address, _currentMailManRoom.Value, _currentInventoryRoom, gameManager);
         if (moved)
-            GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Mail, persisted.CheckFired, ItemPulledFrom.None));
+        {
+            // Only reachable via PulledFrom.Mail, which TryRestoreItemsAtHomeRnv only ever records when the item
+            // was ToolDelivered to begin with (see eligibleFromMail there) - restamp it so a later retrieval still
+            // correctly waits instead of firing early.
+            GameActions.WriteItemPersistedState(_mem, item.Address,
+                new ItemPersistedState(ItemStage.Mail, persisted.CheckFired, ItemPulledFrom.None, ToolDelivered: true));
+        }
         return moved;
     }
 
