@@ -27,7 +27,7 @@ public sealed class ItemFieldsForm : Form
         new(0x18, "_priorSibling", FieldKind.Pointer),
         new(0x20, "_firstChild (GameOffsets.FirstChild)", FieldKind.Pointer),
         new(0x30, "_name (NamedItemNameOffset)", FieldKind.CString),
-        new(0x58, "_unused1", FieldKind.Bytes, 8),
+        new(0x58, "_unused1 (this app's tool-placed mail marker)", FieldKind.UInt32Hex),
         new(0x60, "_unused2", FieldKind.Bytes, 8),
         new(0x68, "_unused3", FieldKind.Bytes, 8),
         new(0x70, "_nonvisual", FieldKind.Byte),
@@ -168,13 +168,10 @@ public sealed class ItemFieldsForm : Form
 
                 uint u = unchecked((uint)raw);
                 string notes = "";
-                if (f.Offset is 0x110 or 0x114)
-                {
-                    if (u == GameOffsets.ToolPlacedSentinel)
-                        notes = "ToolPlacedSentinel (this app's manual mail-placement marker)";
-                    else if (ChevronCodes.TryGetRoomName(u) is string roomName)
-                        notes = $"= {roomName}";
-                }
+                if (f.Offset == 0x58 && u == GameOffsets.ToolPlacedSentinel)
+                    notes = "ToolPlacedSentinel (this app's manual mail-placement marker)";
+                else if (f.Offset is 0x110 or 0x114 && ChevronCodes.TryGetRoomName(u) is string roomName)
+                    notes = $"= {roomName}";
                 return ($"0x{u:X8}", notes);
             }
 

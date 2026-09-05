@@ -962,6 +962,9 @@ multiple relaunches. See the original Python prototypes (`track_final.py`,
   first and aren't repeated in the table.
 - **_unused3 / GameObjectUnused3Offset**: Now TEMPORARILY reused on
   BeamBridge only, as a save/seed guard tag - see `SaveSeedGuard.cs`.
+- **_unused1 / GameObjectUnused1Offset**: Now reused on every mailed item as
+  this app's own tool-placed/game-placed mail marker - see
+  `ToolPlacedSentinel` below and `GameActions.MarkItemAsToolPlaced`.
 - **GameObjectUnused4Offset**: This app's own per-item state storage (see
   `ItemPersistedState.cs`, `GameActions.ReadItemPersistedState`/
   `WriteItemPersistedState`) - a single packed int is plenty, since
@@ -1024,18 +1027,26 @@ multiple relaunches. See the original Python prototypes (`track_final.py`,
 - **Mail-related fields (ItemIsPendingMail/ItemDestRoomFlags/ItemRoomFlags)**:
   Confirmed live via chevron code round-trip (Napkin sent to "Bar", 0xB3D97
   found at +0x114).
-- **ToolPlacedSentinel**: Sentinel written into `_destRoomFlags` for items
-  this app has delivered to the mail system. Once an item is actually
-  delivered (`_roomFlags != 0`), the real game's own `findMailByFlags()`
-  never consults `_destRoomFlags` again - it's dead weight we can safely
-  reuse. All legitimate chevron/room-flags values are packed from a handful
-  of small bitfields (ELEVATOR/PASSENGER_CLASS/FLOOR/ROOM - see the engine's
-  own `room_flags.cpp`) and the known SuccUBus codes in `ChevronCodes`, none
-  of which come anywhere near the top of the 32-bit range, so a full-width
-  sentinel like this can never collide with a real value. Being part of the
-  object's own serialized fields, this survives detach/reattach, game
-  restarts, and save/reload exactly like the item's real location does - no
-  external bookkeeping needed. NOTE: a second sentinel,
+- **ToolPlacedSentinel**: Sentinel written into `_unused1`
+  (`GameObjectUnused1Offset`) for items this app has delivered to the mail
+  system. Originally lived in `_destRoomFlags` instead, on the theory that
+  once an item is actually delivered (`_roomFlags != 0`) the real game's own
+  `findMailByFlags()` never consults `_destRoomFlags` again, making it dead
+  weight safe to reuse. Moved to `_unused1` because `_destRoomFlags` is live
+  engine state while an item is still in transit (not yet delivered), and
+  nothing this app's own field-diagnostics/mail-tab code did with it
+  accounted for that - `_unused1` is genuinely engine-unused (unlike
+  `_unused3`, reserved for `SaveSeedGuard.cs`'s BeamBridge-only seed tag,
+  which would collide since BeamBridge is mailed like any other tracked
+  item), so it carries no such risk. All legitimate chevron/room-flags
+  values are packed from a handful of small bitfields (ELEVATOR/
+  PASSENGER_CLASS/FLOOR/ROOM - see the engine's own `room_flags.cpp`) and the
+  known SuccUBus codes in `ChevronCodes`, none of which come anywhere near
+  the top of the 32-bit range, so a full-width sentinel like this can never
+  collide with a real value there either. Being part of the object's own
+  serialized fields, this survives detach/reattach, game restarts, and
+  save/reload exactly like the item's real location does - no external
+  bookkeeping needed. NOTE: a second sentinel,
   `AwaitingRestorationSentinel` (0xFFFFFFFE), used to live here - reusing
   this same `_destRoomFlags` field for this app's own "granted before ever
   being found naturally" tracking, alongside `ToolPlacedSentinel`'s

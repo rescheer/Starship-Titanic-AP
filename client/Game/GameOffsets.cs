@@ -135,7 +135,9 @@ public static class GameOffsets
     //
     // _unused4 is this app's own per-item state storage (see ItemPersistedState.cs).
     // _unused3 is used by SaveSeedGuard.cs, but only on the BeamBridge (Red Fuse) item.
-    // _unused1/_unused2 remain available, unused.
+    // _unused1 is this app's own tool-placed/game-placed mail marker (see ToolPlacedSentinel below) -
+    // NOT _unused3, since BeamBridge is also a normal mailed item and would collide with SaveSeedGuard's tag.
+    // _unused2 remains available, unused.
     public const long GameObjectUnused1Offset = 0x58;
     public const long GameObjectUnused2Offset = 0x60;
     public const long GameObjectUnused3Offset = 0x68;
@@ -215,7 +217,11 @@ public static class GameOffsets
     public const long ItemDestRoomFlags = 0x110;
     public const long ItemRoomFlags = 0x114;
 
-    // Sentinel written into _destRoomFlags for items this app has delivered to the mail system.
+    // Sentinel written into _unused1 (GameObjectUnused1Offset) for items this app has delivered to the mail
+    // system, distinguishing a tool-placed item from one the game itself placed. Previously lived in
+    // _destRoomFlags, which is live engine state (the item's real mail destination) - overloading it caused
+    // real live-tested bugs (see the Design Notes doc). _unused1 is genuinely engine-unused, so this survives
+    // detach/reattach and save/reload exactly like before with no risk of colliding with a real value.
     public const uint ToolPlacedSentinel = 0xFFFFFFFF;
 
     // CTreeItem layout: +0x08 _parent, +0x10 _nextSibling, +0x18 _priorSibling, +0x20 _firstChild

@@ -64,12 +64,12 @@ public sealed partial class MainForm
         }
 
         List<GameState.MailItem> items = GameState.ReadMailItems(_mem, _currentMailManRoom.Value);
-        UpdateInfoMailCount(items.Count(i => i.DestRoomFlags == GameOffsets.ToolPlacedSentinel));
+        UpdateInfoMailCount(items.Count(i => i.ToolPlaced));
 
         bool changed = _lastMailItems is null
             || items.Count != _lastMailItems.Count
-            || !items.Select(i => (i.Name, i.IsPendingMail, i.DestRoomFlags, i.RoomFlags))
-                     .SequenceEqual(_lastMailItems.Select(i => (i.Name, i.IsPendingMail, i.DestRoomFlags, i.RoomFlags)));
+            || !items.Select(i => (i.Name, i.IsPendingMail, i.DestRoomFlags, i.RoomFlags, i.ToolPlaced))
+                     .SequenceEqual(_lastMailItems.Select(i => (i.Name, i.IsPendingMail, i.DestRoomFlags, i.RoomFlags, i.ToolPlaced)));
 
         if (!changed)
             return;
@@ -104,7 +104,7 @@ public sealed partial class MainForm
             var lvi = new ListViewItem(item.Name) { Tag = item.Address };
             lvi.SubItems.Add(status);
             lvi.SubItems.Add(dest);
-            lvi.SubItems.Add(item.DestRoomFlags == GameOffsets.ToolPlacedSentinel ? "Tool" : "Game");
+            lvi.SubItems.Add(item.ToolPlaced ? "Tool" : "Game");
             _lvMail.Items.Add(lvi);
         }
 
@@ -125,7 +125,7 @@ public sealed partial class MainForm
         int delivered = 0;
         foreach (GameState.MailItem item in items)
         {
-            if (item.DestRoomFlags != GameOffsets.ToolPlacedSentinel)
+            if (!item.ToolPlaced)
                 continue;
 
             if (GameActions.SetItemMailDestination(_mem, item.Address, code))

@@ -660,9 +660,12 @@ public sealed partial class MainForm
                     // player found it naturally - no check here, same as every other item's proactive-delivery
                     // case) or via the SGT TV puzzle's own script placing it there directly (a genuine natural
                     // delivery - this is that pickup). ItemPersistedState.ToolDelivered records which one it was
-                    // at the moment it entered Mail, since the engine's own _destRoomFlags sentinel that used to
-                    // distinguish this doesn't survive to this point - live testing showed the game's own mail-
-                    // retrieval processing overwrites it with a real value before this code gets to read it back.
+                    // at the moment it entered Mail, since the tool-placed sentinel (see GameActions.
+                    // MarkItemAsToolPlaced) that used to live in _destRoomFlags didn't survive to this point - live
+                    // testing showed the game's own mail-retrieval processing overwrites _destRoomFlags with a real
+                    // value before this code gets to read it back. The sentinel now lives in _unused1 instead,
+                    // which the engine never touches, but ToolDelivered is kept as the source of truth here rather
+                    // than re-deriving from that untested assumption.
                     bool fireCheck = !persisted.CheckFired
                         && string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
                         && !persisted.ToolDelivered;

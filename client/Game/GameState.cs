@@ -586,7 +586,7 @@ public static class GameState
         return null;
     }
 
-    public readonly record struct MailItem(long Address, string Name, bool IsPendingMail, uint DestRoomFlags, uint RoomFlags);
+    public readonly record struct MailItem(long Address, string Name, bool IsPendingMail, uint DestRoomFlags, uint RoomFlags, bool ToolPlaced);
 
     /// <summary>Reads every item currently parented under CMailMan, along with their mail-routing fields.</summary>
     public static List<MailItem> ReadMailItems(MemoryReader mem, long mailManAddr)
@@ -608,7 +608,8 @@ public static class GameState
                 string.IsNullOrEmpty(child.Name) ? "(unnamed)" : child.Name!,
                 pending.Value != 0,
                 unchecked((uint)dest.Value),
-                unchecked((uint)room.Value)));
+                unchecked((uint)room.Value),
+                GameActions.IsItemToolPlaced(mem, child.Address)));
         }
 
         return result;

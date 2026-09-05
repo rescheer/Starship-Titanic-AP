@@ -378,8 +378,7 @@ public sealed partial class MainForm
 
         if (ok)
         {
-            int? destRoomFlags = _mem.ReadInt32(itemAddr + GameOffsets.ItemDestRoomFlags);
-            if (destRoomFlags is int drf && unchecked((uint)drf) == GameOffsets.ToolPlacedSentinel)
+            if (GameActions.IsItemToolPlaced(_mem, itemAddr))
                 GameActions.UnmarkItemAsToolPlaced(_mem, itemAddr);
 
             _lastMailItems = null;
@@ -412,12 +411,8 @@ public sealed partial class MainForm
         }
         else
         {
-            if (ok)
-            {
-                int? destRoomFlags = _mem.ReadInt32(itemAddr + GameOffsets.ItemDestRoomFlags);
-                if (destRoomFlags is int drf && unchecked((uint)drf) == GameOffsets.ToolPlacedSentinel)
-                    GameActions.UnmarkItemAsToolPlaced(_mem, itemAddr);
-            }
+            if (ok && GameActions.IsItemToolPlaced(_mem, itemAddr))
+                GameActions.UnmarkItemAsToolPlaced(_mem, itemAddr);
             message = $"Move item 0x{itemAddr:X} -> 0x{roomAddr:X}";
         }
 
