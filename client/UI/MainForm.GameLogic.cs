@@ -564,7 +564,6 @@ public sealed partial class MainForm
         bool anyMailChange = false;
 
         SyncLiftEyeGate(items, receivedItems);
-        TryRestoreFeatherToParrot(items, gameManager);
 
         foreach (CarryItemLocation item in items)
         {
@@ -756,10 +755,10 @@ public sealed partial class MainForm
                 continue;
             }
 
-            // One-directional items have no home parent to proactively deliver from - they only enter play via
-            // their own in-game trigger, and forcibly reparenting them into mail before that trigger fires would
-            // break the mechanism that produces them. Leave them be; their check still fires normally once they
-            // naturally land in inventory (see the inInventory branch).
+            // One-directional items (e.g. Feathers) have no home parent to proactively deliver from - they only
+            // enter play via their own in-game trigger (the parrot escaping, etc.), and forcibly reparenting them
+            // into mail before that trigger fires would break the mechanism that produces them. Leave them be;
+            // their check still fires normally once they naturally land in inventory (see the inInventory branch).
             if (persisted.Stage == ItemStage.None && granted && !ItemTracking.IsOneDirectionalItem(item.Name))
             {
                 bool ok = DeliverToMail(item, gameManager);
@@ -929,40 +928,6 @@ public sealed partial class MainForm
                 ShowActionResult(moved, $"{name} self-healed back to its home parent");
             }
         }
-    }
-
-    /// <summary>Feathers has no fixed home RNV to restore at - its real home is the CarryParrot object itself,
-    /// which travels with the player rather than sitting in a static room view - so it uses its own restoration
-    /// condition instead of the generic RNV-arrival flow (TryRestoreItemsAtHomeRnv): as soon as the CarryParrot is
-    /// physically in the player's inventory, Feathers restores onto it directly.</summary>
-    private void TryRestoreFeatherToParrot(List<CarryItemLocation> items, long gameManager)
-    {
-        if (_currentInventoryRoom is null)
-            return;
-        if (FindByName(items, ItemTracking.CarryParrotName) is not { } parrot || parrot.ParentAddress != _currentInventoryRoom.Value)
-            return;
-        if (FindByName(items, "Feathers") is not { } feather)
-            return;
-
-        ItemPersistedState persisted = GameActions.ReadItemPersistedState(_mem, feather.Address);
-        bool eligibleFromInventory = persisted.Stage == ItemStage.Inventory && !persisted.CheckFired;
-        bool eligibleFromMail = persisted.Stage == ItemStage.Mail && !persisted.CheckFired;
-        if (!eligibleFromInventory && !eligibleFromMail)
-            return;
-
-        ItemPulledFrom pulledFrom = eligibleFromMail ? ItemPulledFrom.Mail : ItemPulledFrom.Inventory;
-        bool moved = GameActions.MoveItemSmart(_mem, feather.Address, parrot.Address, _currentInventoryRoom, gameManager);
-        if (moved)
-        {
-            GameActions.WriteItemPersistedState(_mem, feather.Address, new ItemPersistedState(ItemStage.Restored, false, pulledFrom));
-            GameActions.SetItemVisible(_mem, feather.Address, false);
-            GameActions.MoveToFirstChild(_mem, feather.Address, parrot.Address);
-            ScheduleDirtyReassert();
-            DoRefreshAllItems();
-        }
-        ShowActionResult(moved, moved
-            ? "Feathers restored onto the CarryParrot for a real natural pickup (was granted before being found)"
-            : "Feathers failed to restore onto the CarryParrot");
     }
 
     /// <summary>Queues a delayed re-check for any item still sitting Restored-but-unpicked at the RNV just being
