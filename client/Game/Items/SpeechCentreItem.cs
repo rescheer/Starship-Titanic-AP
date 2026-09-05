@@ -9,5 +9,6 @@ internal static class SpeechCentreItem
         PickupLocationName = "Arboretum - Titania's Speech Center",
         HomeRnvs = new[] { new RoomNodeView(48, 2, 2) },
         DefaultParent = new DefaultParent(null, "CViewItem"),
+        SkipFirstChildReorderOnRestore = true,
     };
 }
