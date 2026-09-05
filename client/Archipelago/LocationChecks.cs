@@ -3,6 +3,12 @@ namespace StarshipTitanicAp;
 /// <summary>Maps this app's internal engine concepts to the AP location name strings defined in the .apworld.</summary>
 public static class LocationChecks
 {
+    /// <summary>
+    /// AP location name for the goal event ("Victory" in locations.py/rules.py). It has no network id -
+    /// reaching it is reported to the server via ArchipelagoSession.SetGoalAchieved, not a location check.
+    /// </summary>
+    public const string GoalLocationName = "The End - Return Home";
+
     // engine room name (RoomNames.cs) -> AP location name (locations.py)
     private static readonly Dictionary<string, string> RoomToLocationName = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -39,7 +45,7 @@ public static class LocationChecks
         ["1stClassRestaurant"] = "1st Class Restaurant - Visited",
         // After Titania Repair
         ["Bridge"] = "Bridge - Visited",
-        ["TheEnd"] = "The End - Return Home",
+        ["TheEnd"] = GoalLocationName,
     };
 
     // Point-of-interest locations, keyed by the exact (Room, Node, View)

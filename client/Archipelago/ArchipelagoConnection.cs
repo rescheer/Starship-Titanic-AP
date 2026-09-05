@@ -231,7 +231,13 @@ public sealed class ArchipelagoConnection : IDisposable
         return true;
     }
 
-    /// <summary>Reports a completed location check to the server, identified by its AP location name.</summary>
+    /// <summary>
+    /// Reports a completed location check to the server, identified by its AP location name.
+    /// "The End - Return Home" (<see cref="LocationChecks.GoalLocationName"/>) is an event location with no
+    /// network id - it's resolved locally during generation for logic purposes only, so it can never be sent
+    /// as a normal location check. It's routed to <see cref="ArchipelagoSession.SetGoalAchieved"/> instead,
+    /// which is the actual signal the server needs to mark the slot's goal as done.
+    /// </summary>
     public bool SendLocationCheck(string locationName)
     {
         if (_checkQueue.Enqueue(locationName, SeedName))
@@ -240,17 +246,23 @@ public sealed class ArchipelagoConnection : IDisposable
         if (_session is not { } session)
             return false;
 
-        long? locationId = ResolveLocationId(locationName);
-        if (locationId is null)
-            return false;
-
-        _ = SendLocationCheckAsync(session, locationName, locationId.Value);
+        _ = SendLocationCheckAsync(session, locationName);
         return true;
     }
 
-    private async Task SendLocationCheckAsync(ArchipelagoSession session, string locationName, long locationId)
+    private async Task SendLocationCheckAsync(ArchipelagoSession session, string locationName)
     {
-        bool ok = await TrySendAsync(session, () => session.Locations.CompleteLocationChecks(locationId));
+        bool ok;
+        if (string.Equals(locationName, LocationChecks.GoalLocationName, StringComparison.Ordinal))
+            ok = await TrySendAsync(session, () => session.SetGoalAchieved());
+        else
+        {
+            long? locationId = ResolveLocationId(locationName);
+            if (locationId is null)
+                return;
+            ok = await TrySendAsync(session, () => session.Locations.CompleteLocationChecks(locationId.Value));
+        }
+
         if (ok)
             _checkQueue.Remove(locationName);
     }
@@ -281,11 +293,17 @@ public sealed class ArchipelagoConnection : IDisposable
             if (check.SeedName is null || !string.Equals(check.SeedName, SeedName, StringComparison.Ordinal))
                 continue;
 
-            long id = session.Locations.GetLocationIdFromName(GameName, check.LocationName);
-            if (id == -1)
-                continue;
+            bool ok;
+            if (string.Equals(check.LocationName, LocationChecks.GoalLocationName, StringComparison.Ordinal))
+                ok = await TrySendAsync(session, () => session.SetGoalAchieved());
+            else
+            {
+                long id = session.Locations.GetLocationIdFromName(GameName, check.LocationName);
+                if (id == -1)
+                    continue;
+                ok = await TrySendAsync(session, () => session.Locations.CompleteLocationChecks(id));
+            }
 
-            bool ok = await TrySendAsync(session, () => session.Locations.CompleteLocationChecks(id));
             if (!ok)
                 return;
 
