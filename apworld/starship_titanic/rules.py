@@ -237,7 +237,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     world.set_rule(
         # Event
         world.get_location("1st Class Restaurant - Titania's Auditory Center"),
-        Has("Maitre'D Bot's Right Arm")
+        HasAll("Maitre'D Bot's Right Arm", "Maitre'D Bot's Left Arm")
         & CanReachRegion("1st Class Restaurant")
     )
 
