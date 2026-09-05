@@ -564,6 +564,7 @@ public sealed partial class MainForm
         bool anyMailChange = false;
 
         SyncLiftEyeGate(items, receivedItems);
+        TryHideOrDeliverFeather(items, receivedItems, gameManager);
 
         foreach (CarryItemLocation item in items)
         {
@@ -578,11 +579,45 @@ public sealed partial class MainForm
 
             if (isCarryParrot)
             {
+                // CarryParrot itself has no location check of its own (see LocationChecks.cs) - what this tracks
+                // instead is the Feather's own check, fired off CarryParrot's escape from inventory rather than
+                // off the real Feathers object's movement (see FeathersItem's doc comment for why). Per the
+                // game's own mechanics, while the player is carrying the parrot exactly one of three things
+                // happens: they mail it away (no feather left behind), they leave the room, or a timer runs out
+                // (the latter two both leave a feather behind) - so once the parrot is seen leaving inventory,
+                // landing anywhere other than the mail is proof a feather was left behind.
+                //
+                // PulledFrom (otherwise unused for CarryParrot) doubles as the "currently being watched for a
+                // departure" flag: set the moment it's first seen in inventory, cleared without firing if it goes
+                // to mail (so a later re-pickup-then-real-escape after mailing it back to themselves is still
+                // caught), and left permanently resolved (CheckFired) once a genuine escape fires the check.
                 ItemPersistedState carryParrotPersisted = GameActions.ReadItemPersistedState(_mem, item.Address);
-                if (carryParrotPersisted.Stage == ItemStage.None && item.ParentAddress == _currentInventoryRoom.Value)
+                if (!carryParrotPersisted.CheckFired)
                 {
-                    SendItemPickupCheck(item.Name);
-                    GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Inventory, true, ItemPulledFrom.None));
+                    bool parrotInInventory = item.ParentAddress == _currentInventoryRoom.Value;
+                    if (parrotInInventory)
+                    {
+                        if (carryParrotPersisted.PulledFrom != ItemPulledFrom.Inventory)
+                        {
+                            GameActions.WriteItemPersistedState(_mem, item.Address,
+                                new ItemPersistedState(ItemStage.None, false, ItemPulledFrom.Inventory));
+                        }
+                    }
+                    else if (carryParrotPersisted.PulledFrom == ItemPulledFrom.Inventory)
+                    {
+                        bool wentToMail = item.ParentAddress == _currentMailManRoom.Value;
+                        if (wentToMail)
+                        {
+                            GameActions.WriteItemPersistedState(_mem, item.Address,
+                                new ItemPersistedState(ItemStage.None, false, ItemPulledFrom.None));
+                        }
+                        else
+                        {
+                            SendItemPickupCheck("Feathers");
+                            GameActions.WriteItemPersistedState(_mem, item.Address,
+                                new ItemPersistedState(ItemStage.None, true, ItemPulledFrom.None));
+                        }
+                    }
                 }
                 continue;
             }
@@ -758,10 +793,10 @@ public sealed partial class MainForm
                 continue;
             }
 
-            // One-directional items (e.g. Feathers) have no home parent to proactively deliver from - they only
-            // enter play via their own in-game trigger (the parrot escaping, etc.), and forcibly reparenting them
-            // into mail before that trigger fires would break the mechanism that produces them. Leave them be;
-            // their check still fires normally once they naturally land in inventory (see the inInventory branch).
+            // One-directional items have no home parent to proactively deliver from - they only enter play via
+            // their own in-game trigger, and forcibly reparenting them into mail before that trigger fires would
+            // break the mechanism that produces them. Leave them be; their check still fires normally once they
+            // naturally land in inventory (see the inInventory branch).
             if (persisted.Stage == ItemStage.None && granted && !ItemTracking.IsOneDirectionalItem(item.Name))
             {
                 bool ok = DeliverToMail(item, gameManager);
@@ -795,6 +830,68 @@ public sealed partial class MainForm
             && head.ParentAddress == _currentInventoryRoom.Value;
 
         GetLiftEye2GateHook.SetGateAllowed(_mem, headInInventory);
+    }
+
+    /// <summary>Feathers stays out of the generic tracked-item pipeline entirely (see FeathersItem's doc comment) -
+    /// its pickup check fires off CarryParrot's own escape from inventory, independent of AP-grant state, since
+    /// finding it is what matters for the check, not owning it. But every other aspect of a normal full-state-
+    /// machine item's AP-grant handling still applies to the real Feathers object: a grant proactively delivers it
+    /// to mail (same as every other item's Stage.None-and-granted case), and a natural pickup while ungranted hides
+    /// it pending a later grant (same as every other item's ungranted-natural-pickup case). Reimplemented by hand,
+    /// rather than by just letting Feathers into the generic loop, only so its own check doesn't get evaluated
+    /// there too and double-fire alongside the CarryParrot-driven one.</summary>
+    private void TryHideOrDeliverFeather(List<CarryItemLocation> items, string[] receivedItems, long gameManager)
+    {
+        if (_currentInventoryRoom is null)
+            return;
+        if (FindByName(items, "Feathers") is not { } feather)
+            return;
+
+        bool granted = receivedItems.Contains("Feather", StringComparer.OrdinalIgnoreCase);
+        ItemPersistedState persisted = GameActions.ReadItemPersistedState(_mem, feather.Address);
+
+        if (persisted.Stage == ItemStage.Hidden)
+        {
+            if (!granted)
+                return;
+
+            bool delivered = DeliverToMail(feather, gameManager);
+            if (delivered)
+            {
+                GameActions.WriteItemPersistedState(_mem, feather.Address, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None, ToolDelivered: true));
+                _lastMailItems = null;
+                DoRefreshAllItems();
+            }
+            return;
+        }
+
+        if (persisted.Stage != ItemStage.None)
+            return;
+
+        if (granted)
+        {
+            bool delivered = DeliverToMail(feather, gameManager);
+            if (delivered)
+            {
+                GameActions.WriteItemPersistedState(_mem, feather.Address, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolDelivered: true));
+                _lastMailItems = null;
+                DoRefreshAllItems();
+            }
+            return;
+        }
+
+        if (feather.ParentAddress != _currentInventoryRoom.Value)
+            return;
+
+        bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, feather.Address, _currentInventoryRoom.Value, gameManager);
+        if (moved)
+        {
+            GameActions.WriteItemPersistedState(_mem, feather.Address, new ItemPersistedState(ItemStage.Hidden, true, ItemPulledFrom.None));
+            DoRefreshAllItems();
+        }
+        ShowActionResult(moved, moved
+            ? "Feathers picked up - not yet granted, hidden pending AP grant"
+            : "Feathers picked up - not yet granted, but failed to hide it");
     }
 
     /// <summary>Reacts to GetLiftEye2GateHook firing: tells the player what they're missing. A plain RNV arrival
