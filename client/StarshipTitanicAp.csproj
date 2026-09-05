@@ -13,7 +13,7 @@
 
     <!-- Bump this for each release - AppInfo.cs reads it at runtime and
          MainForm puts it in the title bar -->
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Product>Starship Titanic AP Client</Product>
   </PropertyGroup>
 
