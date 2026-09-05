@@ -25,9 +25,14 @@ public static class ChevronCodes
     // on their own assigned floor: a live capture there decoded via RoomFlags.Decode()
     // to (elevator 1, class 3, floor 30, room 0) - the per-stateroom Compute() shape,
     // not one of the fixed named-room constants (which all have their low bit set).
+    //
+    // FrozenArboretum (room 52) is here not because its code varies per player, but
+    // because it's a distinct room object from Arboretum (room 48) with an unconfirmed
+    // fixed code of its own - reading it live avoids needing to hardcode a second constant.
     private static readonly HashSet<string> DynamicMailStationNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "secClassState", "2ndClassLobby", "1stClassState", "1stClassLobby", "SgtLobby",
+        "FrozenArboretum",
     };
 
     private static readonly Dictionary<string, uint> Codes = new(StringComparer.OrdinalIgnoreCase)
