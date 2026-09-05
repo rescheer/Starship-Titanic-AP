@@ -41,7 +41,7 @@ public static class ItemHomeLocations
         return false;
     }
 
-    public static bool TryGetRestoreFieldOverride(string itemName, out (short? Left, short? Top, short? Right, short? Bottom, int? CursorId, int? EnterFrame, bool KeepVisible) fields)
+    public static bool TryGetRestoreFieldOverride(string itemName, out (short? Left, short? Top, short? Right, short? Bottom, int? CursorId, int? EnterFrame, bool? KeepVisible) fields)
     {
         if (Items.TryGet(itemName, out ItemDefinition item) && item.RestoreFieldOverride is { } o)
         {

@@ -13,6 +13,6 @@ internal static class Ear1Item
         // picking it up before the nut puzzle is solved is the separate CBowlUnlocker sibling rendering on top
         // of it (CBowlUnlocker::MovieEndMsg sets its own _visible false once unlocked), so no canTake override
         // is needed here; just restore its exact captured child state.
-        RestoreFieldOverride = new RestoreFieldOverride(0, 0, 76, 76, null, 0, KeepVisible: false),
+        RestoreFieldOverride = new RestoreFieldOverride(202, 231, 282, 311, null, 0, KeepVisible: false),
     };
 }

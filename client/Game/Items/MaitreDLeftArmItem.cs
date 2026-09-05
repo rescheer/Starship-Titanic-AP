@@ -13,7 +13,7 @@ internal static class MaitreDLeftArmItem
         // CViewItem (no separate baked room art depicting it), so the generic restoration flow forcing
         // _visible false leaves it present but unclickable. No captured bounds/cursorId override yet beyond
         // KeepVisible; if that alone isn't enough, capture live values via ItemFieldsForm and fill them in here.
-        RestoreFieldOverride = new RestoreFieldOverride(null, null, null, null, null, null, KeepVisible: true),
+        RestoreFieldOverride = new RestoreFieldOverride(274, 68, 374, 332, null, null, KeepVisible: true),
         SkipFirstChildReorderOnRestore = true,
     };
 }

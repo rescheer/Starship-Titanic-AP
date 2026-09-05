@@ -998,7 +998,7 @@ public sealed partial class MainForm
                             GameActions.SetItemCursorId(_mem, item.Address, cursorId);
                         if (fields.EnterFrame is { } enterFrame)
                             GameActions.CallLoadFrame(_mem, item.Address, enterFrame);
-                        if (fields.KeepVisible)
+                        if (fields.KeepVisible is true)
                             GameActions.SetItemVisible(_mem, item.Address, true);
                     }
 

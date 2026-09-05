@@ -9,7 +9,7 @@ public readonly record struct DefaultParent(string? ParentName, string ParentCla
 /// wrong for a given item - the other fields are only needed when leftover values from a prior natural
 /// pickup also need correcting (see BrokenLiftbotHead).</summary>
 public readonly record struct RestoreFieldOverride(
-    short? Left, short? Top, short? Right, short? Bottom, int? CursorId, int? EnterFrame, bool KeepVisible);
+    short? Left, short? Top, short? Right, short? Bottom, int? CursorId, int? EnterFrame, bool? KeepVisible);
 
 /// <summary>Everything this app knows about one carryable item.</summary>
 public sealed record ItemDefinition

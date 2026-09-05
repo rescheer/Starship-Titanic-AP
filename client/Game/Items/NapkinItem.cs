@@ -14,6 +14,6 @@ internal static class NapkinItem
         // flow's _visible=false left it present but not shown. Confirmed live that KeepVisible alone fixes it.
         // No captured bounds/cursorId override yet; if artifacts show up later, capture live values via
         // ItemFieldsForm and fill them in here.
-        RestoreFieldOverride = new RestoreFieldOverride(null, null, null, null, null, null, KeepVisible: true),
+        RestoreFieldOverride = new RestoreFieldOverride(285, 299, 365, 407, null, null, KeepVisible: true),
     };
 }
