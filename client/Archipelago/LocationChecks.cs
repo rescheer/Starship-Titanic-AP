@@ -81,6 +81,13 @@ public static class LocationChecks
         [1] = "DeskBot - 1st Class Upgrade",
     };
 
+    // Event-only shadow locations sent alongside the real class-upgrade check above, purely so the apworld can
+    // gate "DeskBot - 1st Class Upgrade" on the 2nd Class Upgrade having actually happened
+    private static readonly Dictionary<int, string> ClassUpgradeEventLocationName = new()
+    {
+        [2] = "DeskBot - 2nd Class Upgrade (Event)",
+    };
+
     public static readonly IReadOnlyCollection<string> SuccUBusStationLocationNames =
         PointOfInterestLocationName.Values
             .Where(name => name.Contains("Succ-U-Bus", StringComparison.OrdinalIgnoreCase))
@@ -131,6 +138,20 @@ public static class LocationChecks
     public static bool TryGetClassUpgradeLocationName(int attemptedClass, out string locationName)
     {
         if (ClassUpgradeLocationName.TryGetValue(attemptedClass, out string? name))
+        {
+            locationName = name;
+            return true;
+        }
+
+        locationName = "";
+        return false;
+    }
+
+    /// <summary>Looks up the event-only shadow location name (if any) sent alongside a blocked DeskBot
+    /// class-upgrade attempt - see <see cref="ClassUpgradeEventLocationName"/>.</summary>
+    public static bool TryGetClassUpgradeEventLocationName(int attemptedClass, out string locationName)
+    {
+        if (ClassUpgradeEventLocationName.TryGetValue(attemptedClass, out string? name))
         {
             locationName = name;
             return true;

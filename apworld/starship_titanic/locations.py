@@ -33,7 +33,13 @@ location_table: Dict[str, STLocationData] = {
     "Embarkation Lobby - Visited": STLocationData("Embarkation Lobby"),
     # Item
     # Puzzle
-    "DeskBot - 2nd Class Upgrade": STLocationData("Embarkation Lobby", "2nd Class Upgrade"),
+    "DeskBot - 2nd Class Upgrade": STLocationData("Embarkation Lobby"),
+    # Event-only shadow of the check above, fired by the client alongside it - exists purely so
+    # "DeskBot - 1st Class Upgrade" can gate on the 2nd Class Upgrade having actually happened (Has("2nd Class
+    # Upgrade")) rather than on holding enough Progressive Passenger Class Upgrade items, which the client can't
+    # guarantee arrive in the same order the real check does. Keeps the real check above eligible for the
+    # multiworld's own item pool instead of being consumed as an event.
+    "DeskBot - 2nd Class Upgrade (Event)": STLocationData("Embarkation Lobby", "2nd Class Upgrade"),
     "DeskBot - 1st Class Upgrade": STLocationData("Embarkation Lobby"),
     # Other
 

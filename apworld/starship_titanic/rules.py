@@ -79,6 +79,11 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         & CanReachRegion("Embarkation Lobby")
     )
     world.set_rule(
+        world.get_location("DeskBot - 2nd Class Upgrade (Event)"),
+        Has("Magazine")
+        & CanReachRegion("Embarkation Lobby")
+    )
+    world.set_rule(
         world.get_location("DeskBot - 1st Class Upgrade"),
         Has("2nd Class Upgrade")
         & CanReachRegion("Sculpture Chamber")
