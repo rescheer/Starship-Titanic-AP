@@ -1,6 +1,6 @@
 client/bin/
 client/obj/
-client/docs/other/
+client/docs/other
 
 *.bat
 *.lnk
