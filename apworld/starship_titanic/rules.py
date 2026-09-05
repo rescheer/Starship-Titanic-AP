@@ -206,7 +206,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # ---------------------------------------------------------------- #
     world.set_rule(
         world.get_location("Bar - Titania's Vision Center"),
-        HasAll("Lemon", "Crushed TV", "Bar Glass", "Blue Fuse")
+        HasAll("Lemon", "Crushed TV", "Bar Glass", "Blue Fuse", "Yellow Fuse")
         & CanReachRegion("Bar")
         & CanReachRegion("Promenade Deck")
     )
