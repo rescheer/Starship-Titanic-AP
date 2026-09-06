@@ -226,13 +226,18 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     first_class_restaurant_table_locations = (
         "1st Class Restaurant - Napkin",
         "1st Class Restaurant - Green Fuse",
-        "1st Class Restaurant - Maitre'D Bot's Right Arm",
+        "1st Class Restaurant - Maitre'D Bot's Left Arm",
     )
     for loc_name in first_class_restaurant_table_locations:
         world.set_rule(world.get_location(loc_name),
             Has("Restaurant Table Reservation")
             & CanReachRegion("1st Class Restaurant")
         )
+    
+    world.set_rule(
+        world.get_location("1st Class Restaurant - Maitre'D Bot's Right Arm"),
+        CanReachRegion("1st Class Restaurant")
+    )
 
     world.set_rule(
         # Event
