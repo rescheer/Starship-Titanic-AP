@@ -101,7 +101,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     world.set_rule(
         world.get_location("Broken Elevator - Titania's Eye (Elevator)"),
         Has("LiftBot Head")
-        & CanReachRegion("Top of the Well") | CanReachRegion("Bottom of the Well")
+        & (CanReachRegion("Top of the Well") | CanReachRegion("Bottom of the Well"))
     )
 
     # ---------------------------------------------------------------- #
