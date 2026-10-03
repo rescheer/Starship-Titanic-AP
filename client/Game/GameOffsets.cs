@@ -163,6 +163,14 @@ public static class GameOffsets
     // CCarry::_canTake - gates whether the item can be picked up at all, independent of _visible/_cursorId.
     public const long CarryCanTakeOffset = 0x1E8;
 
+    // CTelevision::_channel4Glyph (titanic/game/television.h) - a STATIC bool, so a module-relative global
+    // (add mem.ModuleBase), not a field on the CTelevision object. Gates the channel-4 picture in
+    // CTelevision::PETActivateMsg (`_channelNum == 4 && _channel4Glyph`); CEye clears it once Eye1 is taken.
+    // Saved/loaded with each CTelevision, and reset to true by CTelevision::init(). Confirmed via disassembly:
+    // init() (0x23F5C80) stores 1 here, save() writes it right after _soundHandle ([this+0x194]) and before
+    // _eyeFlag (0x5F32600), and PETActivateMsg tests it with `cmp byte [rip+..], 0`.
+    public const long TelevisionChannel4GlyphStatic = 0x5F32601;
+
     // CGetLiftEye2::MouseDragStartMsg (the broken elevator's "take the Eye" hotspot) - confirmed live via
     // disassembly. The function is `bool result = checkPoint(msg->_mousePos, false, true); if (result) {...side
     // effects...} return result;`, compiled with a single shared epilogue for both paths:

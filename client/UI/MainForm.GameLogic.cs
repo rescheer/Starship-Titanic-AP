@@ -479,6 +479,21 @@ public sealed partial class MainForm
         ShowActionResult(ok, "Table Access granted -> Maitre'D's table unlocked");
     }
 
+    /// <summary>Keeps CTelevision::_channel4Glyph pinned to true, so taking Eye1 never takes channel 4's picture
+    /// off the television. Only writes when the game has cleared it.</summary>
+    private void KeepTelevisionChannel4GlyphOn()
+    {
+        long addr = _mem.ModuleBase + GameOffsets.TelevisionChannel4GlyphStatic;
+        byte[]? current = _mem.ReadBytes(addr, 1);
+        if (current is null || current[0] != 0)
+            return;
+
+        bool ok = _mem.WriteByte(addr, 1);
+        AppendLog(ok
+            ? "CTelevision::_channel4Glyph was cleared - reset to true"
+            : "CTelevision::_channel4Glyph was cleared - failed to reset it");
+    }
+
     /// <summary>Sends the AP location check for a room's "Arrive for the First Time" location.</summary>
     private void TrySendRoomVisitCheck(string roomName)
     {

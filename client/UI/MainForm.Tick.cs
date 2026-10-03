@@ -226,6 +226,7 @@ public sealed partial class MainForm
         }
 
         SyncTableAccessFromItems();
+        KeepTelevisionChannel4GlyphOn();
 
         UpdatePendingChecksLabel();
 
