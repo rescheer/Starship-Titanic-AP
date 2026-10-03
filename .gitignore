@@ -1,6 +1,7 @@
 client/bin/
 client/obj/
 client/docs/other
+titanic/
 
 *.bat
 *.lnk
