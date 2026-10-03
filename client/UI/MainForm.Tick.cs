@@ -227,6 +227,7 @@ public sealed partial class MainForm
 
         SyncTableAccessFromItems();
         KeepTelevisionChannel4GlyphOn();
+        KeepLiftEyeDestObjectNonNull();
 
         UpdatePendingChecksLabel();
 

@@ -171,6 +171,24 @@ public static class GameOffsets
     // _eyeFlag (0x5F32600), and PETActivateMsg tests it with `cmp byte [rip+..], 0`.
     public const long TelevisionChannel4GlyphStatic = 0x5F32601;
 
+    // CGetLiftEye2::_destObject (titanic/game/get_lift_eye2.h) - a STATIC `CString *`, so this module-relative
+    // global holds a pointer to a heap-allocated CString (allocated once by CGetLiftEye2::init()), not the string
+    // itself. Holds the name of the eye placed into the broken lift ("Eye1"/"Eye2") - set by CGetLiftEye2::ActMsg,
+    // reset to "NULL" by MouseDragStartMsg when that eye is taken back out. CTelevision::PETActivateMsg only shows
+    // channel 5 (`loadFrame(393 + _eyeFloorNum)`) while it's != "NULL". Confirmed via disassembly: the
+    // MouseDragStartMsg body (GetLiftEye2MouseDragBodyFunc) passes [rip->here] to execute() and then assigns a
+    // "NULL" literal into it; television.cpp reads it through a MinGW .refptr slot at 0x23F58A8, compares it
+    // against "NULL", then calls loadFrame(_eyeFloorNum + 0x189).
+    public const long GetLiftEye2DestObjectPtrStatic = 0x5F322B0;
+
+    // CString (ScummVM Common::String) layout, confirmed via the CString(const char*) ctor (CStringCharPtrCtorFunc):
+    // _size (uint32) @ +0, _str (char*) @ +8, inline _storage @ +0x10 - _str points at the inline buffer for short
+    // strings, or at a separately-allocated (possibly refcount-shared) buffer for long ones.
+    public const long CStringSizeOffset = 0x0;
+    public const long CStringDataPtrOffset = 0x8;
+    public const long CStringInlineStorageOffset = 0x10;
+    public const int CStringInlineCapacity = 0x28 - 0x10;
+
     // CGetLiftEye2::MouseDragStartMsg (the broken elevator's "take the Eye" hotspot) - confirmed live via
     // disassembly. The function is `bool result = checkPoint(msg->_mousePos, false, true); if (result) {...side
     // effects...} return result;`, compiled with a single shared epilogue for both paths:

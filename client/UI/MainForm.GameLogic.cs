@@ -494,6 +494,41 @@ public sealed partial class MainForm
             : "CTelevision::_channel4Glyph was cleared - failed to reset it");
     }
 
+    /// <summary>Stand-in written over CGetLiftEye2::_destObject's "NULL". Deliberately NOT a real object name:
+    /// CGetLiftEye2::MouseDragStartMsg looks the name up and drags that object out of the lift, so a real eye's
+    /// name here would let the lift hotspot pull that eye from wherever it actually is.</summary>
+    private const string LiftEyeDestObjectPlaceholder = "APNoEye";
+
+    /// <summary>Keeps CGetLiftEye2::_destObject from reading "NULL", so the television's channel 5 always shows the
+    /// lift's floor (CTelevision::PETActivateMsg only does while it's != "NULL"). Only writes when the game has
+    /// set it to "NULL", and only into the CString's own inline buffer - never a possibly-shared heap one.</summary>
+    private void KeepLiftEyeDestObjectNonNull()
+    {
+        long? strAddr = _mem.ReadInt64(_mem.ModuleBase + GameOffsets.GetLiftEye2DestObjectPtrStatic);
+        if (strAddr is not long sa || sa == 0)
+            return;
+
+        int? size = _mem.ReadInt32(sa + GameOffsets.CStringSizeOffset);
+        long? dataPtr = _mem.ReadInt64(sa + GameOffsets.CStringDataPtrOffset);
+        if (size != 4 || dataPtr is not long dp)
+            return;
+        if (_mem.ReadShortAsciiString(dp, 4) != "NULL")
+            return;
+
+        if (dp != sa + GameOffsets.CStringInlineStorageOffset
+            || LiftEyeDestObjectPlaceholder.Length + 1 > GameOffsets.CStringInlineCapacity)
+        {
+            AppendLog("CGetLiftEye2::_destObject is \"NULL\" but not in its inline buffer - left alone");
+            return;
+        }
+
+        bool wroteBytes = _mem.WriteBytes(dp, System.Text.Encoding.ASCII.GetBytes(LiftEyeDestObjectPlaceholder + "\0"));
+        bool wroteSize = _mem.WriteInt32(sa + GameOffsets.CStringSizeOffset, LiftEyeDestObjectPlaceholder.Length);
+        AppendLog(wroteBytes && wroteSize
+            ? $"CGetLiftEye2::_destObject was \"NULL\" - set to \"{LiftEyeDestObjectPlaceholder}\""
+            : "CGetLiftEye2::_destObject was \"NULL\" - failed to overwrite it");
+    }
+
     /// <summary>Sends the AP location check for a room's "Arrive for the First Time" location.</summary>
     private void TrySendRoomVisitCheck(string roomName)
     {
