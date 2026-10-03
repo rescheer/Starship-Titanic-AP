@@ -12,9 +12,12 @@ public sealed class MemoryReader : IDisposable
     private const uint PROCESS_VM_WRITE = 0x0020;
     private const uint PROCESS_VM_OPERATION = 0x0008;
     private const uint PROCESS_CREATE_THREAD = 0x0002;
+    private const uint SYNCHRONIZE = 0x00100000;
 
     private const uint FullAccess = PROCESS_QUERY_INFORMATION | PROCESS_VM_READ
-        | PROCESS_VM_WRITE | PROCESS_VM_OPERATION | PROCESS_CREATE_THREAD;
+        | PROCESS_VM_WRITE | PROCESS_VM_OPERATION | PROCESS_CREATE_THREAD | SYNCHRONIZE;
+
+    private const uint WAIT_OBJECT_0 = 0x00000000;
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
@@ -22,6 +25,9 @@ public sealed class MemoryReader : IDisposable
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CloseHandle(IntPtr hObject);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -85,6 +91,10 @@ public sealed class MemoryReader : IDisposable
                 p.Dispose();
         }
     }
+
+    /// <summary>True if we hold a handle to a process that has since terminated. Non-blocking.</summary>
+    public bool HasProcessExited() =>
+        IsAttached && WaitForSingleObject(_processHandle, 0) == WAIT_OBJECT_0;
 
     public void Detach()
     {

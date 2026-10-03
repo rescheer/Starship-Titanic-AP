@@ -7,6 +7,13 @@ public sealed partial class MainForm
         if (!_mem.IsAttached)
             return;
 
+        if (_mem.HasProcessExited())
+        {
+            AppendServerLog("CLIENT: Starship Titanic (scummvm) closed - detaching");
+            DoDetach();
+            return;
+        }
+
         _tickCount++;
 
         long? gameManager = GameState.ResolveGameManager(_mem);
