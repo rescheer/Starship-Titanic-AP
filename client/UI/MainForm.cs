@@ -316,6 +316,10 @@ public sealed partial class MainForm : Form
         {
             GetLiftEye2GateHook.Uninstall(_mem);
         }
+        if (SaveLoadHook.IsInstalled)
+        {
+            SaveLoadHook.Uninstall(_mem);
+        }
         _timer.Stop();
         _mem.Dispose();
         _apConnection.Dispose();

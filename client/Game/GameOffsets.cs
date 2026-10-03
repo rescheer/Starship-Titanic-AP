@@ -295,6 +295,23 @@ public static class GameOffsets
     // this offset is saved here in case that natural-pickup detection turns out to need a direct assist.
     public const long LightEyePresentOffset = 0x194;
 
+    // CProjectItem::loadGame(int slotId) (titanic/core/project_item.cpp) - the single path every save load (PET
+    // Save/Load tab, ScummVM's own menu/launcher) and new game goes through. It does NOT replace the
+    // CProjectItem or CGameManager - both live for the whole process - it destroys every child of the project
+    // and re-parents freshly loaded ones under the same `this`, so every cached tree address goes stale while
+    // _project itself never changes. Found via its two error-string xrefs ("Could not open newgame.st", "Failed
+    // to read save game header"). Its prologue (8 pushes + sub rsp,0xC8 = 19 bytes) has no RIP-relative
+    // operands, so SaveLoadHook replays it verbatim.
+    public const long ProjectLoadGameFunc = 0x23A63A0;
+
+    // CProjectItem::postLoad() - called exactly once, from the tail of loadGame, after the loaded children have
+    // been re-parented under the project (so the new tree is complete by the time it runs).
+    public const long ProjectPostLoadFunc = 0x23A5410;
+
+    // Target of the `lea rdx,[rip-0xCFD]` at ProjectPostLoadFunc+0x6 (the devirtualization check against
+    // CProjectItem::getGameManager's address). SaveLoadHook's stub rebuilds it as an absolute mov.
+    public const long ProjectPostLoadLeaTarget = 0x23A4720;
+
     // Window scanned for a name-string pointer on each tree node.
     public const long NameScanStart = HeaderOffset + 0x20;
     public const long NameScanEnd = HeaderOffset + 0x60;

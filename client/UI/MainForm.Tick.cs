@@ -2,6 +2,34 @@ namespace StarshipTitanicAp;
 
 public sealed partial class MainForm
 {
+    /// <summary>The game rebuilt its object tree (a save was loaded while attached) - every address cached against
+    /// the old tree is now dangling, so drop them all rather than let later tree-walking code (FindAllCarryItems,
+    /// etc.) or spoof reverts chase/write freed pointers and crash. Also re-verifies the save against the seed,
+    /// since the newly loaded save may belong to a different one.</summary>
+    private void HandleTreeReloaded()
+    {
+        _currentInventoryRoom = null;
+        _currentMailManRoom = null;
+        _lastRoomNodeView = null;
+        _lastDisplayedRnv = null;
+        _lastRoomFlags = null;
+        _lastPassengerClass = null;
+        _lastInventory = null;
+        _lastMailItems = null;
+        _pendingUnrestoreChecks.Clear();
+        _classUpgradeSpoofOriginalClass = null; // the old PassengerClass value (and any spoof on it) was overwritten by the load
+        _sgtGlyphAddr = null; // the glyph lived inside the old CPetControl
+        _sgtGlyphOriginalMode = null;
+        _conversationsAddrShown = false;
+        _saveSeedGuardState = SaveSeedGuardState.Unverified;
+        _saveSeedGuardBeamBridgeMisses = 0;
+        _saveSeedGuardTagMismatches = 0;
+        GameActions.ClearHiddenRoomAddressCache();
+        TextCommandHook.ResetConversationsAddr(_mem);
+        SetAddressRow("Player Inventory (CPetControl)", null);
+        SetAddressRow("Conversations (CPetConversations)", null);
+    }
+
     private void OnTick()
     {
         if (!_mem.IsAttached)
@@ -12,6 +40,18 @@ public sealed partial class MainForm
             AppendServerLog("CLIENT: Starship Titanic (scummvm) closed - detaching");
             DoDetach();
             return;
+        }
+
+        switch (SaveLoadHook.Poll(_mem))
+        {
+            case SaveLoadHook.LoadState.Loading:
+                // The tree is being torn down and rebuilt on the game thread right now - don't touch any of it.
+                _lblRoomNodeView.Text = "Room: -   Node: -   View: -   (loading save)";
+                return;
+            case SaveLoadHook.LoadState.JustLoaded:
+                AppendLog("SaveLoadHook: save loaded - dropping all cached tree addresses");
+                HandleTreeReloaded();
+                return; // postLoad itself may still be running on the game thread - pick up fresh on the next tick
         }
 
         _tickCount++;
@@ -76,19 +116,10 @@ public sealed partial class MainForm
         long? liveProject = GameState.ResolveProject(_mem, gameManager.Value);
         if (liveProject != _currentProject)
         {
-            // The game re-created its object tree (e.g. a save was loaded while attached) - every address
-            // cached against the old tree is now potentially dangling, so drop them all rather than let
-            // later tree-walking code (FindAllCarryItems, etc.) chase stale/freed pointers and crash.
+            // Normally only the first non-null read after attaching - CProjectItem lives for the whole process,
+            // so save loads are caught by SaveLoadHook above instead.
+            HandleTreeReloaded();
             _currentProject = liveProject;
-            _currentInventoryRoom = null;
-            _currentMailManRoom = null;
-            _lastRoomNodeView = null;
-            _lastDisplayedRnv = null;
-            _classUpgradeSpoofOriginalClass = null; // the old gameManager address (and any spoof on it) is gone
-            _saveSeedGuardState = SaveSeedGuardState.Unverified;
-            _saveSeedGuardBeamBridgeMisses = 0;
-            _saveSeedGuardTagMismatches = 0;
-            GameActions.ClearHiddenRoomAddressCache();
             SetAddressRow("_project", _currentProject);
         }
         if (_currentProject is not null)

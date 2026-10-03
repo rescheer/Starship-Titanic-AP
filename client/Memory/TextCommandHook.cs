@@ -100,6 +100,16 @@ public static class TextCommandHook
         return restored;
     }
 
+    /// <summary>Forgets the captured _conversations address (and zeroes its mailbox slot so the stale value isn't
+    /// immediately re-read) - after a save load the CPetConversations it pointed into has been destroyed. The
+    /// stub re-captures the new one on the next text submission.</summary>
+    public static void ResetConversationsAddr(MemoryReader mem)
+    {
+        ConversationsAddr = 0;
+        if (_installed)
+            mem.WriteInt64(_mailboxAddr + ConversationsAddrMailboxOffset, 0);
+    }
+
     /// <summary>Checks the mailbox for a newly submitted '!' command.</summary>
     public static string? PollCommand(MemoryReader mem)
     {

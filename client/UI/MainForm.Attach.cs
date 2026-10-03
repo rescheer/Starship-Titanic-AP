@@ -20,6 +20,10 @@ public sealed partial class MainForm
             DoInstallMaitreDHook();
             DoInstallGetLiftEye2GateHook();
             DoInstallRoomAssignHook();
+            bool saveLoadHookOk = SaveLoadHook.Install(_mem);
+            ShowActionResult(saveLoadHookOk, "Install save-load detection hook");
+            if (!saveLoadHookOk)
+                AppendLog("SaveLoadHook: install failed (unexpected scummvm.exe build?) - loading a save while attached won't refresh cached addresses; detach and reattach after loading");
 
             long? gameManager = GameState.ResolveGameManager(_mem);
             _currentGameManager = gameManager;
@@ -63,6 +67,10 @@ public sealed partial class MainForm
         if (RoomAssignHook.IsInstalled)
         {
             RoomAssignHook.Uninstall(_mem);
+        }
+        if (SaveLoadHook.IsInstalled)
+        {
+            SaveLoadHook.Uninstall(_mem);
         }
 
         _mem.Detach();
