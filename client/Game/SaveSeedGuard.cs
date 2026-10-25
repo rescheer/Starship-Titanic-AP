@@ -13,13 +13,8 @@ public static class SaveSeedGuard
 {
     private const string BeamBridgeItemName = "BeamBridge";
 
-    /// <summary>Deterministic small positive tag for a seed_name.
-    /// BeamBridge's _unused3 field is a double in memory, but the game's save format writes it as
-    /// text via "%f" (6 fixed decimal places) and reads it back with sscanf("%f", &amp;floatValue) into a
-    /// 32-bit float (see CGameObject::save/load). A raw 64-bit hash reinterpreted as a double would be
-    /// mangled or destroyed by that round trip, so the tag must be a plain integer small enough for a
-    /// 32-bit float to represent exactly (&lt;= 2^24) - anything larger risks precision loss across a
-    /// save/load. 0 is reserved to mean "untagged", so the range is offset by 1.</summary>
+    /// <summary>Deterministic positive tag for a seed_name: an FNV-1a hash reduced to [1, 16,000,000], an integer
+    /// a 32-bit float represents exactly. 0 means "untagged".</summary>
     public static long ComputeSeedTag(string seedName)
     {
         ulong hash = 14695981039346656037UL;
@@ -43,7 +38,7 @@ public static class SaveSeedGuard
     }
 
     /// <summary>Reads back the tag written by <see cref="WriteSeedTag"/>, decoding it as the double
-    /// value it was stored as (not as raw 64-bit bits) - see <see cref="ComputeSeedTag"/>.</summary>
+    /// value it was stored as (not as raw 64-bit bits).</summary>
     public static long? ReadStoredSeedTag(MemoryReader mem, long beamBridgeAddr)
     {
         long? raw = mem.ReadInt64(beamBridgeAddr + GameOffsets.GameObjectUnused3Offset);
@@ -57,8 +52,7 @@ public static class SaveSeedGuard
         return (long)Math.Round(value);
     }
 
-    /// <summary>Stores tag as the double value it numerically represents, not as raw 64-bit bits -
-    /// see <see cref="ComputeSeedTag"/> for why that distinction matters.</summary>
+    /// <summary>Stores tag as the double value it numerically represents, not as raw 64-bit bits.</summary>
     public static bool WriteSeedTag(MemoryReader mem, long beamBridgeAddr, long tag) =>
         mem.WriteInt64(beamBridgeAddr + GameOffsets.GameObjectUnused3Offset, BitConverter.DoubleToInt64Bits(tag));
 }

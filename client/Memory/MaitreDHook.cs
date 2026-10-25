@@ -1,10 +1,8 @@
 namespace StarshipTitanicAp;
 
 /// <summary>Intercepts CScraliontisTable::MaitreDDefeatedMsg() so defeating the MaitreD records the attempt
-/// instead of granting table access directly - table access only ever applies from receiving the "Table Access"
-/// item over the multiworld (see GameActions.GrantScraliontisTableAccess), avoiding a softlock where completing
-/// the Music Room puzzle first (possible if "Music System Key" is granted before the natural Maitre'D win)
-/// permanently blocks further interaction with Maitre'D.</summary>
+/// instead of granting table access directly. Table access is applied from the "Table Access" AP item instead
+/// (see GameActions.GrantScraliontisTableAccess).</summary>
 public static class MaitreDHook
 {
     private const int OriginalBytesLength = 15; // mov eax,1 (5) + mov dword ptr [rcx+11C],4 (10) - clean instruction boundary

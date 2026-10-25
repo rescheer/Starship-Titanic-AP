@@ -55,24 +55,12 @@ public static class GameOffsets
     public const long SetPassengerClassFunc = 0x23A2740;
 
     // CGameObject::petReassignRoom() - called by the DeskBot right after setPassengerClass();
-    // same calling convention (rcx = this/gameManager, edx = class number). This is just a wrapper: it calls
-    // getPetControl() on rcx, computes CPetRooms* = result+PetRoomsOffset, then tail-jumps into the real
-    // CPetRooms::reassignRoom() body (see ReassignRoomBodyFunc below) with rcx=that CPetRooms*, edx=class number
-    // unchanged. RoomAssignHook hooks THIS address, since it's the one real natural callers (the DeskBot) use.
+    // rcx = this/gameManager, edx = class number. A wrapper: calls getPetControl() on rcx, computes
+    // CPetRooms* = result+PetRoomsOffset, then tail-jumps into ReassignRoomBodyFunc. Hooked by RoomAssignHook.
     public const long PetReassignRoomFunc = 0x23A3230;
 
     // CPetRooms::reassignRoom(PassengerClass) - the real body PetReassignRoomFunc's wrapper tail-jumps into.
-    // Derived from that wrapper's own jmp displacement, then confirmed live: reads _elevatorBroken at
-    // [this+0x284] (matching CPetRooms::reassignRoom's known source), operates on _glyphs at [this+0x10]
-    // (matches PetRoomsGlyphsOffset) and writes glyph->_mode at [glyph+0x48] (matches
-    // PetRoomsGlyphModeOffset) - an exact structural match, not just a similar-looking address. Callable
-    // directly with rcx = petControlAddr + PetRoomsOffset (CPetRooms* this), edx = class number - this skips
-    // the wrapper's own getPetControl() call entirely, which matters because that call climbs the CTreeItem
-    // parent chain starting from rcx, and going in with rcx=gameManager (as the wrapper does) crashed with an
-    // access violation two hops up a bogus parent chain - gameManager is reached via a separate static offset
-    // chain (Step1/Step2/GameManager), not via the tree, so it isn't a valid climb start point. getPetControl()
-    // itself is fine when called with a real tree-embedded item address (see PetMoveToHiddenRoomFunc, which
-    // already does this successfully via RemoteCaller) - the bug is specific to using gameManager for it.
+    // Call with rcx = petControlAddr + PetRoomsOffset (CPetRooms* this), edx = class number.
     public const long ReassignRoomBodyFunc = 0x2437440;
 
     // Previous PassengerClass value, written by setPassengerClass() right
@@ -135,8 +123,7 @@ public static class GameOffsets
     //
     // _unused4 is this app's own per-item state storage (see ItemPersistedState.cs).
     // _unused3 is used by SaveSeedGuard.cs, but only on the BeamBridge (Red Fuse) item.
-    // _unused1 is this app's own tool-placed/game-placed mail marker (see ToolPlacedSentinel below) -
-    // NOT _unused3, since BeamBridge is also a normal mailed item and would collide with SaveSeedGuard's tag.
+    // _unused1 is this app's own tool-placed/game-placed mail marker (see ToolPlacedSentinel below).
     // _unused2 remains available, unused.
     public const long GameObjectUnused1Offset = 0x58;
     public const long GameObjectUnused2Offset = 0x60;
@@ -166,49 +153,38 @@ public static class GameOffsets
     // CTelevision::_channel4Glyph (titanic/game/television.h) - a STATIC bool, so a module-relative global
     // (add mem.ModuleBase), not a field on the CTelevision object. Gates the channel-4 picture in
     // CTelevision::PETActivateMsg (`_channelNum == 4 && _channel4Glyph`); CEye clears it once Eye1 is taken.
-    // Saved/loaded with each CTelevision, and reset to true by CTelevision::init(). Confirmed via disassembly:
-    // init() (0x23F5C80) stores 1 here, save() writes it right after _soundHandle ([this+0x194]) and before
-    // _eyeFlag (0x5F32600), and PETActivateMsg tests it with `cmp byte [rip+..], 0`.
+    // Saved/loaded with each CTelevision, and reset to true by CTelevision::init().
     public const long TelevisionChannel4GlyphStatic = 0x5F32601;
 
     // CGetLiftEye2::_destObject (titanic/game/get_lift_eye2.h) - a STATIC `CString *`, so this module-relative
     // global holds a pointer to a heap-allocated CString (allocated once by CGetLiftEye2::init()), not the string
     // itself. Holds the name of the eye placed into the broken lift ("Eye1"/"Eye2") - set by CGetLiftEye2::ActMsg,
     // reset to "NULL" by MouseDragStartMsg when that eye is taken back out. CTelevision::PETActivateMsg only shows
-    // channel 5 (`loadFrame(393 + _eyeFloorNum)`) while it's != "NULL". Confirmed via disassembly: the
-    // MouseDragStartMsg body (GetLiftEye2MouseDragBodyFunc) passes [rip->here] to execute() and then assigns a
-    // "NULL" literal into it; television.cpp reads it through a MinGW .refptr slot at 0x23F58A8, compares it
-    // against "NULL", then calls loadFrame(_eyeFloorNum + 0x189).
+    // channel 5 (`loadFrame(393 + _eyeFloorNum)`) while it's != "NULL".
     public const long GetLiftEye2DestObjectPtrStatic = 0x5F322B0;
 
-    // CString (ScummVM Common::String) layout, confirmed via the CString(const char*) ctor (CStringCharPtrCtorFunc):
-    // _size (uint32) @ +0, _str (char*) @ +8, inline _storage @ +0x10 - _str points at the inline buffer for short
+    // CString (ScummVM Common::String) layout: _size (uint32) @ +0, _str (char*) @ +8, inline _storage @ +0x10 - _str points at the inline buffer for short
     // strings, or at a separately-allocated (possibly refcount-shared) buffer for long ones.
     public const long CStringSizeOffset = 0x0;
     public const long CStringDataPtrOffset = 0x8;
     public const long CStringInlineStorageOffset = 0x10;
     public const int CStringInlineCapacity = 0x28 - 0x10;
 
-    // CGetLiftEye2::MouseDragStartMsg (the broken elevator's "take the Eye" hotspot) - confirmed live via
-    // disassembly. The function is `bool result = checkPoint(msg->_mousePos, false, true); if (result) {...side
-    // effects...} return result;`, compiled with a single shared epilogue for both paths:
-    //   0x...4000: prologue (push r15/r14/r13/r12/rdi/rsi/rbx; sub rsp,0xA0), calls checkPoint(), `jne` to Body.
-    //   0x...4031: shared epilogue - `mov eax, r12d` (r12d holds checkPoint's own bool result) then pop/ret.
-    //     Reached directly when checkPoint() returns false, and via a jmp back at the end of Body otherwise.
+    // CGetLiftEye2::MouseDragStartMsg (the broken elevator's "take the Eye" hotspot):
+    // `bool result = checkPoint(msg->_mousePos, false, true); if (result) {...} return result;`, with one shared
+    // epilogue for both paths.
+    //   0x...4000: prologue, calls checkPoint(), `jne` to Body.
+    //   0x...4031: shared epilogue - `mov eax, r12d` (r12d holds checkPoint's bool result) then pop/ret.
     //   0x...4050: Body - the "checkPoint succeeded" side effects (sets own _cursorId/_visible, forwards a
-    //     CPassOnDragStartMsg to the real Eye2 item - notably WITHOUT ever consulting that item's own _canTake,
-    //     which is why gating _canTake on the real Eye2 CCarry item has no effect on this pickup path at all).
-    // GetLiftEye2GateHook hooks Body's entry to add our own gate on top of checkPoint's own result.
+    //     CPassOnDragStartMsg to the real Eye2 item without consulting its _canTake).
+    // GetLiftEye2GateHook hooks Body's entry.
     public const long GetLiftEye2MouseDragBodyFunc = 0x23E4050;
 
-    // The shared epilogue described above - jumping here directly (with r12d=0) reproduces exactly what a failed
-    // checkPoint() would have done: `return false`, with no vanilla message (CGetLiftEye2 shows none on failure).
+    // The shared epilogue above. Jumping here with r12d=0 returns false, with no vanilla message.
     public const long GetLiftEye2MouseDragEpilogueFunc = 0x23E4031;
 
-    // CScraliontisTable::MaitreDDefeatedMsg(CMaitreDDefeatedMsg*) - defeating the MaitreD.
-    // Confirmed live: writes _cursorId=4 (CURSOR_MOVE_FORWARD, at the standard GameObjectCursorIdOffset)
-    // and _fieldEC=true, then returns true. Both writes gate whether the table can be entered - toggling
-    // _fieldEC back to false alone was enough to block entry again.
+    // CScraliontisTable::MaitreDDefeatedMsg(CMaitreDDefeatedMsg*) - defeating the MaitreD. Writes _cursorId=4
+    // (CURSOR_MOVE_FORWARD) and _fieldEC=true, then returns true. Both fields gate whether the table can be entered.
     public const long MaitreDDefeatedMsgFunc = 0x2416CD0;
     public const long ScraliontisTableFieldECOffset = 0x1AC;
     public const int ScraliontisTableEnterableCursorId = 4; // CURSOR_MOVE_FORWARD
@@ -216,17 +192,14 @@ public static class GameOffsets
     // CGameObject::petMoveToHiddenRoom() - stashes an item under the hidden room
     public const long PetMoveToHiddenRoomFunc = 0x23A31D0;
 
-    // CShipSetting (titanic/game/ship_setting.h) - a Fuse Box socket. Confirmed live via ScanForCStrings on
-    // the 4 sockets under room 37/node 12/view 1: _itemName holds the installed CBridgePiece's name (e.g.
-    // "BeamBridge"), or "NULL" when empty. EnterRoomMsg picks the socket's displayed frame purely off this
-    // field, independent of where the real CBridgePiece object actually lives - so a raw petMoveToHiddenRoom()
-    // on the item (as our reconciliation does) never updates it, leaving the socket showing a "ghost" fuse.
+    // CShipSetting (titanic/game/ship_setting.h) - a Fuse Box socket (room 37/node 12/view 1). _itemName holds the
+    // installed CBridgePiece's name (e.g. "BeamBridge"), or "NULL" when empty. EnterRoomMsg picks the socket's
+    // displayed frame purely off this field.
     public const long ShipSettingItemNameOffset = 0x1B8; // CString: size (int32) @ +0, data ptr (int64) @ +8
 
     // CShipSetting._frameTarget - name of the movie/graphic object (e.g. "BeamAnim") whose displayed frame
     // shows the installed fuse's icon. AddHeadPieceMsg/MouseDragStartMsg execute a CSetFrameMsg against this
-    // named object directly (not against the CShipSetting itself), which is why fixing only _itemName leaves
-    // the sprite showing until the room/view is re-entered.
+    // named object directly.
     public const long ShipSettingFrameTargetOffset = 0x1E0; // CString: size (int32) @ +0, data ptr (int64) @ +8
     public const int CursorArrow = 1;
 
@@ -244,10 +217,7 @@ public static class GameOffsets
     public const long ItemRoomFlags = 0x114;
 
     // Sentinel written into _unused1 (GameObjectUnused1Offset) for items this app has delivered to the mail
-    // system, distinguishing a tool-placed item from one the game itself placed. Previously lived in
-    // _destRoomFlags, which is live engine state (the item's real mail destination) - overloading it caused
-    // real live-tested bugs (see the Design Notes doc). _unused1 is genuinely engine-unused, so this survives
-    // detach/reattach and save/reload exactly like before with no risk of colliding with a real value.
+    // system, distinguishing a tool-placed item from one the game itself placed.
     public const uint ToolPlacedSentinel = 0xFFFFFFFF;
 
     // CTreeItem layout: +0x08 _parent, +0x10 _nextSibling, +0x18 _priorSibling, +0x20 _firstChild
@@ -260,28 +230,19 @@ public static class GameOffsets
     public const long PetControlCurrentRoomFlags = 0x1110;
 
     // --- CPetRooms / CPetRoomsGlyph (titanic/pet_control/pet_rooms{,_glyphs}.cpp) ---
-    // Confirmed live via breakpoint + disassembly of the real CPetRooms::reassignRoom body (the previously-known
-    // PetReassignRoomFunc above is just a name-lookup wrapper that eventually tail-jumps into it - its own offset
-    // is apparently stale/build-specific and wasn't chased further). reassignRoom's body:
+    // CPetRooms::reassignRoom's body:
     //   glyph = _glyphs.findAssignedRoom(); if (glyph) glyph->_mode = RGM_PREV_ASSIGNED_ROOM;   // mov [rax+48],2
     //   roomFlags.setRandomLocation(passClass, _elevatorBroken);                                 // reads [this+284]
     //   glyph = addRoom(roomFlags, true); if (glyph) { glyph->_mode = RGM_ASSIGNED_ROOM; ... }    // mov [rax+48],1
     // addRoom's dedup check (moduleBase+FindGlyphByFlagsFunc) walks _glyphs' linked list (list node layout:
     // node+0x08 = next, node+0x10 = pointer to the CPetRoomsGlyph payload) comparing each glyph's _roomFlags
-    // (glyph+0x40) against the target, returning the matching CPetRoomsGlyph* (or falsy) in rax - a pure,
-    // side-effect-free query safe to call directly via RemoteCaller.CallAndGetResult(rcx=&_glyphs, rdx=roomFlags).
-    // This is what MainForm.GameLogic.cs's SGT-glyph spoof calls to find and re-flag the player's original SGT
-    // Class Stateroom's glyph as RGM_ASSIGNED_ROOM while they're back in it, working around reassignRoom() having
-    // flagged it RGM_PREV_ASSIGNED_ROOM once AP items pushed a real 2nd/1st class room assignment out of order
-    // (see TryApplyClassUpgradeSpoof, the separate/older PassengerClass-value spoof this complements).
+    // (glyph+0x40) against the target, returning the matching CPetRoomsGlyph* (or falsy) in rax - a side-effect-free
+    // query, callable via RemoteCaller.CallAndGetResult(rcx=&_glyphs, rdx=roomFlags).
     public const int RgmUnassigned = 0;
     public const int RgmAssignedRoom = 1;
     public const int RgmPrevAssignedRoom = 2;
 
     // CPetRooms's own embedded offset within CPetControl (i.e. CPetRooms's `this` == petControlAddr + this).
-    // Confirmed live via two independent reassignRoom breakpoints, cross-checked against this app's own
-    // _currentInventoryRoom printout (Debug tab's "List PET Room Glyphs") rather than a hand-supplied address -
-    // an earlier pass got 0xFB0 from a petControlAddr that wasn't actually sourced from this same printout.
     public const long PetRoomsOffset = 0xFF0;
 
     // CPetRooms::_glyphs (a CPetGlyphs), relative to CPetRooms's own base.
@@ -301,33 +262,21 @@ public static class GameOffsets
 
     // CParrotNutBowlActor::_state (titanic/game/parrot_nut_bowl_actor.h) - the Pistachio Bowl puzzle's progress:
     // 0 before the nut-rustle, 1 once the parrot-eats-the-nuts animation has played, 2 once the bowl has unlocked
-    // and renders pickable. Confirmed live (byte values 0x00/0x01/0x02 observed through the sequence). This is
-    // the class's second declared field - a bool _puzzleDone (1 byte) is declared first in source and, per the
-    // same layout rule confirmed for CCarry's own first derived field (ItemFieldsForm.cs's "_unused5 (CCarry
-    // candidate)" landing 4-byte-aligned at 0x124 after CGameObject's 1-byte _visible at 0x120), would sit
-    // unaligned right at 0x121 with no padding (it only needs 1-byte alignment) - pushing _state to the next
-    // 4-byte boundary at 0x124, which matches what was observed here. _puzzleDone itself is unconfirmed/unused.
+    // and renders pickable. Re-entering the view before the bowl is taken resets it to 0.
     public const long ParrotNutBowlActorStateOffset = 0x124;
     public const int ParrotNutBowlActorStateUnlocked = 2; // bowl unlocked, ear rendered pickable
 
     // CLight::_eyePresent (titanic/game/light.h) - true while the light fixture still holds its bulb, flipped
-    // false by CLight::ActMsg("Eye Removed") once the bulb/eye is taken. Confirmed live via before/after diff on
-    // the four CLight fixtures at Room 7 ("1stClassState") / Node 6 / View 4 ("6WTL"/"6WTR"/"6WBL"/"6WBR") - only
-    // "6WTL" (the fixture holding Titania's Eye (Light)/Eye1) changed, 0x01 -> 0x00, at this offset, the instant
-    // the bellbot hand-off cutscene finished. The other three fixtures and every byte outside this offset (across
-    // a 0x800-byte window) were unchanged. Not yet wired to anything - the Eye1 pickup check currently relies on
-    // the item's normal full-state-machine tracking (ReconcileTrackedItems) once the CEye object itself reparents
-    // into the inventory room, which was observed to fire correctly on a second attempt after an earlier miss;
-    // this offset is saved here in case that natural-pickup detection turns out to need a direct assist.
+    // false by CLight::ActMsg("Eye Removed") once the bulb/eye is taken. The "6WTL" fixture (Room 7 / Node 6 /
+    // View 4) holds Titania's Eye (Light)/Eye1.
     public const long LightEyePresentOffset = 0x194;
 
     // CProjectItem::loadGame(int slotId) (titanic/core/project_item.cpp) - the single path every save load (PET
     // Save/Load tab, ScummVM's own menu/launcher) and new game goes through. It does NOT replace the
     // CProjectItem or CGameManager - both live for the whole process - it destroys every child of the project
     // and re-parents freshly loaded ones under the same `this`, so every cached tree address goes stale while
-    // _project itself never changes. Found via its two error-string xrefs ("Could not open newgame.st", "Failed
-    // to read save game header"). Its prologue (8 pushes + sub rsp,0xC8 = 19 bytes) has no RIP-relative
-    // operands, so SaveLoadHook replays it verbatim.
+    // _project itself never changes. Its prologue (8 pushes + sub rsp,0xC8 = 19 bytes) has no RIP-relative
+    // operands; SaveLoadHook replays it verbatim.
     public const long ProjectLoadGameFunc = 0x23A63A0;
 
     // CProjectItem::postLoad() - called exactly once, from the tail of loadGame, after the loaded children have

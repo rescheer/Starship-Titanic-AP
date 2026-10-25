@@ -19,20 +19,9 @@ public static class GameActions
         return reset && dirty;
     }
 
-    /// <summary>Actually performs a room assignment for the given class (1=First, 2=Second, 3=Third/SGT) by
-    /// calling CPetRooms::reassignRoom() directly (GameOffsets.ReassignRoomBodyFunc) so its own glyph-allocation
-    /// logic runs for real (picking/dedup-ing a room the same way the vanilla DeskBot interaction would). Used
-    /// exclusively by StateroomAssignTracker's item-driven progression - unlike PassengerClass, "which room"
-    /// isn't a plain field write, so it can't be spoofed the way SetPassengerClass is.
-    ///
-    /// Deliberately bypasses RoomAssignHook's hooked entry point (PetReassignRoomFunc) entirely rather than
-    /// temporarily uninstalling it: that entry is just a wrapper that turns gameManager into a CPetRooms* via
-    /// getPetControl() before tail-jumping into the real body - and calling that wrapper with rcx=gameManager
-    /// crashed the game (access violation inside getPetControl()'s tree-parent-climb, never exercised with
-    /// gameManager before now - see GameOffsets.ReassignRoomBodyFunc's doc comment for the full analysis). Since
-    /// we already independently have petControlAddr, we can compute the same CPetRooms* ourselves and call the
-    /// real body directly, skipping that climb altogether - and skipping the hook entirely means there's no
-    /// window where a natural attempt could slip through unblocked.</summary>
+    /// <summary>Performs a room assignment for the given class (1=First, 2=Second, 3=Third/SGT) by calling the
+    /// CPetRooms::reassignRoom() body (GameOffsets.ReassignRoomBodyFunc) directly with
+    /// rcx = petControlAddr + PetRoomsOffset, bypassing RoomAssignHook's hooked wrapper entry.</summary>
     public static bool AssignNextRoom(MemoryReader mem, long gameManager, long petControlAddr, int newClass)
     {
         long petRoomsAddr = petControlAddr + GameOffsets.PetRoomsOffset;
@@ -99,9 +88,7 @@ public static class GameActions
     }
 
     /// <summary>Runs the full refresh sequence so a CPetControl's visible glyph list picks up whatever changed
-    /// underneath it. Only forces the visible area to Inventory if that's already what's showing - background
-    /// housekeeping (hiding/restoring/mailing tracked items) shouldn't yank the player away from whatever PET
-    /// tab (map, chevron, conversation) they're currently looking at.</summary>
+    /// underneath it. Only forces the visible area to Inventory if that's already what's showing.</summary>
     public static bool RefreshPetControl(MemoryReader mem, long petControlAddr, long gameManager)
     {
         bool changed = NotifyItemsChanged(mem, petControlAddr);
@@ -259,8 +246,7 @@ public static class GameActions
 
     /// <summary>Clears a CShipSetting's _itemName back to "NULL" in place, mirroring what
     /// CShipSetting::MouseDragStartMsg does when a fuse is properly pulled out of its socket. Overwrites the
-    /// existing string buffer in place (safe here since "NULL" is always shorter than any real fuse name) rather
-    /// than reallocating, and updates the CString's own size field to match.</summary>
+    /// existing string buffer in place and updates the CString's own size field to match.</summary>
     public static bool ClearShipSettingItemName(MemoryReader mem, long shipSettingAddr)
     {
         long fieldAddr = shipSettingAddr + GameOffsets.ShipSettingItemNameOffset;
@@ -275,8 +261,7 @@ public static class GameActions
 
     /// <summary>Full reset of a CShipSetting back to "empty," mirroring CShipSetting::MouseDragStartMsg's own
     /// cleanup when a fuse is properly pulled out: clears _itemName, resets the socket's own cursor to
-    /// CURSOR_ARROW, and resets the displayed frame via _frameTarget (frame 0) so the ghost sprite and
-    /// pickup-style cursor clear immediately rather than waiting for the next EnterRoomMsg (room re-entry).</summary>
+    /// CURSOR_ARROW, and resets the displayed frame via _frameTarget (frame 0).</summary>
     public static bool ResetShipSetting(MemoryReader mem, long shipSettingAddr, long fuseBoxView)
     {
         bool clearedName = ClearShipSettingItemName(mem, shipSettingAddr);
@@ -374,13 +359,8 @@ public static class GameActions
 /// <summary>One CPetRoomsGlyph found while walking _glyphs' linked list.</summary>
     public readonly record struct RoomGlyph(long GlyphAddr, uint RoomFlags, int Mode);
 
-    /// <summary>Walks CPetRooms::_glyphs' linked list directly (see GameOffsets.FindGlyphByFlagsFunc for the
-    /// disassembly this mirrors) - deliberately a pure, read-only walk from OUR OWN process rather than a
-    /// RemoteCaller call into the game: injecting a CreateRemoteThread call at room-entry time (when callers of
-    /// this need it) races the game's own main thread over the same list and can corrupt it - this avoids
-    /// executing anything inside the target process at all. Stops early (silently truncating) if a node/glyph
-    /// pointer is unreadable, and caps at 64 nodes (well past addRoom's own 32-glyph trim limit) so a corrupt
-    /// pointer chain can't loop forever.</summary>
+    /// <summary>Walks CPetRooms::_glyphs' linked list with read-only memory reads (the same traversal as
+    /// GameOffsets.FindGlyphByFlagsFunc). Stops early if a node/glyph pointer is unreadable, and caps at 64 nodes.</summary>
     public static IEnumerable<RoomGlyph> EnumerateGlyphs(MemoryReader mem, long petControlAddr)
     {
         long glyphsAddr = petControlAddr + GameOffsets.PetRoomsOffset + GameOffsets.PetRoomsGlyphsOffset;
@@ -414,10 +394,8 @@ public static class GameActions
     }
 
     /// <summary>Finds the glyph flagged RGM_PREV_ASSIGNED_ROOM for a specific passenger class (raw value: 1=First,
-    /// 2=Second, 3=Third, 4=None - see RoomFlags.Decode's classNum) - i.e. "the room that used to be assigned
-    /// before a later class upgrade bumped it out", identified by its own roomFlags-encoded class rather than a
-    /// pre-captured value, since capturing roomFlags opportunistically on room entry proved unreliable (can catch
-    /// a stale/transient reading mid room-transition, before the RNV and roomFlags fields settle together).
+    /// 2=Second, 3=Third, 4=None - see RoomFlags.Decode's classNum) - i.e. the room that used to be assigned
+    /// before a later class upgrade bumped it out, identified by its roomFlags-encoded class.
     /// Null if not found (e.g. that class was never assigned, or its glyph aged out of the 32-entry list).</summary>
     public static long? FindPrevAssignedGlyphForClass(MemoryReader mem, long petControlAddr, int passengerClass)
     {
@@ -450,9 +428,7 @@ public static class GameActions
     /// <summary>Counts CPetRooms glyphs that have ever been assigned as the player's own stateroom - i.e. Mode is
     /// RgmAssignedRoom or RgmPrevAssignedRoom, excluding RgmUnassigned (_mode == 0, a glyph allocated but never
     /// actually assigned) and named-room glyphs (see RoomFlags.IsNamedRoom), which aren't randomly-assigned
-    /// stateroom classes. reassignRoom() only ever demotes the previously-assigned glyph to RgmPrevAssignedRoom
-    /// rather than removing it, and each stateroom class (SGT/3rd, 2nd, 1st) is assigned exactly once, so this
-    /// count equals the number of stateroom classes the player has ever reached.</summary>
+    /// stateroom classes. The count equals the number of stateroom classes the player has ever reached.</summary>
     public static int CountEverAssignedRooms(MemoryReader mem, long petControlAddr)
     {
         int count = 0;

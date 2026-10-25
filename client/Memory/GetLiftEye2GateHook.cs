@@ -1,21 +1,11 @@
 namespace StarshipTitanicAp;
 
 /// <summary>Adds an extra condition on top of CGetLiftEye2::MouseDragStartMsg's own checkPoint() result, so the
-/// broken elevator's Titania's Eye pickup can be blocked until the player already holds the LiftBot Head -
-/// preventing a real softlock: taking the Eye leaves the elevator's head socket empty (tracked by CLift's own
-/// _hasHead/_hasCorrectHead statics, set the instant the drag completes), and the elevator won't let the player
-/// leave until something is put back in that socket. This can't be fixed via the real Eye item's own _canTake:
-/// CGetLiftEye2::MouseDragStartMsg forwards a CPassOnDragStartMsg straight to that item without ever consulting
-/// it - the same message CCarry::MouseDragStartMsg itself only sends after its own _canTake check passes - so the
-/// block has to happen inside CGetLiftEye2::MouseDragStartMsg itself, before that forward ever happens.
+/// broken elevator's Titania's Eye pickup is blocked until the player holds the LiftBot Head.
 ///
-/// The function compiles down to `bool result = checkPoint(...); if (result) {...side effects...} return result;`
-/// with a single shared epilogue for both the true and false paths (see GameOffsets' doc comment for the full
-/// layout). This hook overwrites the first 15 bytes of the "checkPoint succeeded" body - a clean instruction
-/// boundary, none of it RIP-relative so it's safe to replay verbatim - with a gate check: if this app's own
-/// remote "may take" byte is 0, jump straight to the shared epilogue with r12d=0, reproducing exactly what a
-/// failed checkPoint() would have done (no vanilla message either way - CGetLiftEye2 shows none on a miss).
-/// Otherwise, replay the original 15 bytes and jump back to resume the function exactly as if unhooked.</summary>
+/// Overwrites the first 15 bytes of the "checkPoint succeeded" body (see GameOffsets.GetLiftEye2MouseDragBodyFunc)
+/// with a gate check: if this app's remote "may take" byte is 0, jumps to the shared epilogue with r12d=0 (a
+/// failed checkPoint()). Otherwise, replays the original 15 bytes and jumps back into the function.</summary>
 public static class GetLiftEye2GateHook
 {
     private const int OriginalBytesLength = 15; // through "mov rcx,r13" - clean instruction boundary

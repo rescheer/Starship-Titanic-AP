@@ -2,10 +2,8 @@ namespace StarshipTitanicAp;
 
 public sealed partial class MainForm
 {
-    /// <summary>The game rebuilt its object tree (a save was loaded while attached) - every address cached against
-    /// the old tree is now dangling, so drop them all rather than let later tree-walking code (FindAllCarryItems,
-    /// etc.) or spoof reverts chase/write freed pointers and crash. Also re-verifies the save against the seed,
-    /// since the newly loaded save may belong to a different one.</summary>
+    /// <summary>Handles the game rebuilding its object tree (a save was loaded while attached): clears every address
+    /// and spoof state cached against the old tree and resets the save/seed guard to Unverified.</summary>
     private void HandleTreeReloaded()
     {
         _currentInventoryRoom = null;
@@ -116,8 +114,7 @@ public sealed partial class MainForm
         long? liveProject = GameState.ResolveProject(_mem, gameManager.Value);
         if (liveProject != _currentProject)
         {
-            // Normally only the first non-null read after attaching - CProjectItem lives for the whole process,
-            // so save loads are caught by SaveLoadHook above instead.
+            // Normally only the first non-null read after attaching.
             HandleTreeReloaded();
             _currentProject = liveProject;
             SetAddressRow("_project", _currentProject);
@@ -133,11 +130,8 @@ public sealed partial class MainForm
                 _currentMailManRoom = GameState.FindMailManRoom(_mem, _currentProject.Value);
         }
 
-        // --- Read-only display refresh: always runs, independent of the save/seed guard below, so the Live/Mail/
-        // Items tabs stay populated even before an AP connection has verified this save. Uses _lastDisplayedRnv
-        // (rather than _lastRoomNodeView, which the AP-facing write logic further down still gates on the guard)
-        // so that once the guard does pass, room-change-triggered writes still correctly fire for every room
-        // change that happened while unverified.
+        // --- Read-only display refresh: runs regardless of the save/seed guard below. Tracks _lastDisplayedRnv,
+        // separately from the guarded _lastRoomNodeView.
         RoomNodeView? rnv = GameState.ReadRoomNodeView(_mem, gameManager.Value);
         if (rnv is not null && rnv != _lastDisplayedRnv)
         {
@@ -177,9 +171,8 @@ public sealed partial class MainForm
             UpdateMail(gameManager.Value);
         }
 
-        // --- Save/seed guard gate: everything below reads AND writes to the save on the AP server's behalf
-        // (item syncing, location checks, mail delivery, class upgrades) - unlike the read-only refresh above,
-        // this must not run until the attached save is verified against the connected AP seed.
+        // --- Save/seed guard gate: everything below reads and writes the save on the AP server's behalf
+        // (item syncing, location checks, mail delivery, class upgrades).
         EvaluateSaveSeedGuard(gameManager.Value);
         UpdateSaveSeedGuardStatusLabel();
         UpdateInfoAreaSaveSeedGuard();
@@ -188,11 +181,7 @@ public sealed partial class MainForm
 
         _apConnection.NotifyGameVerifiedForSeed();
 
-        // Must run before anything below touches PassengerClass (e.g. TryApplyClassUpgradeSpoof off the RNV-change
-        // block just below): if the game was last saved while class-spoofed, the on-disk PassengerClass can be a
-        // lie, and _classUpgradeSpoofOriginalClass (the in-memory backup of the true value) doesn't survive an app
-        // restart. Reconciling PassengerClass against AP items here first ensures nothing downstream reads that
-        // stale/spoofed value before it's corrected.
+        // Runs before anything below reads or writes PassengerClass.
         SyncPassengerClassFromItems(gameManager.Value);
         SyncStateroomFromItems(gameManager.Value);
 

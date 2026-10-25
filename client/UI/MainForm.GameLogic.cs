@@ -2,9 +2,8 @@ namespace StarshipTitanicAp;
 
 public sealed partial class MainForm
 {
-    /// <summary>Computes and caches whether it's safe to act on the currently attached save under the currently connected AP seed.
-    /// Re-verifies periodically once a verdict is reached, so swapping to a different save (or starting a new game) without
-    /// reattaching/reconnecting is still caught instead of silently keeping the stale verdict forever.</summary>
+    /// <summary>Computes and caches whether it's safe to act on the currently attached save under the currently connected AP seed,
+    /// re-verifying periodically once a verdict is reached.</summary>
     private void EvaluateSaveSeedGuard(long gameManager)
     {
         if (_saveSeedGuardState != SaveSeedGuardState.Unverified
@@ -76,11 +75,7 @@ public sealed partial class MainForm
             return;
         }
 
-        // A mismatched (non-zero, non-matching) tag can also be transient garbage in the BeamBridge object's
-        // unused field if it's read while a save is still mid-load and not yet fully constructed - especially
-        // likely if the AP connection (and so this guard's polling) was established before loading into a game,
-        // since evaluation then starts the instant a project resolves rather than once things have settled.
-        // Require a couple seconds of consecutive mismatched reads before trusting it.
+        // Requires several consecutive mismatched reads before blocking.
         _saveSeedGuardTagMismatches++;
         if (_saveSeedGuardTagMismatches < SaveSeedGuardTagMismatchLimit)
             return;
@@ -195,18 +190,11 @@ public sealed partial class MainForm
 
         bool ok = GameActions.SetPassengerClassFull(_mem, gameManager, _currentInventoryRoom.Value, targetClass.Value);
         ShowActionResult(ok, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)}");
-
-        // Any DeskBot upgrade location(s) this jump passes over or lands on are left for TryApplyClassUpgradeSpoof
-        // to send once the player actually visits the DeskBot - it lets the vanilla interaction run for real
-        // (spoofing PassengerClass down just long enough for the game's own eligibility check to pass), so it also
-        // gets the real petReassignRoom() room-assignment side effect that just sending the check here would miss.
     }
 
     /// <summary>Applies the stateroom assignment(s) implied by "Progressive Stateroom" AP items received so far,
-    /// if any are still outstanding. Unlike SyncPassengerClassFromItems (a plain field write), each assignment
-    /// has to run through GameActions.AssignNextRoom - see RoomAssignHook's own doc comment for why. Catches up
-    /// more than one tier in a single pass (e.g. two items granted while offline), assigning SGT/Third first,
-    /// then Second, then First, in order.</summary>
+    /// if any are still outstanding, via GameActions.AssignNextRoom. Assigns every outstanding tier in order:
+    /// SGT/Third, then Second, then First.</summary>
     private void SyncStateroomFromItems(long gameManager)
     {
         IReadOnlyDictionary<string, object>? slotData = _apConnection.SlotData;
@@ -241,22 +229,14 @@ public sealed partial class MainForm
     private static readonly RoomNodeView DeskBotRnv = new(2, 4, 1);
 
     /// <summary>The Embarkation Lobby RNV the game force-turns the player to right after the DeskBot's very first
-    /// (No Class) conversation, for a scripted Bellbot intro. That conversation is itself gated on PassengerClass
-    /// reading Third specifically - if the DeskBot visit was spoofed down to None (see
-    /// <see cref="TryApplyClassUpgradeSpoof"/>'s no-assigned-room case), the spoof needs to be bumped to Third for
-    /// this second scripted step or the conversation misfires and the game softlocks. Deliberately not part of
-    /// <see cref="ClassSpoofTriggerRnvs"/>, since unlike that dictionary this RNV should never *start* a spoof by
-    /// itself - only continue one already in progress from the DeskBot.</summary>
+    /// (No Class) conversation, for a scripted Bellbot intro. An active spoof reports Third here; this RNV never
+    /// starts a spoof on its own.</summary>
     private static readonly RoomNodeView BellBotIntroRnv = new(2, 4, 2);
 
     /// <summary>Every RNV that can trigger or sustain a class-upgrade spoof, mapped to the PassengerClass value it
-    /// should report there (raw values, not just the <see cref="PassengerClass"/> enum's: 4 = no class, ...,
-    /// 1 = First, 0 = First with Bridge access). Covers the DeskBot itself; the SGT Class Stateroom TV [27,4,1], where
-    /// the vanilla bed/TV puzzle grants the Magazine but only pays out while PassengerClass is still Third; the
-    /// [22,1,2] corridor spot bracketing the transition into that room, which plays a voice line reminding the
-    /// player to check the TV - included, as a test, so the spoof stays active across that transition (see
-    /// <see cref="TryRevertClassUpgradeSpoof"/>) on the theory the line is itself gated on PassengerClass; and the
-    /// doorway RNVs just outside each bottom-floor SGT room.</summary>
+    /// should report there (raw values: 4 = no class, ..., 1 = First, 0 = First with Bridge access). Covers the
+    /// DeskBot, the SGT Class Stateroom and its TV, the [22,1,2] corridor spot leading into it, and the doorway
+    /// RNVs just outside each bottom-floor SGT room.</summary>
     private static readonly Dictionary<RoomNodeView, int> ClassSpoofTriggerRnvs = new()
     {
         [DeskBotRnv] = (int)PassengerClass.Third,
@@ -276,26 +256,16 @@ public sealed partial class MainForm
     /// overwritten it, so <see cref="TryRevertClassUpgradeSpoof"/> can put it back. Null when not currently spoofed.</summary>
     private int? _classUpgradeSpoofOriginalClass;
 
-    /// <summary>Several vanilla scripts (the DeskBot upgrade interaction, the SGT TV magazine puzzle, and
-    /// apparently a voice line on the way into that room) only run their class-upgrade payoff while the player is
-    /// still below that tier - if AP items already pushed PassengerClass past it (see SyncPassengerClassFromItems),
-    /// the natural interaction silently no-ops instead: it takes the item but never calls
-    /// setPassengerClass()/petReassignRoom(), stranding both the location check and the room assignment
-    /// petReassignRoom() performs (needed for progression).
-    /// Worked around by temporarily lying about PassengerClass while at one of <see cref="ClassSpoofTriggerRnvs"/>,
-    /// so the natural interaction still runs - ClassUpgradeHook still blocks the resulting setPassengerClass() from
-    /// taking effect (the real class stays item-gated), but the uninstrumented petReassignRoom() call alongside it
-    /// goes through for real.
-    /// The DeskBot case has a second, unrelated failure mode this also covers: if a progressive class upgrade
-    /// lands before the player's very first DeskBot visit, PassengerClass is already past None even though no
-    /// room has ever been assigned - the vanilla None-gated "you're now Third Class" conversation and its room
-    /// assignment never run, leaving the player roomless. Detected via <see cref="GameActions.HasAnyAssignedRoom"/>
-    /// and spoofed down to None instead, ahead of the Third-class spoof below.</summary>
+    /// <summary>Temporarily overwrites PassengerClass while the player is at one of <see cref="ClassSpoofTriggerRnvs"/>
+    /// (or continues an active spoof at <see cref="BellBotIntroRnv"/>), so the vanilla class-gated DeskBot/SGT TV
+    /// interactions run. Reports Third for a pending Magazine hand-off, Second for a pending 1st Class upgrade, and
+    /// None at the DeskBot when no room has been assigned yet. The true value is saved in
+    /// <see cref="_classUpgradeSpoofOriginalClass"/>.</summary>
     private void TryApplyClassUpgradeSpoof(RoomNodeView rnv, long gameManager)
     {
         if (rnv == BellBotIntroRnv)
         {
-            // Only continues an already-active spoof (see BellBotIntroRnv's own doc) - never starts one.
+            // Only continues an already-active spoof.
             if (_classUpgradeSpoofOriginalClass is null)
                 return;
 
@@ -332,10 +302,7 @@ public sealed partial class MainForm
 
         if (magazineHandOffPending)
         {
-            // Checked ahead of everything else at the DeskBot: the Magazine is consumed as soon as it's handed to
-            // an active DeskBot, but DeskbotScript's 2ndClassUpgrade dialogue (140) only pays out at exactly Third -
-            // any other reported class (including the no-assigned-room None spoof below, which stays active until a
-            // Progressive Stateroom arrives) eats the Magazine for nothing and softlocks the check.
+            // DeskbotScript's 2ndClassUpgrade dialogue (140) pays out only at exactly Third.
             if (currentClass.Value != (int)PassengerClass.Third)
                 spoofToClass = (int)PassengerClass.Third;
         }
@@ -345,10 +312,7 @@ public sealed partial class MainForm
         }
         else if (rnv == DeskBotRnv && !secondClassPending && !_apConnection.IsLocationChecked(firstLocationName))
         {
-            // Same idea for the 1st Class upgrade, which DeskbotScript only pays out at exactly Second. Logic only
-            // requires the 2nd Class Upgrade event for this location (not any class items), so the real class can
-            // be anything from Third (no items yet) to First here - and a real Second still has to be shielded
-            // from the no-assigned-room None spoof below.
+            // DeskbotScript's 1st Class upgrade pays out only at exactly Second.
             if (currentClass.Value != (int)PassengerClass.Second)
                 spoofToClass = (int)PassengerClass.Second;
         }
@@ -356,11 +320,7 @@ public sealed partial class MainForm
             && currentClass.Value != (int)PassengerClass.None
             && !GameActions.HasAnyAssignedRoom(_mem, _currentInventoryRoom.Value))
         {
-            // A progressive class upgrade landed before the player's very first DeskBot visit, so PassengerClass
-            // is already past None even though no room has ever been assigned - the vanilla "you're now Third
-            // Class, here's your room" interaction is itself gated on None, so without this it silently no-ops
-            // and the player is left with no room at all. Spoof down to None so that initial conversation and
-            // room assignment plays out for real before the item-driven class takes over.
+            // No room assigned yet: report None so the initial DeskBot conversation and room assignment run.
             spoofToClass = (int)PassengerClass.None;
         }
 
@@ -376,12 +336,7 @@ public sealed partial class MainForm
 
     /// <summary>Restores the true PassengerClass value once the player moves to an RNV that isn't one of
     /// <see cref="ClassSpoofTriggerRnvs"/> (nor <see cref="BellBotIntroRnv"/>), undoing
-    /// <see cref="TryApplyClassUpgradeSpoof"/>. Checking the destination (rather than the RNV being left) keeps the
-    /// spoof alive across a move between two trigger RNVs - e.g. [22,1,2] into [27,1,2] - so a check gated on
-    /// PassengerClass during the transition itself still sees the spoofed value.
-    /// Unlike the initial spoof (a silent write - redrawing the PET then would flash the target class's colors and
-    /// give the trick away), this redraws the PET so its display catches up to whatever the visit actually left
-    /// the real class as.</summary>
+    /// <see cref="TryApplyClassUpgradeSpoof"/> and redrawing the PET.</summary>
     private void TryRevertClassUpgradeSpoof(RoomNodeView newRnv, long gameManager)
     {
         if (_classUpgradeSpoofOriginalClass is not { } originalClass)
@@ -398,8 +353,7 @@ public sealed partial class MainForm
     }
 
     /// <summary>The two RNVs inside the player's own randomly-assigned SGT Class Stateroom where the bed/TV
-    /// puzzle actually plays out - distinct from the wider <see cref="ClassSpoofTriggerRnvs"/> set (which also
-    /// covers unrelated doorway/voice-line RNVs outside other passengers' rooms).</summary>
+    /// puzzle plays out.</summary>
     private static readonly RoomNodeView[] SgtGlyphSpoofTriggerRnvs =
     {
         new(27, 1, 2), // SGT Stateroom
@@ -409,17 +363,10 @@ public sealed partial class MainForm
     private long? _sgtGlyphAddr;
     private int? _sgtGlyphOriginalMode;
 
-    /// <summary>Works around CPetRooms::reassignRoom() flagging the player's original SGT Class Stateroom glyph
-    /// RGM_PREV_ASSIGNED_ROOM once a real 2nd/1st class room gets assigned out of order via AP items (see
-    /// GameOffsets.cs's CPetRooms/CPetRoomsGlyph notes) - which otherwise makes the SGT bed/TV puzzle impossible
-    /// to complete, since the vanilla interaction depends on that room still reading as currently assigned.
-    /// Temporarily re-flags it RGM_ASSIGNED_ROOM while the player is back in one of <see cref="SgtGlyphSpoofTriggerRnvs"/>,
-    /// restoring the original mode on <see cref="TryRevertSgtGlyphSpoof"/> - narrowly scoped to avoid two glyphs
-    /// simultaneously reading as "assigned" anywhere else in the game (e.g. elevator routing, mail delivery).
-    /// Identifies the SGT room's glyph by its own encoded class + RGM_PREV_ASSIGNED_ROOM mode (see
-    /// GameActions.FindPrevAssignedGlyphForClass) rather than a pre-captured roomFlags value - an earlier version
-    /// captured that opportunistically on room entry, which proved unreliable (could catch a stale/transient
-    /// roomFlags reading mid room-transition, before it and the RNV settled together).</summary>
+    /// <summary>Temporarily re-flags the player's RGM_PREV_ASSIGNED_ROOM SGT Class Stateroom glyph as RGM_ASSIGNED_ROOM
+    /// while the player is in one of <see cref="SgtGlyphSpoofTriggerRnvs"/>, so the SGT bed/TV puzzle can be completed.
+    /// The glyph is found by its encoded class + mode via GameActions.FindPrevAssignedGlyphForClass.
+    /// <see cref="TryRevertSgtGlyphSpoof"/> restores the original mode.</summary>
     private void TryApplySgtGlyphSpoof(RoomNodeView rnv)
     {
         if (_sgtGlyphAddr is not null)
@@ -504,14 +451,12 @@ public sealed partial class MainForm
             : "CTelevision::_channel4Glyph was cleared - failed to reset it");
     }
 
-    /// <summary>Stand-in written over CGetLiftEye2::_destObject's "NULL". Deliberately NOT a real object name:
-    /// CGetLiftEye2::MouseDragStartMsg looks the name up and drags that object out of the lift, so a real eye's
-    /// name here would let the lift hotspot pull that eye from wherever it actually is.</summary>
+    /// <summary>Stand-in written over CGetLiftEye2::_destObject's "NULL". Not the name of any real game object.</summary>
     private const string LiftEyeDestObjectPlaceholder = "APNoEye";
 
     /// <summary>Keeps CGetLiftEye2::_destObject from reading "NULL", so the television's channel 5 always shows the
     /// lift's floor (CTelevision::PETActivateMsg only does while it's != "NULL"). Only writes when the game has
-    /// set it to "NULL", and only into the CString's own inline buffer - never a possibly-shared heap one.</summary>
+    /// set it to "NULL", and only into the CString's own inline buffer.</summary>
     private void KeepLiftEyeDestObjectNonNull()
     {
         long? strAddr = _mem.ReadInt64(_mem.ModuleBase + GameOffsets.GetLiftEye2DestObjectPtrStatic);
@@ -595,13 +540,7 @@ public sealed partial class MainForm
         if (project is null)
             return;
 
-        // FindInventoryRoom is a shallow, budget-capped tree walk (see its own doc comment) that has been
-        // observed to transiently fail to find the PET control while standing in certain rooms (e.g. Bottom of
-        // the Well), even though the address itself is still perfectly valid. Only ever replace the cached
-        // address with a fresh non-null result - never let a transient failure null it back out - so a momentary
-        // miss doesn't strand every address-dependent system (ReconcileTrackedItems bails outright when this is
-        // null) until the player happens to leave the room. OnTick's own project-change handling is still what's
-        // responsible for actually clearing this on a genuine save/tree reload.
+        // Only a non-null result replaces the cached address; OnTick's project-change handling clears it.
         long? inventoryRoom = GameState.FindInventoryRoom(_mem, project.Value);
         if (inventoryRoom is not null)
             _currentInventoryRoom = inventoryRoom;
@@ -639,18 +578,8 @@ public sealed partial class MainForm
 
             if (isCarryParrot)
             {
-                // CarryParrot itself has no location check of its own (see LocationChecks.cs) - what this tracks
-                // instead is the Feather's own check, fired off CarryParrot's escape from inventory rather than
-                // off the real Feathers object's movement (see FeathersItem's doc comment for why). Per the
-                // game's own mechanics, while the player is carrying the parrot exactly one of three things
-                // happens: they mail it away (no feather left behind), they leave the room, or a timer runs out
-                // (the latter two both leave a feather behind) - so once the parrot is seen leaving inventory,
-                // landing anywhere other than the mail is proof a feather was left behind.
-                //
-                // PulledFrom (otherwise unused for CarryParrot) doubles as the "currently being watched for a
-                // departure" flag: set the moment it's first seen in inventory, cleared without firing if it goes
-                // to mail (so a later re-pickup-then-real-escape after mailing it back to themselves is still
-                // caught), and left permanently resolved (CheckFired) once a genuine escape fires the check.
+                // Sends the Feathers check when CarryParrot leaves inventory for anywhere other than the mail.
+                // PulledFrom == Inventory marks the parrot as currently being watched for a departure.
                 ItemPersistedState carryParrotPersisted = GameActions.ReadItemPersistedState(_mem, item.Address);
                 if (!carryParrotPersisted.CheckFired)
                 {
@@ -709,10 +638,7 @@ public sealed partial class MainForm
                 bool serverGrantedMoved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _currentInventoryRoom.Value, gameManager);
                 if (serverGrantedMoved)
                 {
-                    // petMoveToHiddenRoom() only relocates the real item - it never clears the Fuse Box socket's
-                    // own CShipSetting state, so without this the socket keeps showing the fuse as "installed"
-                    // (a ghost that's still clickable/draggable, with a pickup-style cursor). See
-                    // ship_setting.cpp's MouseDragStartMsg for the game's own equivalent reset.
+                    // Clears any Fuse Box socket's CShipSetting state for this fuse.
                     if (GameState.FindFuseBoxView(_mem, project) is { } fuseBoxView)
                     {
                         foreach (long shipSetting in GameState.FindShipSettingsInstalledWith(_mem, project, item.Name))
@@ -743,24 +669,8 @@ public sealed partial class MainForm
 
                 if (persisted.Stage == ItemStage.Mail)
                 {
-                    // Every full-state-machine item except the Magazine only ever reaches Stage.Mail via our own
-                    // DeliverToMail (proactive AP-grant delivery, or a natural-pickup-then-granted handoff), so its
-                    // pickup check either doesn't apply here or already fired - preserve that CheckFired verbatim.
-                    // A player can also legitimately re-mail an already-found item to themselves via the game's own
-                    // SuccUBus stations, which must NOT re-trigger its check - so this can't be widened to "any
-                    // item currently in the mail with a real (non-tool-placed) destination".
-                    //
-                    // The Magazine is the sole exception: it has no in-world home (see ItemHomeLocations.cs) and can
-                    // reach Stage.Mail either via this app's own proactive delivery (an AP grant landing before the
-                    // player found it naturally - no check here, same as every other item's proactive-delivery
-                    // case) or via the SGT TV puzzle's own script placing it there directly (a genuine natural
-                    // delivery - this is that pickup). ItemPersistedState.ToolDelivered records which one it was
-                    // at the moment it entered Mail, since the tool-placed sentinel (see GameActions.
-                    // MarkItemAsToolPlaced) that used to live in _destRoomFlags didn't survive to this point - live
-                    // testing showed the game's own mail-retrieval processing overwrites _destRoomFlags with a real
-                    // value before this code gets to read it back. The sentinel now lives in _unused1 instead,
-                    // which the engine never touches, but ToolDelivered is kept as the source of truth here rather
-                    // than re-deriving from that untested assumption.
+                    // Collected from mail. Only a Magazine that the game itself mailed (not ToolDelivered) counts as a
+                    // natural pickup; every other item keeps its CheckFired as-is.
                     bool fireCheck = !persisted.CheckFired
                         && string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
                         && !persisted.ToolDelivered;
@@ -768,9 +678,7 @@ public sealed partial class MainForm
                     if (fireCheck)
                         SendItemPickupCheck(item.Name);
 
-                    // A genuine natural pickup (fireCheck) is subject to the same ungranted-item hide rule as
-                    // every other item's natural pickup below - without this, picking up the Magazine before its
-                    // AP item is granted would leave it sitting in inventory instead of being pulled pending grant.
+                    // Hides an ungranted natural pickup pending its AP grant.
                     if (fireCheck && !granted && !ItemTracking.IsOneDirectionalItem(item.Name) && _chkTakeUngrantedItems.Checked)
                     {
                         bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _currentInventoryRoom.Value, gameManager);
@@ -838,13 +746,7 @@ public sealed partial class MainForm
 
             if (inMail)
             {
-                // Only the Magazine has no in-world home and gets placed into mail natively by the game itself
-                // (the SGT TV puzzle) rather than via our own DeliverToMail, so it's the only item whose
-                // persisted-state field can show up here holding leftover memory from a freshly game-constructed
-                // object rather than a real prior write - normalize it so it stages cleanly for the pickup check
-                // above. Every other item that legitimately reaches Stage.Mail got there through our own bookkeeping
-                // already, and one sitting in mail with some OTHER stage just means the player re-mailed an
-                // already-tracked item to themselves via the game's own SuccUBus stations - leave that alone.
+                // Normalizes a game-mailed Magazine's persisted state to Stage.Mail.
                 if (persisted.Stage != ItemStage.Mail && string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase))
                 {
                     GameActions.WriteItemPersistedState(_mem, item.Address,
@@ -853,10 +755,7 @@ public sealed partial class MainForm
                 continue;
             }
 
-            // One-directional items have no home parent to proactively deliver from - they only enter play via
-            // their own in-game trigger, and forcibly reparenting them into mail before that trigger fires would
-            // break the mechanism that produces them. Leave them be; their check still fires normally once they
-            // naturally land in inventory (see the inInventory branch).
+            // Granted but never found: deliver via mail. One-directional items are excluded.
             if (persisted.Stage == ItemStage.None && granted && !ItemTracking.IsOneDirectionalItem(item.Name))
             {
                 bool ok = DeliverToMail(item, gameManager);
@@ -874,10 +773,7 @@ public sealed partial class MainForm
     }
 
     /// <summary>Keeps GetLiftEye2GateHook's remote "may take the Eye" gate byte in sync with whether the LiftBot
-    /// Head is both AP-granted and physically sitting in the player's inventory - see the hook's own doc comment
-    /// for why the block has to happen inside CGetLiftEye2::MouseDragStartMsg itself rather than via this app's
-    /// usual post-hoc item reconciliation (by the time the pickup completes, the elevator's socket is already
-    /// empty regardless of what this app does with the resulting item afterward).</summary>
+    /// Head is both AP-granted and physically sitting in the player's inventory.</summary>
     private void SyncLiftEyeGate(List<CarryItemLocation> items, string[] receivedItems)
     {
         if (!GetLiftEye2GateHook.IsInstalled || _currentInventoryRoom is null)
@@ -892,14 +788,9 @@ public sealed partial class MainForm
         GetLiftEye2GateHook.SetGateAllowed(_mem, headInInventory);
     }
 
-    /// <summary>Feathers stays out of the generic tracked-item pipeline entirely (see FeathersItem's doc comment) -
-    /// its pickup check fires off CarryParrot's own escape from inventory, independent of AP-grant state, since
-    /// finding it is what matters for the check, not owning it. But every other aspect of a normal full-state-
-    /// machine item's AP-grant handling still applies to the real Feathers object: a grant proactively delivers it
-    /// to mail (same as every other item's Stage.None-and-granted case), and a natural pickup while ungranted hides
-    /// it pending a later grant (same as every other item's ungranted-natural-pickup case). Reimplemented by hand,
-    /// rather than by just letting Feathers into the generic loop, only so its own check doesn't get evaluated
-    /// there too and double-fire alongside the CarryParrot-driven one.</summary>
+    /// <summary>AP-grant handling for the real Feathers object, which is outside the generic tracked-item loop:
+    /// a grant delivers it to mail, and a natural pickup while ungranted hides it pending a later grant.
+    /// Never sends the Feathers check.</summary>
     private void TryHideOrDeliverFeather(List<CarryItemLocation> items, string[] receivedItems, long gameManager)
     {
         if (_currentInventoryRoom is null)
@@ -954,9 +845,7 @@ public sealed partial class MainForm
             : "Feathers picked up - not yet granted, but failed to hide it");
     }
 
-    /// <summary>Reacts to GetLiftEye2GateHook firing: tells the player what they're missing. A plain RNV arrival
-    /// reminder can't do this job here since the broken elevator's (Room, Node, View) is shared by every lift in
-    /// the game, not just this one - this only fires from the exact code path that just blocked a real attempt.</summary>
+    /// <summary>Reacts to GetLiftEye2GateHook firing: tells the player what they're missing.</summary>
     private void HandleBlockedLiftEyeDrag()
     {
         if (_currentInventoryRoom is null)
@@ -966,11 +855,8 @@ public sealed partial class MainForm
             "AP: You can't take that. Maybe if you had something to replace it with.");
     }
 
-    /// <summary>True when a fuse is currently installed in a Fuse Box socket. The hidden room is the same one
-    /// CGameObject::petMoveToHiddenRoom() parks a fuse's real item under when the player installs it - not just
-    /// where AP stashes items awaiting mail delivery - so both the server-granted and natural-pickup tracking
-    /// branches need this check before treating "item is in the hidden room" as "still pending delivery" and
-    /// redelivering (and thereby yanking it back out of the socket).</summary>
+    /// <summary>True when a fuse is currently installed in a Fuse Box socket (an installed fuse's real item is parked
+    /// in the hidden room).</summary>
     private bool IsInstalledInFuseBox(long project, string itemName) =>
         ItemTracking.IsFuseBoxItem(itemName)
         && GameState.FindShipSettingsInstalledWith(_mem, project, itemName).Count > 0;
@@ -996,9 +882,7 @@ public sealed partial class MainForm
         if (!ItemHomeLocations.TryGetItemsForRnv(rnv, out string[] itemNames))
             return;
 
-        // The player is back looking at these items' home RNV - cancel any delayed unrestore-check still queued
-        // for them from a prior quick leave (see TryUnrestoreItemsLeavingRnv/ProcessPendingUnrestoreChecks), so a
-        // quick leave-and-return doesn't unrestore an item still on screen out from under the player.
+        // Cancels any delayed unrestore-check still queued for these items.
         CancelPendingUnrestoreChecks(itemNames);
 
         if (_currentProject is not { } project || _currentInventoryRoom is null)
@@ -1019,12 +903,7 @@ public sealed partial class MainForm
 
             bool eligibleFromInventory = persisted.Stage == ItemStage.Inventory && !persisted.CheckFired;
 
-            // For the Magazine specifically, Stage.Mail can also hold a genuine natural delivery already in
-            // progress (the SGT TV puzzle's own script placed it there for the player to retrieve for real - see
-            // ItemPersistedState.ToolDelivered) - pulling that back out to "restore" it here would yank it out of
-            // its own natural mail-delivery flow instead of leaving the app done with it. Every other item only
-            // ever reaches Stage.Mail via this app's own proactive delivery, so ToolDelivered is always true for
-            // them and this check is a no-op.
+            // Only items this app mailed (ToolDelivered) are restored out of the mail.
             bool eligibleFromMail = persisted.Stage == ItemStage.Mail && !persisted.CheckFired && persisted.ToolDelivered;
 
             if (eligibleFromInventory || eligibleFromMail)
@@ -1091,10 +970,7 @@ public sealed partial class MainForm
     }
 
     /// <summary>Queues a delayed re-check for any item still sitting Restored-but-unpicked at the RNV just being
-    /// left, instead of reverting it immediately - the RNV can change (e.g. the moment an item attaches to the
-    /// cursor, well before it's actually reparented into inventory by a drag-and-drop) before the item's own
-    /// ParentAddress reflects a real pickup, so deciding synchronously here can't reliably tell a genuine pickup
-    /// apart from actually leaving the item behind. See ProcessPendingUnrestoreChecks for the actual revert.</summary>
+    /// left. ProcessPendingUnrestoreChecks performs the actual revert.</summary>
     private void TryUnrestoreItemsLeavingRnv(RoomNodeView rnv, long gameManager)
     {
         if (!ItemHomeLocations.TryGetItemsForRnv(rnv, out string[] itemNames))
@@ -1121,8 +997,7 @@ public sealed partial class MainForm
         }
     }
 
-    /// <summary>Drops any queued delayed unrestore-check for the given items - called when the player is back at
-    /// (one of) their home RNVs, so a quick leave-and-return doesn't unrestore an item still on screen.</summary>
+    /// <summary>Drops any queued delayed unrestore-check for the given items.</summary>
     private void CancelPendingUnrestoreChecks(string[] itemNames)
     {
         if (_pendingUnrestoreChecks.Count == 0)
@@ -1132,8 +1007,7 @@ public sealed partial class MainForm
     }
 
     /// <summary>Runs the delayed revert decision queued by TryUnrestoreItemsLeavingRnv, once enough ticks have
-    /// passed for ReconcileTrackedItems to have run at least once. By then, a genuine pickup has already been
-    /// caught and flipped out of Restored - so anything still Restored here really was left behind.</summary>
+    /// passed for ReconcileTrackedItems to have run at least once. Items still Restored are reverted.</summary>
     private void ProcessPendingUnrestoreChecks(long gameManager)
     {
         if (_pendingUnrestoreChecks.Count == 0)
@@ -1154,11 +1028,7 @@ public sealed partial class MainForm
                 continue;
             }
 
-            // Titania's Eye (Light)'s bellbot hand-off keeps the player sitting at a fixed cutscene RNV for the
-            // whole dialogue+hand-off, well before the real CEye object reparents into inventory - reverting here
-            // would pull a genuine in-progress hand-off out from under the still-playing cutscene (confirmed
-            // live). Keep deferring the decision for as long as the player is still there; the entry only reaches
-            // a real revert-or-not decision once they've actually left it.
+            // Defers Eye1's decision while the player is still at the bellbot hand-off cutscene RNV.
             if (string.Equals(name, "Eye1", StringComparison.OrdinalIgnoreCase) && currentRnv == Eye1HandoffCutsceneRnv)
             {
                 _pendingUnrestoreChecks[i] = (name, itemAddress, _tickCount + UnrestoreCheckDelayTicks);
@@ -1190,14 +1060,9 @@ public sealed partial class MainForm
         }
     }
 
-    /// <summary>Ear1 (Pistachio Bowl)'s pickup puzzle can't be safely left mid-sequence and re-captured: once the
-    /// nut-rustle/parrot-eat sequence resolves, the bowl unlocks and renders with its drag graphic, but if the
-    /// player leaves the view without dragging it into inventory, re-entering resets the whole sequence back to
-    /// its start (see ParrotNutBowlActorStateOffset's doc comment) - so there's no stable "just unlocked, not yet
-    /// grabbed" state to restore back to on a later visit. Rather than reverting Ear1 like a normal left-behind
-    /// restoration in that case, force it straight into inventory as if the drag had completed;
-    /// ReconcileTrackedItems's own Stage==Restored + inInventory branch then grants the pickup check exactly like
-    /// a genuine natural pickup would.</summary>
+    /// <summary>If Ear1 (Pistachio Bowl) was left behind after its ParrotNutBowlActor reached the unlocked state, moves
+    /// it into inventory instead of reverting it, so ReconcileTrackedItems's Restored + inInventory branch sends the
+    /// pickup check.</summary>
     private bool TryCompleteEar1IfBowlUnlocked(CarryItemLocation item, long gameManager)
     {
         if (!string.Equals(item.Name, "Ear1", StringComparison.OrdinalIgnoreCase))
@@ -1216,16 +1081,8 @@ public sealed partial class MainForm
         return GameActions.MoveItemSmart(_mem, item.Address, inventoryRoom, inventoryRoom, gameManager);
     }
 
-    /// <summary>Belt-and-suspenders backstop for once the player has actually left Eye1HandoffCutsceneRnv:
-    /// confirmed live that CLight's _eyePresent field on the fixture ("6WTL", under Eye1's home View) only flips
-    /// false once the bellbot's dialogue+hand-off cutscene actually finishes - not when it starts - so it can't be
-    /// used to detect "hand-off in progress" while still sitting at that RNV (an earlier version of this fix
-    /// tried that and still lost the race; ProcessPendingUnrestoreChecks's own RNV-based deferral handles that
-    /// part instead). What this catches is the case where the object hasn't reparented into inventory yet right
-    /// as they step away from that RNV: if _eyePresent has already flipped, the hand-off is real regardless, so
-    /// skip the revert and let ReconcileTrackedItems's own Stage==Restored + inInventory branch fire the pickup
-    /// check once the object's parent actually updates - forcing a move of our own is what caused the original
-    /// race in the first place.</summary>
+    /// <summary>True when Eye1's light fixture ("6WTL", CLight, under Eye1's home View) reports _eyePresent == false,
+    /// meaning the bellbot hand-off has completed and Eye1's revert should be skipped.</summary>
     private bool IsEye1MidBellbotHandoff(CarryItemLocation item)
     {
         if (!string.Equals(item.Name, "Eye1", StringComparison.OrdinalIgnoreCase))
@@ -1294,9 +1151,7 @@ public sealed partial class MainForm
         bool moved = GameActions.MoveItemSmart(_mem, item.Address, _currentMailManRoom.Value, _currentInventoryRoom, gameManager);
         if (moved)
         {
-            // Only reachable via PulledFrom.Mail, which TryRestoreItemsAtHomeRnv only ever records when the item
-            // was ToolDelivered to begin with (see eligibleFromMail there) - restamp it so a later retrieval still
-            // correctly waits instead of firing early.
+            // PulledFrom.Mail is only recorded for ToolDelivered items, so ToolDelivered is restamped.
             GameActions.WriteItemPersistedState(_mem, item.Address,
                 new ItemPersistedState(ItemStage.Mail, persisted.CheckFired, ItemPulledFrom.None, ToolDelivered: true));
         }

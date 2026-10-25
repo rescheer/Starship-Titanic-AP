@@ -233,10 +233,8 @@ public sealed class ArchipelagoConnection : IDisposable
 
     /// <summary>
     /// Reports a completed location check to the server, identified by its AP location name.
-    /// "The End - Return Home" (<see cref="LocationChecks.GoalLocationName"/>) is an event location with no
-    /// network id - it's resolved locally during generation for logic purposes only, so it can never be sent
-    /// as a normal location check. It's routed to <see cref="ArchipelagoSession.SetGoalAchieved"/> instead,
-    /// which is the actual signal the server needs to mark the slot's goal as done.
+    /// "The End - Return Home" (<see cref="LocationChecks.GoalLocationName"/>), an event location with no
+    /// network id, is routed to <see cref="ArchipelagoSession.SetGoalAchieved"/> instead.
     /// </summary>
     public bool SendLocationCheck(string locationName)
     {
@@ -287,9 +285,7 @@ public sealed class ArchipelagoConnection : IDisposable
             if (!ReferenceEquals(_session, session))
                 return;
 
-            // A null SeedName means the check was queued with no save seed set (e.g. before a seed tag was
-            // ever recorded) - never assume that's safe to flush. Only send checks explicitly tagged with
-            // the currently connected seed.
+            // Only sends checks tagged with the currently connected seed; untagged (null) checks are skipped.
             if (check.SeedName is null || !string.Equals(check.SeedName, SeedName, StringComparison.Ordinal))
                 continue;
 

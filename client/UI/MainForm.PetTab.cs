@@ -2,7 +2,7 @@ namespace StarshipTitanicAp;
 
 public sealed partial class MainForm
 {
-    // --- PET tab (was Actions) ---
+    // --- PET tab ---
     private readonly ComboBox _cmbClass = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140 };
     private readonly Button _btnSetClass = new() { Text = "Set Class", Width = 100 };
     private readonly TextBox _txtMsgText = new() { Width = 300, PlaceholderText = "free text message" };

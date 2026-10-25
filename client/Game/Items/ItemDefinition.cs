@@ -4,10 +4,8 @@ namespace StarshipTitanicAp;
 public readonly record struct DefaultParent(string? ParentName, string ParentClass);
 
 /// <summary>Known-good _bounds/_cursorId to reapply after a generic tree re-attach. Bounds/CursorId/EnterFrame
-/// are optional (null = leave whatever the engine already has) since KeepVisible alone is the confirmed fix
-/// for the generic restoration flow's "force _visible false, room art already shows it" assumption being
-/// wrong for a given item - the other fields are only needed when leftover values from a prior natural
-/// pickup also need correcting (see BrokenLiftbotHead).</summary>
+/// are optional (null = leave whatever the engine already has); KeepVisible keeps _visible true after
+/// restoration.</summary>
 public readonly record struct RestoreFieldOverride(
     short? Left, short? Top, short? Right, short? Bottom, int? CursorId, int? EnterFrame, bool? KeepVisible);
 
@@ -51,15 +49,11 @@ public sealed record ItemDefinition
     public bool IsOneDirectional { get; init; }
 
     /// <summary>True for a fuse that can be installed into a Fuse Box socket (see
-    /// GameState.FindShipSettingsInstalledWith). Installing one relocates the real item via the same
-    /// CGameObject::petMoveToHiddenRoom() the AP hidden-room stash uses, so any code that reacts to a tracked
-    /// item landing in the hidden room needs to check whether it's actually an installed fuse - not a
-    /// mail-delivery/pending-grant case.</summary>
+    /// GameState.FindShipSettingsInstalledWith). An installed fuse's real item is parked in the hidden room.</summary>
     public bool IsFuseBoxItem { get; init; }
 
     /// <summary>True if this item is excluded from the home-RNV restoration flow (TryRestoreItemsAtHomeRnv) even
-    /// if it has a home RNV registered - e.g. because moving it back for a re-pickup isn't safe/meaningful for
-    /// how it naturally enters play.</summary>
+    /// if it has a home RNV registered.</summary>
     public bool IsRestorationExcluded { get; init; }
 
     /// <summary>True if this item's _canTake flag must be forced true when AP grants it, because the engine only
@@ -72,9 +66,6 @@ public sealed record ItemDefinition
     public bool RequiresCanTakeRestoreToggle { get; init; }
 
     /// <summary>True if the generic restoration flow must NOT reorder this item to be its home parent's first
-    /// child. That reorder exists to make simple sprite-swap items paint over baked room art, but for an item
-    /// whose own draw order relative to a specific sibling is load-bearing (e.g. Lemon needs to stay after
-    /// SeasonBackground so the seasonal art doesn't paint over it), forcing it to the front instead makes it
-    /// invisible while every one of its own fields (bounds/visible/surface) still checks out correct.</summary>
+    /// child, preserving its authored draw order relative to its siblings.</summary>
     public bool SkipFirstChildReorderOnRestore { get; init; }
 }

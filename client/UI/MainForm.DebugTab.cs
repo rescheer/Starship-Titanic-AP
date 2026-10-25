@@ -504,9 +504,8 @@ public sealed partial class MainForm
     }
 
     /// <summary>Read-only: locates the CGetLiftEye2 instance (the broken elevator's "take the Eye" hotspot,
-    /// room 21/"Lift") by walking the room's own subtree for that exact class name via its vtable, so a
-    /// write-breakpoint can be set on one of its own instance fields (e.g. _cursorId or _visible) instead of a
-    /// noisy breakpoint on the shared "GetLiftEye" name string, which fires from unrelated code too.</summary>
+    /// room 21/"Lift") by walking the room's own subtree for that exact class name via its vtable, and logs its
+    /// address.</summary>
     private void DoFindGetLiftEye2()
     {
         if (!RequireAttachedAndResolved(out _))
@@ -659,12 +658,7 @@ public sealed partial class MainForm
     }
 
     /// <summary>Read-only: scans a (possibly large) memory range in 4KB (page-granularity) chunks for every
-    /// 4-byte-aligned occurrence of a target uint32 value, skipping chunks that fail to read instead of aborting -
-    /// a disassembler-free way to locate an object (e.g. a CPetRoomsGlyph) holding a known field value (e.g.
-    /// _roomFlags for a specific assigned room) somewhere in the heap. Chunk size deliberately matches the Windows
-    /// VM page size (0x1000): ReadProcessMemory fails the *entire* call if any byte in the requested range is
-    /// unmapped, so a larger chunk (e.g. 64KB) would silently lose whole neighborhoods of valid, readable memory
-    /// any time it straddled a single unmapped page - including small, otherwise-isolated heap allocations.</summary>
+    /// 4-byte-aligned occurrence of a target uint32 value, skipping chunks that fail to read instead of aborting.</summary>
     private void DoValueScan()
     {
         if (!_mem.IsAttached)

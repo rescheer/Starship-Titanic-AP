@@ -82,8 +82,7 @@ public static class LocationChecks
         [1] = "DeskBot - 1st Class Upgrade",
     };
 
-    // Event-only shadow locations sent alongside the real class-upgrade check above, purely so the apworld can
-    // gate "DeskBot - 1st Class Upgrade" on the 2nd Class Upgrade having actually happened
+    // Event-only shadow locations sent alongside the real class-upgrade check above
     private static readonly Dictionary<int, string> ClassUpgradeEventLocationName = new()
     {
         [2] = "DeskBot - 2nd Class Upgrade (Event)",

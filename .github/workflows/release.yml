@@ -22,10 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Zip the apworld folder
-        # cd into apworld/ first so the zip's top-level entry is
-        # "starship_titanic/", not "apworld/starship_titanic/" -- AP
-        # expects the folder name to match the world's module name at
-        # the root of the archive.
+        # The zip's top-level entry is "starship_titanic/".
         run: |
           cd apworld
           zip -r ../starship_titanic.apworld starship_titanic \
@@ -63,11 +60,7 @@ jobs:
       - name: Locate build output
         id: locate
         shell: pwsh
-        # dotnet build's output path depends on the project's target
-        # framework moniker (net8.0-windows, net8.0-windows10.0.19041.0,
-        # etc.), which isn't hardcoded here on purpose -- this finds the
-        # deepest bin\Release\<TFM>\ folder that actually contains a
-        # built .exe, so it keeps working if the TFM changes later.
+        # Finds the bin\Release\<TFM>\ folder that contains a built .exe.
         run: |
           $outDir = Get-ChildItem -Path client -Recurse -Directory |
             Where-Object { $_.FullName -match '\\bin\\Release\\[^\\]+$' } |

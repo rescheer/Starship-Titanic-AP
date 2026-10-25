@@ -20,15 +20,7 @@ public static class ChevronCodes
     // a fixed constant - there is no single hex code to put in Codes below. Their
     // code can only be read live off CPetControl while the player is standing there
     // (GameState.ReadCurrentRoomFlags), so TryGetCode needs that value passed in.
-    //
-    // SgtLobby is here (not in MailStationNames) because each player's SGT Lobby lives
-    // on their own assigned floor: a live capture there decoded via RoomFlags.Decode()
-    // to (elevator 1, class 3, floor 30, room 0) - the per-stateroom Compute() shape,
-    // not one of the fixed named-room constants (which all have their low bit set).
-    //
-    // FrozenArboretum (room 52) is here not because its code varies per player, but
-    // because it's a distinct room object from Arboretum (room 48) with an unconfirmed
-    // fixed code of its own - reading it live avoids needing to hardcode a second constant.
+    // FrozenArboretum (room 52) is also read live.
     private static readonly HashSet<string> DynamicMailStationNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "secClassState", "2ndClassLobby", "1stClassState", "1stClassLobby", "SgtLobby",

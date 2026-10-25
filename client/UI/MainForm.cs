@@ -9,7 +9,7 @@ public sealed partial class MainForm : Form
     private const int MailIntervalTicks = 20;        // every 20 * 50ms = 1s
 
     private const int SaveSeedGuardBeamBridgeMissLimit = 100; // 100 * 50ms = 5s
-    private const int SaveSeedGuardTagMismatchLimit = 40; // 40 * 50ms = 2s of consecutive mismatched reads before blocking - gives a mid-load save time to finish initializing
+    private const int SaveSeedGuardTagMismatchLimit = 40; // 40 * 50ms = 2s of consecutive mismatched reads before blocking
     private const int SaveSeedGuardRecheckIntervalTicks = 40; // every 40 * 50ms = 2s, once verified
 
     private readonly MemoryReader _mem = new();
@@ -21,10 +21,8 @@ public sealed partial class MainForm : Form
     private uint? _lastRoomFlags;
     private int? _lastPassengerClass;
 
-    /// <summary>Display-only cache of the last RNV shown on the Live tab - updates every tick regardless of the
-    /// save/seed guard, independent of <see cref="_lastRoomNodeView"/> which only advances once the guard is Ok so
-    /// that AP-facing writes (location checks, item restoration, mail delivery, etc.) still correctly detect and
-    /// react to every room change that happened while unverified, once verification completes.</summary>
+    /// <summary>Display-only cache of the last RNV shown on the Live tab, updated every tick regardless of the
+    /// save/seed guard. <see cref="_lastRoomNodeView"/> only advances once the guard is Ok.</summary>
     private RoomNodeView? _lastDisplayedRnv;
 
     private List<CarryItemLocation>? _lastInventory;
@@ -45,16 +43,12 @@ public sealed partial class MainForm : Form
     private const int DirtyReassertDelayTicks = 4; // 4 * 50ms = 200ms
 
     /// <summary>Items still Restored at the RNV they were just left from, awaiting a delayed re-check (see
-    /// TryUnrestoreItemsLeavingRnv) so a genuine pickup - whose RNV change and inventory reparent aren't
-    /// necessarily on the same tick - gets a chance to complete before being reverted as "abandoned".</summary>
+    /// TryUnrestoreItemsLeavingRnv).</summary>
     private readonly List<(string ItemName, long ItemAddress, int DueTick)> _pendingUnrestoreChecks = new();
     private const int UnrestoreCheckDelayTicks = InventoryIntervalTicks + 4; // let ReconcileTrackedItems run at least once, plus buffer
 
     /// <summary>The (Room, Node, View) shown during the bellbot's Titania's Eye (Light) dialogue/hand-off
-    /// cutscene, confirmed live. Asking the bellbot moves the player here for the whole exchange, well before the
-    /// real CEye object reparents into inventory - ProcessPendingUnrestoreChecks defers its revert decision for
-    /// Eye1 for as long as the player is sitting at this RNV, rather than reverting a genuine in-progress hand-off
-    /// out from under the still-playing cutscene.</summary>
+    /// cutscene.</summary>
     private static readonly RoomNodeView Eye1HandoffCutsceneRnv = new(7, 11, 1);
 
     private bool _conversationsAddrShown;

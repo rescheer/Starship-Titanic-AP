@@ -1,12 +1,10 @@
 namespace StarshipTitanicAp;
 
 /// <summary>Intercepts CGameObject::petReassignRoom() (via its name-lookup wrapper, GameOffsets.PetReassignRoomFunc)
-/// so it records the attempted class instead of assigning a room - unlike ClassUpgradeHook, this blocks every
-/// class (including Third/SGT), since room assignment is now driven entirely by receiving "Progressive Stateroom"
-/// items over the multiworld (see StateroomAssignTracker + GameActions.AssignNextRoom, which temporarily
-/// Uninstall()s this hook to let the real function run for a grant, then Install()s it again).
+/// so it records the attempted class instead of assigning a room. Blocks every class, including Third/SGT; room
+/// assignment comes from "Progressive Stateroom" items via StateroomAssignTracker + GameActions.AssignNextRoom.
 ///
-/// The wrapper's own prologue (confirmed live via a Debug tab memory dump at ModuleBase+PetReassignRoomFunc):
+/// The wrapper's prologue:
 ///   push r12                          ; 41 54
 ///   sub rsp, 0x20                     ; 48 83 EC 20
 ///   mov r12d, edx                     ; 41 89 D4      (stash the incoming class arg)
@@ -16,9 +14,7 @@ namespace StarshipTitanicAp;
 ///   lea rcx, [rax+0xFF0]              ; 48 8D 88 F0 0F 00 00  (rcx = CPetRooms this, GameOffsets.PetRoomsOffset)
 ///   mov edx, r12d                     ; 44 89 E2
 ///   ...                               ; tail-jmp into the real CPetRooms::reassignRoom body
-/// giving a clean 14-byte instruction boundary through the call - exactly enough for the far-jmp detour with no
-/// NOP padding needed. Hooking this early (before the prologue even runs) means the blocked path never has to
-/// unwind a pushed r12/adjusted rsp - it can just record and ret, same as ClassUpgradeHook/MaitreDHook.</summary>
+/// The first 14 bytes (through the call) are replaced by the far-jmp detour; the blocked path records and rets.</summary>
 public static class RoomAssignHook
 {
     private const int OriginalBytesLength = 14; // through "call getPetControl()" - clean instruction boundary

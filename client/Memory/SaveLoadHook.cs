@@ -1,8 +1,6 @@
 namespace StarshipTitanicAp;
 
-/// <summary>Detects in-process save loads. CProjectItem::loadGame keeps the same CProjectItem/CGameManager and
-/// only swaps out the tree under them, so a changed _project pointer can't be used to notice a load - every
-/// cached tree address (PET control, MailMan, glyphs, items) silently dangles instead.
+/// <summary>Detects in-process save loads, which swap out the object tree under the same CProjectItem/CGameManager.
 ///
 /// Two pass-through detours, each just bumping a counter in a remote mailbox then running the real function:
 ///   loadGame entry  -> [mailbox+0] "loads started"
@@ -10,8 +8,7 @@ namespace StarshipTitanicAp;
 /// started > finished means a load is mid-flight and the tree must not be touched; a change in finished means
 /// every cached address must be dropped and re-resolved.
 ///
-/// Both stolen prologues are checked byte-for-byte against the expected ScummVM 2.9.1 build before patching,
-/// since they're replayed (not just skipped) - a different build would otherwise crash the game.</summary>
+/// Both stolen prologues are checked byte-for-byte against the expected ScummVM 2.9.1 build before patching.</summary>
 public static class SaveLoadHook
 {
     // loadGame: push r15/r14/r13/r12/rbp/rdi/rsi/rbx; sub rsp,0xC8 - no RIP-relative operands, replayed verbatim.
