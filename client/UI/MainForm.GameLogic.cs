@@ -324,8 +324,35 @@ public sealed partial class MainForm
             return;
 
         int? spoofToClass = null;
+        bool secondClassPending = !_apConnection.IsLocationChecked(secondLocationName);
+        bool magazineHandOffPending = rnv == DeskBotRnv && secondClassPending
+            && GameState.FindAllCarryItems(_mem, project).Any(item =>
+                string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
+                && item.ParentAddress == _currentInventoryRoom.Value);
 
-        if (rnv == DeskBotRnv
+        if (magazineHandOffPending)
+        {
+            // Checked ahead of everything else at the DeskBot: the Magazine is consumed as soon as it's handed to
+            // an active DeskBot, but DeskbotScript's 2ndClassUpgrade dialogue (140) only pays out at exactly Third -
+            // any other reported class (including the no-assigned-room None spoof below, which stays active until a
+            // Progressive Stateroom arrives) eats the Magazine for nothing and softlocks the check.
+            if (currentClass.Value != (int)PassengerClass.Third)
+                spoofToClass = (int)PassengerClass.Third;
+        }
+        else if (rnv != DeskBotRnv && currentClass.Value < (int)PassengerClass.Third && secondClassPending)
+        {
+            spoofToClass = configuredSpoofClass;
+        }
+        else if (rnv == DeskBotRnv && !secondClassPending && !_apConnection.IsLocationChecked(firstLocationName))
+        {
+            // Same idea for the 1st Class upgrade, which DeskbotScript only pays out at exactly Second. Logic only
+            // requires the 2nd Class Upgrade event for this location (not any class items), so the real class can
+            // be anything from Third (no items yet) to First here - and a real Second still has to be shielded
+            // from the no-assigned-room None spoof below.
+            if (currentClass.Value != (int)PassengerClass.Second)
+                spoofToClass = (int)PassengerClass.Second;
+        }
+        else if (rnv == DeskBotRnv
             && currentClass.Value != (int)PassengerClass.None
             && !GameActions.HasAnyAssignedRoom(_mem, _currentInventoryRoom.Value))
         {
@@ -335,23 +362,6 @@ public sealed partial class MainForm
             // and the player is left with no room at all. Spoof down to None so that initial conversation and
             // room assignment plays out for real before the item-driven class takes over.
             spoofToClass = (int)PassengerClass.None;
-        }
-        else if (currentClass.Value < (int)PassengerClass.Third && !_apConnection.IsLocationChecked(secondLocationName))
-        {
-            // Only the DeskBot hand-off needs the Magazine already in hand
-            bool magazineRequired = rnv == DeskBotRnv;
-            bool magazineInInventory = !magazineRequired || GameState.FindAllCarryItems(_mem, project).Any(item =>
-                string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
-                && item.ParentAddress == _currentInventoryRoom.Value);
-            if (magazineInInventory)
-                spoofToClass = configuredSpoofClass;
-        }
-        else if (rnv == DeskBotRnv
-            && currentClass.Value == (int)PassengerClass.First
-            && _apConnection.IsLocationChecked(secondLocationName)
-            && !_apConnection.IsLocationChecked(firstLocationName))
-        {
-            spoofToClass = (int)PassengerClass.Second;
         }
 
         if (spoofToClass is null)
