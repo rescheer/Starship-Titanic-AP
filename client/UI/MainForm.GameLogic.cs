@@ -166,7 +166,12 @@ public sealed partial class MainForm
         }
     }
 
-    /// <summary>Applies the class upgrade implied by AP items received so far, if any.</summary>
+    private const string TitaniaRepairedLocation = "Titania's Room - Repair Titania";
+
+    /// <summary>Applies the class upgrade implied by AP items received so far, if any. With no class items yet,
+    /// clamps a First/Second class (only reachable via a spoof that was saved or never reverted) back to Third.
+    /// While a class spoof is active, updates the spoof's backed-up original class instead of the live value, so
+    /// <see cref="TryRevertClassUpgradeSpoof"/> restores the new class rather than the stale one.</summary>
     private void SyncPassengerClassFromItems(long gameManager)
     {
         IReadOnlyDictionary<string, object>? slotData = _apConnection.SlotData;
@@ -180,13 +185,32 @@ public sealed partial class MainForm
             return;
         _lastItemsReceivedCount = receivedItems.Length;
 
-        int? targetClass = ClassUpgradeTracker.ComputeClass(receivedItems, slotData);
-        if (targetClass is null)
+        int? currentClass = _classUpgradeSpoofOriginalClass ?? GameState.ReadPassengerClass(_mem, gameManager);
+        if (currentClass is null)
             return;
 
-        int? currentClass = GameState.ReadPassengerClass(_mem, gameManager);
+        // Bridge access shares its raw value with None - never overwrite it once Titania has been repaired.
+        if (currentClass.Value == SpecialPassengerClassValues.BridgeAccessClassValue
+            && _apConnection.IsLocationChecked(TitaniaRepairedLocation))
+            return;
+
+        int? targetClass = ClassUpgradeTracker.ComputeClass(receivedItems, slotData);
+        if (targetClass is null)
+        {
+            if (currentClass.Value != (int)PassengerClass.First && currentClass.Value != (int)PassengerClass.Second)
+                return;
+            targetClass = (int)PassengerClass.Third;
+        }
+
         if (currentClass == targetClass)
             return;
+
+        if (_classUpgradeSpoofOriginalClass is not null)
+        {
+            _classUpgradeSpoofOriginalClass = targetClass.Value;
+            ShowActionResult(true, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)} (applied once the class spoof ends)");
+            return;
+        }
 
         bool ok = GameActions.SetPassengerClassFull(_mem, gameManager, _currentInventoryRoom.Value, targetClass.Value);
         ShowActionResult(ok, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)}");

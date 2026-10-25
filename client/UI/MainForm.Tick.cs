@@ -16,6 +16,8 @@ public sealed partial class MainForm
         _lastMailItems = null;
         _pendingUnrestoreChecks.Clear();
         _classUpgradeSpoofOriginalClass = null; // the old PassengerClass value (and any spoof on it) was overwritten by the load
+        _lastItemsReceivedCount = -1; // re-sync class and staterooms against the loaded save
+        _lastStateroomItemsReceivedCount = -1;
         _sgtGlyphAddr = null; // the glyph lived inside the old CPetControl
         _sgtGlyphOriginalMode = null;
         _conversationsAddrShown = false;
@@ -247,11 +249,10 @@ public sealed partial class MainForm
                     {
                         bool applied = GameActions.SetPassengerClassFull(_mem, gameManager.Value, _currentInventoryRoom.Value, attemptedClass.Value);
 
-                        const string titaniaRepairedLocation = "Titania's Room - Repair Titania";
-                        bool handedOff = _apConnection.SendLocationCheck(titaniaRepairedLocation);
+                        bool handedOff = _apConnection.SendLocationCheck(TitaniaRepairedLocation);
                         ShowActionResult(applied && handedOff, handedOff
-                            ? $"Bridge access granted -> {titaniaRepairedLocation}"
-                            : $"Bridge access granted -> {titaniaRepairedLocation} (queued offline or class-apply failed)");
+                            ? $"Bridge access granted -> {TitaniaRepairedLocation}"
+                            : $"Bridge access granted -> {TitaniaRepairedLocation} (queued offline or class-apply failed)");
                         UpdatePendingChecksLabel();
                     }
                     else
