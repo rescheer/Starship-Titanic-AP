@@ -57,7 +57,8 @@ public sealed record ItemDefinition
     public bool IsRestorationExcluded { get; init; }
 
     /// <summary>True if this item's _canTake flag must be forced true when AP grants it, because the engine only
-    /// sets it once the item's normal puzzle prerequisite is met.</summary>
+    /// sets it once the item's normal puzzle prerequisite is met. Reapplied on restoration to its home parent, since
+    /// using the item in between can clear it again (e.g. CFruit::UseWithCharMsg on the Barbot).</summary>
     public bool RequiresCanTakeOverride { get; init; }
 
     /// <summary>True if this item's _canTake flag must track the restore/unrestore cycle: true while sitting in

@@ -1040,6 +1040,8 @@ public sealed partial class MainForm
 
                     if (ItemTracking.RequiresCanTakeRestoreToggle(name))
                         GameActions.SetItemCanTake(_mem, item.Address, false);
+                    else if (ItemTracking.RequiresCanTakeOverride(name))
+                        GameActions.SetItemCanTake(_mem, item.Address, true);
 
                     if (ItemHomeLocations.TryGetRestoreFieldOverride(name, out var fields))
                     {
