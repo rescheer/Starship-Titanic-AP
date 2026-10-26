@@ -323,6 +323,13 @@ public sealed partial class MainForm
         // None before Titania's repair means the player hasn't checked in yet (after it, None is Bridge access).
         bool notCheckedIn = currentClass.Value == (int)PassengerClass.None
             && !_apConnection.IsLocationCheckedOrQueued(TitaniaRepairedLocation);
+
+        // Not checked in: leave the DeskBot unspoofed so the check-in conversation runs first - otherwise the player
+        // can never leave the Embarkation Lobby. Once it pays out the real class is Third, so a Magazine hand-off
+        // works natively (even in the same visit) and later visits spoof as usual.
+        if (rnv == DeskBotRnv && notCheckedIn)
+            return;
+
         bool magazineHandOffPending = rnv == DeskBotRnv && secondClassPending
             && GameState.FindAllCarryItems(_mem, project).Any(item =>
                 string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
@@ -338,10 +345,9 @@ public sealed partial class MainForm
         {
             spoofToClass = configuredSpoofClass;
         }
-        else if (rnv == DeskBotRnv && !secondClassPending && !notCheckedIn && !_apConnection.IsLocationCheckedOrQueued(firstLocationName))
+        else if (rnv == DeskBotRnv && !secondClassPending && !_apConnection.IsLocationCheckedOrQueued(firstLocationName))
         {
-            // DeskbotScript's 1st Class upgrade pays out only at exactly Second. Skipped until the player has checked
-            // in, so the unspoofed check-in conversation can run - otherwise they can never leave the Embarkation Lobby.
+            // DeskbotScript's 1st Class upgrade pays out only at exactly Second.
             if (currentClass.Value != (int)PassengerClass.Second)
                 spoofToClass = (int)PassengerClass.Second;
         }
@@ -799,6 +805,83 @@ public sealed partial class MainForm
 
         if (anyMailChange)
             _lastMailItems = null;
+
+        // After the loop above, so it never acts on the Magazine's stale pre-return parent this pass.
+        TryReturnEatenMagazine(items, gameManager);
+    }
+
+    /// <summary>CMagazine's hand-off to an active DeskBot hides it and parks it at this position, whether or not the
+    /// DeskBot pays out.</summary>
+    private const short EatenMagazinePosition = 1000;
+
+    /// <summary>How long an eaten Magazine must stay flagged before it's returned, so a successful hand-off's
+    /// class-upgrade attempt is polled and its 2nd Class check queued first.</summary>
+    private const int EatenMagazineConfirmTicks = 10;
+
+    private long? _eatenMagazineAddr;
+    private int _eatenMagazineFlaggedTick;
+
+    /// <summary>Returns the Magazine to inventory when an active DeskBot ate it without paying out the 2nd Class
+    /// upgrade (it wasn't reporting exactly Third, e.g. mid check-in), which would otherwise lose that check for good.
+    /// Flags it on one pass and only acts on a later one, once it's still eaten and the check is still pending.</summary>
+    private void TryReturnEatenMagazine(List<CarryItemLocation> items, long gameManager)
+    {
+        if (_currentInventoryRoom is not { } petControlAddr || _currentMailManRoom is not { } mailManAddr)
+            return;
+        if (!LocationChecks.TryGetClassUpgradeLocationName((int)PassengerClass.Second, out string secondLocationName))
+            return;
+
+        if (FindByName(items, "Magazine") is not { } magazine
+            || _apConnection.IsLocationCheckedOrQueued(secondLocationName)
+            || !IsEatenByDeskBot(magazine, petControlAddr, mailManAddr))
+        {
+            _eatenMagazineAddr = null;
+            return;
+        }
+
+        if (_eatenMagazineAddr != magazine.Address)
+        {
+            _eatenMagazineAddr = magazine.Address;
+            _eatenMagazineFlaggedTick = _tickCount;
+            AppendLog("Magazine looks eaten by the DeskBot with the 2nd Class check still pending - returning it if that holds");
+            return;
+        }
+        if (_tickCount - _eatenMagazineFlaggedTick < EatenMagazineConfirmTicks)
+            return;
+
+        _eatenMagazineAddr = null;
+
+        bool moved = GameActions.MoveItemSmart(_mem, magazine.Address, petControlAddr, petControlAddr, gameManager);
+        if (moved)
+        {
+            GameActions.SetItemVisible(_mem, magazine.Address, true);
+            ScheduleDirtyReassert();
+            DoRefreshAllItems();
+            GameActions.DisplayMessageSmart(_mem, petControlAddr,
+                "AP: The DeskBot took your Magazine without upgrading you, so it's been returned to your inventory. " +
+                "Make sure you've checked in, then hand it over again.");
+        }
+        ShowActionResult(moved, moved
+            ? "Magazine eaten by the DeskBot without a 2nd Class upgrade - returned to inventory"
+            : "Magazine eaten by the DeskBot without a 2nd Class upgrade - failed to return it, will retry");
+    }
+
+    /// <summary>Whether the Magazine is in the state CMagazine's DeskBot hand-off leaves it: hidden, parked at
+    /// <see cref="EatenMagazinePosition"/>, and outside the inventory, mail, and hidden room.</summary>
+    private bool IsEatenByDeskBot(CarryItemLocation magazine, long petControlAddr, long mailManAddr)
+    {
+        if (magazine.ParentAddress == petControlAddr || magazine.ParentAddress == mailManAddr)
+            return false;
+        if (GameActions.HiddenRoomAddress is { } hiddenAddr && magazine.ParentAddress == hiddenAddr)
+            return false;
+
+        byte[]? visible = _mem.ReadBytes(magazine.Address + GameOffsets.GameObjectVisibleOffset, 1);
+        if (visible is null || visible[0] != 0)
+            return false;
+
+        // The first two int16s of _bounds; both are EatenMagazinePosition, so their order doesn't matter.
+        int? topLeft = _mem.ReadInt32(magazine.Address + GameOffsets.GameObjectBoundsOffset);
+        return topLeft == ((ushort)EatenMagazinePosition | (ushort)EatenMagazinePosition << 16);
     }
 
     /// <summary>Keeps GetLiftEye2GateHook's remote "may take the Eye" gate byte in sync with whether the LiftBot

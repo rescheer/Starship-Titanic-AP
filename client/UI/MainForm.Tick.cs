@@ -20,6 +20,7 @@ public sealed partial class MainForm
         _lastStateroomItemsReceivedCount = -1;
         _sgtGlyphAddr = null; // the glyph lived inside the old CPetControl
         _sgtGlyphOriginalMode = null;
+        _eatenMagazineAddr = null; // flagged against the old tree
         _conversationsAddrShown = false;
         _saveSeedGuardState = SaveSeedGuardState.Unverified;
         _saveSeedGuardBeamBridgeMisses = 0;
