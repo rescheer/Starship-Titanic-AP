@@ -89,6 +89,17 @@ public sealed class ArchipelagoConnection : IDisposable
         return id != -1 && session.Locations.AllLocationsChecked.Contains(id);
     }
 
+    /// <summary>Whether this location is checked on the server, or queued for the current (or last connected) seed
+    /// and just not sent yet - e.g. checked while offline.</summary>
+    public bool IsLocationCheckedOrQueued(string locationName)
+    {
+        if (IsLocationChecked(locationName))
+            return true;
+
+        string? seedName = SeedName ?? _lastSeedName;
+        return seedName is not null && _checkQueue.Contains(locationName, seedName);
+    }
+
     /// <summary>Drops every queued-but-unsent location check without sending it.</summary>
     public void ClearPendingChecks() => _checkQueue.Clear();
 
@@ -97,6 +108,10 @@ public sealed class ArchipelagoConnection : IDisposable
 
     /// <summary>The server's seed_name, captured once login succeeds.</summary>
     public string? SeedName { get; private set; }
+
+    /// <summary>The seed_name of the most recent successful login, kept across disconnects so checks made offline
+    /// are still tagged (and flushed) for the seed the save was verified against.</summary>
+    private string? _lastSeedName;
 
     private bool _pendingChecksFlushedThisSession;
 
@@ -203,6 +218,7 @@ public sealed class ArchipelagoConnection : IDisposable
             _session = session;
             SlotData = success.SlotData;
             SeedName = session.RoomState.Seed;
+            _lastSeedName = SeedName;
             session.MessageLog.OnMessageReceived += message => MessageReceived?.Invoke(message.ToString());
 
             RaiseState(ApConnectionState.Connected, $"Connected as {slot}");
@@ -238,7 +254,7 @@ public sealed class ArchipelagoConnection : IDisposable
     /// </summary>
     public bool SendLocationCheck(string locationName)
     {
-        if (_checkQueue.Enqueue(locationName, SeedName))
+        if (_checkQueue.Enqueue(locationName, SeedName ?? _lastSeedName))
             CheckQueued?.Invoke(locationName);
 
         if (_session is not { } session)

@@ -41,6 +41,16 @@ public sealed class LocationCheckQueue
         }
     }
 
+    /// <summary>Whether a location is queued under the given seed_name.</summary>
+    public bool Contains(string locationName, string seedName)
+    {
+        lock (_lock)
+        {
+            return _pending.TryGetValue(locationName, out string? queuedSeed)
+                && string.Equals(queuedSeed, seedName, StringComparison.Ordinal);
+        }
+    }
+
     /// <summary>Point-in-time snapshot of every queued check.</summary>
     public PendingCheck[] Snapshot()
     {

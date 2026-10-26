@@ -318,10 +318,11 @@ public sealed partial class MainForm
             return;
 
         int? spoofToClass = null;
-        bool secondClassPending = !_apConnection.IsLocationChecked(secondLocationName);
+        // Queued counts as checked, so a check made while offline still advances the spoof.
+        bool secondClassPending = !_apConnection.IsLocationCheckedOrQueued(secondLocationName);
         // None before Titania's repair means the player hasn't checked in yet (after it, None is Bridge access).
         bool notCheckedIn = currentClass.Value == (int)PassengerClass.None
-            && !_apConnection.IsLocationChecked(TitaniaRepairedLocation);
+            && !_apConnection.IsLocationCheckedOrQueued(TitaniaRepairedLocation);
         bool magazineHandOffPending = rnv == DeskBotRnv && secondClassPending
             && GameState.FindAllCarryItems(_mem, project).Any(item =>
                 string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
@@ -337,7 +338,7 @@ public sealed partial class MainForm
         {
             spoofToClass = configuredSpoofClass;
         }
-        else if (rnv == DeskBotRnv && !secondClassPending && !notCheckedIn && !_apConnection.IsLocationChecked(firstLocationName))
+        else if (rnv == DeskBotRnv && !secondClassPending && !notCheckedIn && !_apConnection.IsLocationCheckedOrQueued(firstLocationName))
         {
             // DeskbotScript's 1st Class upgrade pays out only at exactly Second. Skipped until the player has checked
             // in, so the unspoofed check-in conversation can run - otherwise they can never leave the Embarkation Lobby.
