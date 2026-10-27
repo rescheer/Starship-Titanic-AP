@@ -17,6 +17,7 @@ internal sealed class ClientCommands
         _commands = new(StringComparer.OrdinalIgnoreCase)
         {
             ["force_seed"] = _ => ForceSeed(),
+            ["ap"] = SendToServer,
         };
     }
 
@@ -34,6 +35,25 @@ internal sealed class ClientCommands
 
         string args = parts.Length > 1 ? parts[1] : "";
         return () => handler(args);
+    }
+
+    /// <summary>!ap &lt;text&gt;: sends the rest of the line to the AP server as-is, e.g. "!ap !hint X" sends "!hint X".</summary>
+    private void SendToServer(string text)
+    {
+        if (text.Length == 0)
+        {
+            _ctx.Report.AppendServerLog("CLIENT: Usage: !ap <message or !command>");
+            _ctx.ShowPetMessage("AP: Usage: !ap <message or !command>");
+            return;
+        }
+
+        bool sent = _ctx.Ap.SendCommand(text);
+        _ctx.Report.ReportAction(sent, $"!ap: send \"{text}\" to the AP server");
+        if (!sent)
+        {
+            _ctx.Report.AppendServerLog("CLIENT: Not connected - message not sent");
+            _ctx.ShowPetMessage("AP: Not connected to an AP server - message not sent.");
+        }
     }
 
     /// <summary>!force_seed: overrides the save/AP-seed guard by tagging the attached save with the connected seed.</summary>

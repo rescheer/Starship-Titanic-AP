@@ -88,7 +88,7 @@ internal sealed partial class ClientSession
             {
                 if (_commands.Find(command) is { } runCommand)
                 {
-                    ReportCapturedCommand($"{command} (handled locally - not sent to server)");
+                    ReportCapturedCommand($"{command} (client command)");
                     runCommand();
                 }
                 else if (_apConnection.IsConnected)
