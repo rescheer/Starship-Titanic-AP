@@ -70,12 +70,12 @@ public sealed partial class MainForm
 
     private void DoRefreshAllItems()
     {
-        if (!_mem.IsAttached)
+        if (!_session.Memory.IsAttached)
         {
             ShowActionResult(false, "Not attached");
             return;
         }
-        if (_currentProject is null)
+        if (_session.Project is null)
         {
             ShowActionResult(false, "Project not resolved yet");
             return;
@@ -87,10 +87,9 @@ public sealed partial class MainForm
         long? previousTop = _lvInventory.TopItem?.Tag as long?;
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        List<CarryItemLocation> items = GameState.FindAllCarryItems(_mem, _currentProject.Value);
+        List<CarryItemLocation> items = GameState.FindAllCarryItems(_session.Memory, _session.Project.Value);
         sw.Stop();
 
-        _lastInventory = items;
         _lvInventory.Items.Clear();
         foreach (CarryItemLocation item in items.OrderBy(i => i.Name))
         {
@@ -130,19 +129,19 @@ public sealed partial class MainForm
     /// <summary>Writes the current full item/parent listing to a timestamped CSV under %AppData%\StarshipTitanicAp\ParentSnapshots.</summary>
     private void DoExportParentSnapshot()
     {
-        if (!_mem.IsAttached)
+        if (!_session.Memory.IsAttached)
         {
             ShowActionResult(false, "Not attached");
             return;
         }
-        if (_currentProject is null)
+        if (_session.Project is null)
         {
             ShowActionResult(false, "Project not resolved yet");
             return;
         }
 
-        List<CarryItemLocation> items = GameState.FindAllCarryItems(_mem, _currentProject.Value);
-        RoomNodeView? rnv = _currentGameManager is long gm ? GameState.ReadRoomNodeView(_mem, gm) : null;
+        List<CarryItemLocation> items = GameState.FindAllCarryItems(_session.Memory, _session.Project.Value);
+        RoomNodeView? rnv = _session.GameManager is long gm ? GameState.ReadRoomNodeView(_session.Memory, gm) : null;
 
         string dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -151,7 +150,7 @@ public sealed partial class MainForm
         string path = Path.Combine(dir, $"snapshot_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"# ModuleBase=0x{_mem.ModuleBase:X} PID={_mem.ProcessId} CapturedAt={DateTime.Now:O} RNV={(rnv is { } r ? $"{r.Room}/{r.Node}/{r.View}" : "(unknown)")}");
+        sb.AppendLine($"# ModuleBase=0x{_session.Memory.ModuleBase:X} PID={_session.Memory.ProcessId} CapturedAt={DateTime.Now:O} RNV={(rnv is { } r ? $"{r.Room}/{r.Node}/{r.View}" : "(unknown)")}");
         sb.AppendLine("ItemName,ItemAddress,ItemAddrDelta,ParentAddress,ParentAddrDelta,ParentName,ParentClassName,"
             + "AncestorChain,ChainDepth,ChainStopReason,"
             + "RoomAddr,RoomAddrDelta,RoomNameAt0x40,RoomNameScan,RoomClass");
@@ -159,11 +158,11 @@ public sealed partial class MainForm
         foreach (CarryItemLocation item in items.OrderBy(i => i.Name))
         {
             string parentClass = item.ParentAddress is long pAddr
-                ? GameState.TryGetClassName(_mem, pAddr) ?? ""
+                ? GameState.TryGetClassName(_session.Memory, pAddr) ?? ""
                 : "";
-            string itemDelta = $"0x{item.Address - _mem.ModuleBase:X}";
+            string itemDelta = $"0x{item.Address - _session.Memory.ModuleBase:X}";
             string parentAddrStr = item.ParentAddress is long pa ? $"0x{pa:X}" : "";
-            string parentDelta = item.ParentAddress is long pa2 ? $"0x{pa2 - _mem.ModuleBase:X}" : "";
+            string parentDelta = item.ParentAddress is long pa2 ? $"0x{pa2 - _session.Memory.ModuleBase:X}" : "";
 
             (long? roomAddr, string chain, int depth, string stopReason) = WalkToRoom(item.ParentAddress);
 
@@ -171,10 +170,10 @@ public sealed partial class MainForm
             if (roomAddr is long ra)
             {
                 rAddr = $"0x{ra:X}";
-                rDelta = $"0x{ra - _mem.ModuleBase:X}";
+                rDelta = $"0x{ra - _session.Memory.ModuleBase:X}";
                 rName40 = DescribeNameAt0x40(ra);
                 rNameScan = TryReadNameSafe(ra);
-                rClass = GameState.TryGetClassName(_mem, ra) ?? "";
+                rClass = GameState.TryGetClassName(_session.Memory, ra) ?? "";
             }
 
             sb.AppendLine(string.Join(",",
@@ -213,7 +212,7 @@ public sealed partial class MainForm
             if (!visited.Add(addr))
                 return (null, string.Join(" > ", chainParts), depth, "cycle detected");
 
-            string className = GameState.TryGetClassName(_mem, addr) ?? "(unknown class)";
+            string className = GameState.TryGetClassName(_session.Memory, addr) ?? "(unknown class)";
             string name = TryReadNameSafe(addr);
             string name40 = DescribeNameAt0x40(addr);
             string displayName = !string.IsNullOrEmpty(name40) ? name40
@@ -230,14 +229,14 @@ public sealed partial class MainForm
             if (depth >= maxDepth)
                 return (null, string.Join(" > ", chainParts), depth, "depth cap reached");
 
-            current = _mem.ReadInt64(addr + GameOffsets.Parent);
+            current = _session.Memory.ReadInt64(addr + GameOffsets.Parent);
         }
     }
 
     /// <summary>Best-effort read of the hypothesized inline _name text at object+0x40.</summary>
     private string DescribeNameAt0x40(long addr)
     {
-        byte[]? raw = _mem.ReadBytes(addr + 0x40, 24);
+        byte[]? raw = _session.Memory.ReadBytes(addr + 0x40, 24);
         if (raw is null)
             return "";
 
@@ -254,7 +253,7 @@ public sealed partial class MainForm
     }
 
     /// <summary>Null-safe wrapper around GameState.TryReadName for the export.</summary>
-    private string TryReadNameSafe(long addr) => GameState.TryReadName(_mem, addr) ?? "";
+    private string TryReadNameSafe(long addr) => GameState.TryReadName(_session.Memory, addr) ?? "";
 
     private static string CsvField(string value) =>
         value.Contains(',') || value.Contains('"')
@@ -272,7 +271,7 @@ public sealed partial class MainForm
 
         ListViewItem selected = _lvInventory.SelectedItems[0];
         long itemAddr = (long)selected.Tag!;
-        var form = new ItemFieldsForm(_mem, itemAddr, selected.Text);
+        var form = new ItemFieldsForm(_session.Memory, itemAddr, selected.Text);
         form.Show(this);
     }
 
@@ -281,14 +280,14 @@ public sealed partial class MainForm
     {
         if (parentAddr is null)
             return "(unknown)";
-        if (parentAddr == _currentInventoryRoom)
+        if (parentAddr == _session.InventoryRoom)
             return "Player Inventory";
-        if (parentAddr == _currentMailManRoom)
+        if (parentAddr == _session.MailManRoom)
             return "Mail System";
         if (!string.IsNullOrEmpty(parentName) && parentName != "NoName")
             return parentName;
 
-        string? className = GameState.TryGetClassName(_mem, parentAddr.Value);
+        string? className = GameState.TryGetClassName(_session.Memory, parentAddr.Value);
         if (!string.IsNullOrEmpty(className))
             return className;
 
@@ -349,21 +348,21 @@ public sealed partial class MainForm
         bool toMail = destination == MoveDestination.Mailman;
         if (toMail)
         {
-            if (_currentMailManRoom is null)
+            if (_session.MailManRoom is null)
             {
                 ShowActionResult(false, "Mail system not resolved yet");
                 return;
             }
-            roomAddr = _currentMailManRoom.Value;
+            roomAddr = _session.MailManRoom.Value;
         }
         else
         {
-            if (_currentInventoryRoom is null)
+            if (_session.InventoryRoom is null)
             {
                 ShowActionResult(false, "Inventory not resolved yet");
                 return;
             }
-            roomAddr = _currentInventoryRoom.Value;
+            roomAddr = _session.InventoryRoom.Value;
         }
 
         MoveItemAndReport(gameManager, itemAddr, roomAddr, isMailDestination: toMail);
@@ -372,16 +371,16 @@ public sealed partial class MainForm
     /// <summary>Handles the HiddenRoom case separately from MoveItemAndReport.</summary>
     private void DoMoveSelectedToHiddenRoom(long itemAddr, long gameManager)
     {
-        bool ok = _currentInventoryRoom is not null
-            ? GameActions.MoveItemToHiddenRoomFull(_mem, itemAddr, _currentInventoryRoom.Value, gameManager)
-            : GameActions.MoveItemToHiddenRoom(_mem, itemAddr);
+        bool ok = _session.InventoryRoom is not null
+            ? GameActions.MoveItemToHiddenRoomFull(_session.Memory, itemAddr, _session.InventoryRoom.Value, gameManager)
+            : GameActions.MoveItemToHiddenRoom(_session.Memory, itemAddr);
 
         if (ok)
         {
-            if (GameActions.IsItemToolPlaced(_mem, itemAddr))
-                GameActions.UnmarkItemAsToolPlaced(_mem, itemAddr);
+            if (GameActions.IsItemToolPlaced(_session.Memory, itemAddr))
+                GameActions.UnmarkItemAsToolPlaced(_session.Memory, itemAddr);
 
-            _lastMailItems = null;
+            _session.InvalidateMail();
             DoRefreshAllItems();
         }
 
@@ -391,28 +390,28 @@ public sealed partial class MainForm
     /// <summary>Shared move+refresh+report logic for all three "move item" entry points.</summary>
     private void MoveItemAndReport(long gameManager, long itemAddr, long roomAddr, bool isMailDestination)
     {
-        bool ok = GameActions.MoveItemSmart(_mem, itemAddr, roomAddr, _currentInventoryRoom, gameManager);
+        bool ok = GameActions.MoveItemSmart(_session.Memory, itemAddr, roomAddr, _session.InventoryRoom, gameManager);
         string message;
 
         if (ok && isMailDestination)
         {
-            string destRoomName = _currentRoomName is not null && ChevronCodes.HasStation(_currentRoomName)
-                ? _currentRoomName
+            string destRoomName = _session.CurrentRoomName is not null && ChevronCodes.HasStation(_session.CurrentRoomName)
+                ? _session.CurrentRoomName
                 : "EmbLobby";
-            uint? liveRoomFlags = _currentInventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_mem, petControl) : null;
+            uint? liveRoomFlags = _session.InventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_session.Memory, petControl) : null;
             ChevronCodes.TryGetCode(destRoomName, liveRoomFlags, out uint code);
 
-            ok = GameActions.SetItemMailDestination(_mem, itemAddr, code);
+            ok = GameActions.SetItemMailDestination(_session.Memory, itemAddr, code);
             if (ok)
-                GameActions.MarkItemAsToolPlaced(_mem, itemAddr);
+                GameActions.MarkItemAsToolPlaced(_session.Memory, itemAddr);
 
-            _lastMailItems = null;
+            _session.InvalidateMail();
             message = $"Move item 0x{itemAddr:X} -> mail, destination {destRoomName}";
         }
         else
         {
-            if (ok && GameActions.IsItemToolPlaced(_mem, itemAddr))
-                GameActions.UnmarkItemAsToolPlaced(_mem, itemAddr);
+            if (ok && GameActions.IsItemToolPlaced(_session.Memory, itemAddr))
+                GameActions.UnmarkItemAsToolPlaced(_session.Memory, itemAddr);
             message = $"Move item 0x{itemAddr:X} -> 0x{roomAddr:X}";
         }
 

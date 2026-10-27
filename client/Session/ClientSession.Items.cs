@@ -1,12 +1,13 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+internal sealed partial class ClientSession
 {
-    private void UpdateInventory(long gameManager)
+    /// <summary>Re-resolves _project and the PET control (inventory room), reporting both addresses.</summary>
+    private void RefreshProjectAddresses(long gameManager)
     {
         long? project = GameState.ResolveProject(_mem, gameManager);
         _currentProject = project;
-        SetAddressRow("_project", project);
+        ReportAddress("_project", project);
 
         if (project is null)
             return;
@@ -15,9 +16,9 @@ public sealed partial class MainForm
         long? inventoryRoom = GameState.FindInventoryRoom(_mem, project.Value);
         if (inventoryRoom is not null)
             _currentInventoryRoom = inventoryRoom;
-        SetAddressRow("Player Inventory (CPetControl)", _currentInventoryRoom);
+        ReportAddress("Player Inventory (CPetControl)", _currentInventoryRoom);
 
-        SetAddressRow("Conversations (CPetConversations)",
+        ReportAddress("Conversations (CPetConversations)",
             _currentInventoryRoom is not null ? GameState.ResolveConversationsAddr(_currentInventoryRoom.Value) : null);
     }
 
@@ -95,7 +96,7 @@ public sealed partial class MainForm
                         if (delivered)
                         {
                             anyMailChange = true;
-                            DoRefreshAllItems();
+                            NotifyItemsChanged();
                         }
                     }
                     continue;
@@ -116,7 +117,7 @@ public sealed partial class MainForm
                             GameActions.ResetShipSetting(_mem, shipSetting, fuseBoxView);
                     }
 
-                    DoRefreshAllItems();
+                    NotifyItemsChanged();
                 }
                 continue;
             }
@@ -150,15 +151,15 @@ public sealed partial class MainForm
                         SendItemPickupCheck(item.Name);
 
                     // Hides an ungranted natural pickup pending its AP grant.
-                    if (fireCheck && !granted && !ItemTracking.IsOneDirectionalItem(item.Name) && _chkTakeUngrantedItems.Checked)
+                    if (fireCheck && !granted && !ItemTracking.IsOneDirectionalItem(item.Name) && Options.TakeUngrantedItems)
                     {
                         bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _currentInventoryRoom.Value, gameManager);
                         if (moved)
                         {
                             GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Hidden, true, ItemPulledFrom.None));
-                            DoRefreshAllItems();
+                            NotifyItemsChanged();
                         }
-                        ShowActionResult(moved, moved
+                        ReportAction(moved, moved
                             ? $"{item.Name} picked up - not yet granted, hidden pending AP grant"
                             : $"{item.Name} picked up - not yet granted, but failed to hide it");
                         continue;
@@ -181,7 +182,7 @@ public sealed partial class MainForm
 
                 SendItemPickupCheck(item.Name);
 
-                if (granted || ItemTracking.IsOneDirectionalItem(item.Name) || !_chkTakeUngrantedItems.Checked)
+                if (granted || ItemTracking.IsOneDirectionalItem(item.Name) || !Options.TakeUngrantedItems)
                 {
                     GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Inventory, true, ItemPulledFrom.None));
                 }
@@ -191,9 +192,9 @@ public sealed partial class MainForm
                     if (moved)
                     {
                         GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Hidden, true, ItemPulledFrom.None));
-                        DoRefreshAllItems();
+                        NotifyItemsChanged();
                     }
-                    ShowActionResult(moved, moved
+                    ReportAction(moved, moved
                         ? $"{item.Name} picked up - not yet granted, hidden pending AP grant"
                         : $"{item.Name} picked up - not yet granted, but failed to hide it");
                 }
@@ -209,7 +210,7 @@ public sealed partial class MainForm
                     {
                         GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None));
                         anyMailChange = true;
-                        DoRefreshAllItems();
+                        NotifyItemsChanged();
                     }
                 }
                 continue;
@@ -234,7 +235,7 @@ public sealed partial class MainForm
                 {
                     GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolDelivered: true));
                     anyMailChange = true;
-                    DoRefreshAllItems();
+                    NotifyItemsChanged();
                 }
             }
         }
@@ -292,12 +293,12 @@ public sealed partial class MainForm
         {
             GameActions.SetItemVisible(_mem, magazine.Address, true);
             ScheduleDirtyReassert();
-            DoRefreshAllItems();
+            NotifyItemsChanged();
             GameActions.DisplayMessageSmart(_mem, petControlAddr,
                 "AP: The DeskBot took your Magazine without upgrading you, so it's been returned to your inventory. " +
                 "Make sure you've checked in, then hand it over again.");
         }
-        ShowActionResult(moved, moved
+        ReportAction(moved, moved
             ? "Magazine eaten by the DeskBot without a 2nd Class upgrade - returned to inventory"
             : "Magazine eaten by the DeskBot without a 2nd Class upgrade - failed to return it, will retry");
     }
@@ -343,7 +344,7 @@ public sealed partial class MainForm
             {
                 GameActions.WriteItemPersistedState(_mem, feather.Address, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None, ToolDelivered: true));
                 _lastMailItems = null;
-                DoRefreshAllItems();
+                NotifyItemsChanged();
             }
             return;
         }
@@ -358,7 +359,7 @@ public sealed partial class MainForm
             {
                 GameActions.WriteItemPersistedState(_mem, feather.Address, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolDelivered: true));
                 _lastMailItems = null;
-                DoRefreshAllItems();
+                NotifyItemsChanged();
             }
             return;
         }
@@ -370,9 +371,9 @@ public sealed partial class MainForm
         if (moved)
         {
             GameActions.WriteItemPersistedState(_mem, feather.Address, new ItemPersistedState(ItemStage.Hidden, true, ItemPulledFrom.None));
-            DoRefreshAllItems();
+            NotifyItemsChanged();
         }
-        ShowActionResult(moved, moved
+        ReportAction(moved, moved
             ? "Feathers picked up - not yet granted, hidden pending AP grant"
             : "Feathers picked up - not yet granted, but failed to hide it");
     }
@@ -433,7 +434,7 @@ public sealed partial class MainForm
                 long? homeParent = GameState.ResolveHomeParent(_mem, project, name, out string failureReason);
                 if (homeParent is null)
                 {
-                    ShowActionResult(false, $"{name} is eligible for restoration but its home parent couldn't be resolved ({failureReason})");
+                    ReportAction(false, $"{name} is eligible for restoration but its home parent couldn't be resolved ({failureReason})");
                     continue;
                 }
 
@@ -473,9 +474,9 @@ public sealed partial class MainForm
                     }
 
                     ScheduleDirtyReassert();
-                    DoRefreshAllItems();
+                    NotifyItemsChanged();
                 }
-                ShowActionResult(moved, moved
+                ReportAction(moved, moved
                     ? $"{name} restored to its home parent for a real natural pickup (was granted before being found)"
                     : $"{name} failed to restore to its home parent");
                 continue;
@@ -488,7 +489,7 @@ public sealed partial class MainForm
                     continue;
 
                 bool moved = GameActions.MoveItemToRoom(_mem, item.Address, homeParent.Value);
-                ShowActionResult(moved, $"{name} self-healed back to its home parent");
+                ReportAction(moved, $"{name} self-healed back to its home parent");
             }
         }
     }
@@ -567,18 +568,18 @@ public sealed partial class MainForm
 
             if (TryCompleteEar1IfBowlUnlocked(item, gameManager))
             {
-                ShowActionResult(true, $"{name} left un-picked-up after the bowl unlocked - completed the pickup instead of reverting it");
+                ReportAction(true, $"{name} left un-picked-up after the bowl unlocked - completed the pickup instead of reverting it");
                 continue;
             }
 
             if (IsEye1MidBellbotHandoff(item))
             {
-                ShowActionResult(true, $"{name} handed off by the bellbot - leaving it for the natural pickup to land instead of reverting");
+                ReportAction(true, $"{name} handed off by the bellbot - leaving it for the natural pickup to land instead of reverting");
                 continue;
             }
 
             bool moved = RevertRestoration(item, persisted, gameManager);
-            ShowActionResult(moved, moved
+            ReportAction(moved, moved
                 ? $"{name} left un-picked-up - returned to where it was before restoration"
                 : $"{name} failed to revert from restoration");
         }
@@ -703,7 +704,7 @@ public sealed partial class MainForm
                 GameActions.SetItemCanTake(_mem, item.Address, true);
         }
 
-        ShowActionResult(ok, ok
+        ReportAction(ok, ok
             ? $"Delivered AP grant for {item.Name} via mail, destination {destRoomName}"
             : $"Failed to deliver AP grant for {item.Name}");
 

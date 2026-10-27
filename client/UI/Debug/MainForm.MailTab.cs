@@ -43,36 +43,17 @@ public sealed partial class MainForm
         return page;
     }
 
-    private void UpdateMail(long gameManager)
+    /// <summary>Handles ClientSession.MailChanged.</summary>
+    private void OnMailChanged(List<GameState.MailItem>? items)
     {
-        long? project = _currentProject;
-        if (project is null)
-            return;
-
-        // Only a non-null result replaces the cached address.
-        long? mailManRoom = GameState.FindMailManRoom(_mem, project.Value);
-        if (mailManRoom is not null)
-            _currentMailManRoom = mailManRoom;
-        SetAddressRow("Mail Inventory (CMailMan)", _currentMailManRoom);
-
-        if (_currentMailManRoom is null)
+        if (items is null)
         {
             _lblMailCount.Text = "CMailMan not resolved";
             return;
         }
 
-        List<GameState.MailItem> items = GameState.ReadMailItems(_mem, _currentMailManRoom.Value);
         UpdateInfoMailCount(items.Count(i => i.ToolPlaced));
 
-        bool changed = _lastMailItems is null
-            || items.Count != _lastMailItems.Count
-            || !items.Select(i => (i.Name, i.IsPendingMail, i.DestRoomFlags, i.RoomFlags, i.ToolPlaced))
-                     .SequenceEqual(_lastMailItems.Select(i => (i.Name, i.IsPendingMail, i.DestRoomFlags, i.RoomFlags, i.ToolPlaced)));
-
-        if (!changed)
-            return;
-
-        _lastMailItems = items;
         _lvMail.Items.Clear();
         foreach (GameState.MailItem item in items)
         {
@@ -110,46 +91,19 @@ public sealed partial class MainForm
         UpdateMailButtonState();
     }
 
-    /// <summary>Called on every real room change; retargets any tool-placed mail item to this room's station.</summary>
-    private void DeliverQueuedMailAtStation(string roomName)
-    {
-        if (_currentMailManRoom is null)
-            return;
-        uint? liveRoomFlags = _currentInventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_mem, petControl) : null;
-        if (!ChevronCodes.TryGetCode(roomName, liveRoomFlags, out uint code))
-            return;
-
-        List<GameState.MailItem> items = GameState.ReadMailItems(_mem, _currentMailManRoom.Value);
-        int delivered = 0;
-        foreach (GameState.MailItem item in items)
-        {
-            if (!item.ToolPlaced)
-                continue;
-
-            if (GameActions.SetItemMailDestination(_mem, item.Address, code))
-                delivered++;
-        }
-
-        if (delivered > 0)
-        {
-            _lastMailItems = null;
-            ShowActionResult(true, $"Updated {delivered} tool-placed item(s) to {roomName} station");
-        }
-    }
-
     private void UpdateMailCurrentRoomLabel()
     {
-        if (_currentRoomName is null)
+        if (_session.CurrentRoomName is null)
         {
             _lblMailCurrentRoom.Text = "Current room: -";
         }
-        else if (ChevronCodes.HasStation(_currentRoomName))
+        else if (ChevronCodes.HasStation(_session.CurrentRoomName))
         {
-            _lblMailCurrentRoom.Text = $"Current room: {_currentRoomName} (has a SuccUBus station)";
+            _lblMailCurrentRoom.Text = $"Current room: {_session.CurrentRoomName} (has a SuccUBus station)";
         }
         else
         {
-            _lblMailCurrentRoom.Text = $"Current room: {_currentRoomName} (no SuccUBus station here)";
+            _lblMailCurrentRoom.Text = $"Current room: {_session.CurrentRoomName} (no SuccUBus station here)";
         }
         UpdateMailButtonState();
     }
@@ -157,13 +111,13 @@ public sealed partial class MainForm
     private void UpdateMailButtonState()
     {
         bool hasSelection = _lvMail.SelectedItems.Count > 0;
-        bool hasStationHere = _currentRoomName is not null && ChevronCodes.HasStation(_currentRoomName);
-        _btnSetDestToCurrentRoom.Enabled = hasSelection && hasStationHere && _mem.IsAttached;
+        bool hasStationHere = _session.CurrentRoomName is not null && ChevronCodes.HasStation(_session.CurrentRoomName);
+        _btnSetDestToCurrentRoom.Enabled = hasSelection && hasStationHere && _session.Memory.IsAttached;
     }
 
     private void DoSetMailDestToCurrentRoom()
     {
-        if (!_mem.IsAttached)
+        if (!_session.Memory.IsAttached)
         {
             ShowActionResult(false, "Not attached");
             return;
@@ -173,20 +127,20 @@ public sealed partial class MainForm
             ShowActionResult(false, "Select an item first");
             return;
         }
-        uint? liveRoomFlags = _currentInventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_mem, petControl) : null;
-        if (_currentRoomName is null || !ChevronCodes.TryGetCode(_currentRoomName, liveRoomFlags, out uint code))
+        uint? liveRoomFlags = _session.InventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_session.Memory, petControl) : null;
+        if (_session.CurrentRoomName is null || !ChevronCodes.TryGetCode(_session.CurrentRoomName, liveRoomFlags, out uint code))
         {
             ShowActionResult(false, "Current room has no SuccUBus station");
             return;
         }
 
         long itemAddr = (long)_lvMail.SelectedItems[0].Tag!;
-        bool ok = GameActions.SetItemMailDestination(_mem, itemAddr, code);
+        bool ok = GameActions.SetItemMailDestination(_session.Memory, itemAddr, code);
         if (ok)
-            GameActions.MarkItemAsToolPlaced(_mem, itemAddr);
+            GameActions.MarkItemAsToolPlaced(_session.Memory, itemAddr);
 
-        ShowActionResult(ok, $"Set mail destination to {_currentRoomName} (0x{code:X})");
+        ShowActionResult(ok, $"Set mail destination to {_session.CurrentRoomName} (0x{code:X})");
 
-        _lastMailItems = null;
+        _session.InvalidateMail();
     }
 }

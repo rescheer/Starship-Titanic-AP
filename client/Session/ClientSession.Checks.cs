@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+internal sealed partial class ClientSession
 {
     /// <summary>Sends the AP location check for a room's "Arrive for the First Time" location.</summary>
     private void TrySendRoomVisitCheck(string roomName)
@@ -12,10 +12,10 @@ public sealed partial class MainForm
             return;
 
         bool handedOff = _apConnection.SendLocationCheck(locationName);
-        ShowActionResult(handedOff, handedOff
+        ReportAction(handedOff, handedOff
             ? $"Location check: {roomName} -> {locationName}"
             : $"Location check queued (offline): {roomName} -> {locationName}");
-        UpdatePendingChecksLabel();
+        NotifyPendingChecksChanged();
     }
 
     /// <summary>Sends the AP location check for visiting an exact (Room, Node, View) point of interest.</summary>
@@ -28,10 +28,10 @@ public sealed partial class MainForm
             return;
 
         bool handedOff = _apConnection.SendLocationCheck(locationName);
-        ShowActionResult(handedOff, handedOff
+        ReportAction(handedOff, handedOff
             ? $"Location check: Room {rnv.Room} Node {rnv.Node} View {rnv.View} -> {locationName}"
             : $"Location check queued (offline): Room {rnv.Room} Node {rnv.Node} View {rnv.View} -> {locationName}");
-        UpdatePendingChecksLabel();
+        NotifyPendingChecksChanged();
     }
 
     /// <summary>Displays how many AP items are waiting in the mail system when the player arrives at an
@@ -77,9 +77,9 @@ public sealed partial class MainForm
             return;
 
         bool handedOff = _apConnection.SendLocationCheck(locationName);
-        ShowActionResult(handedOff, handedOff
+        ReportAction(handedOff, handedOff
             ? $"Location check: {itemName} -> {locationName}"
             : $"Location check queued (offline): {itemName} -> {locationName}");
-        UpdatePendingChecksLabel();
+        NotifyPendingChecksChanged();
     }
 }

@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+internal sealed partial class ClientSession
 {
     private const string TableAccessItemName = "Restaurant Table Reservation";
 
@@ -28,7 +28,7 @@ public sealed partial class MainForm
             return;
 
         bool ok = GameActions.GrantScraliontisTableAccess(_mem, tableAddr.Value);
-        ShowActionResult(ok, "Table Access granted -> Maitre'D's table unlocked");
+        ReportAction(ok, "Table Access granted -> Maitre'D's table unlocked");
     }
 
     /// <summary>Keeps CTelevision::_channel4Glyph pinned to true, so taking Eye1 never takes channel 4's picture
@@ -127,7 +127,7 @@ public sealed partial class MainForm
         HashSet<string> requiredCards = RoomKeys.GetRequiredCards(_apConnection.SlotData);
         foreach (int roomId in RoomKeys.GetLockedRooms(requiredCards, _apConnection.GetReceivedItemNames()))
             Lock(roomId);
-        foreach (string entry in _txtDebugLockedRooms.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (string entry in Options.ExtraLockedRooms.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             if (int.TryParse(entry, out int roomId) || RoomNames.TryGetRoomId(entry, out roomId))
                 Lock(roomId);

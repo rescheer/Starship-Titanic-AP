@@ -3,60 +3,7 @@ namespace StarshipTitanicAp;
 /// <summary>Main application window.</summary>
 public sealed partial class MainForm : Form
 {
-    private const string ProcessName = "scummvm";
-    private const int RoomNodeViewIntervalMs = 50;   // ~20Hz
-    private const int InventoryIntervalTicks = 20;   // every 20 * 50ms = 1s
-    private const int MailIntervalTicks = 20;        // every 20 * 50ms = 1s
-
-    private const int SaveSeedGuardBeamBridgeMissLimit = 100; // 100 * 50ms = 5s
-    private const int SaveSeedGuardTagMismatchLimit = 40; // 40 * 50ms = 2s of consecutive mismatched reads before blocking
-    private const int SaveSeedGuardRecheckIntervalTicks = 40; // every 40 * 50ms = 2s, once verified
-
-    private readonly MemoryReader _mem = new();
-    private readonly ArchipelagoConnection _apConnection = new();
-    private readonly System.Windows.Forms.Timer _timer = new() { Interval = RoomNodeViewIntervalMs };
-    private int _tickCount;
-
-    private RoomNodeView? _lastRoomNodeView;
-    private uint? _lastRoomFlags;
-    private int? _lastPassengerClass;
-
-    /// <summary>Display-only cache of the last RNV shown on the Live tab, updated every tick regardless of the
-    /// save/seed guard. <see cref="_lastRoomNodeView"/> only advances once the guard is Ok.</summary>
-    private RoomNodeView? _lastDisplayedRnv;
-
-    private List<CarryItemLocation>? _lastInventory;
-    private List<GameState.MailItem>? _lastMailItems;
-
-    private readonly HashSet<string> _sentRoomVisitChecks = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<RoomNodeView> _sentPointOfInterestChecks = new();
-    private int _lastItemsReceivedCount = -1;
-    private int _lastTableAccessItemsCount = -1;
-    private int _lastStateroomItemsReceivedCount = -1;
-
-    private long? _currentGameManager;
-    private long? _currentProject;
-    private long? _currentInventoryRoom;
-    private long? _currentMailManRoom;
-
-    private int? _pendingDirtyReassertTick;
-    private const int DirtyReassertDelayTicks = 4; // 4 * 50ms = 200ms
-
-    /// <summary>Items still Restored at the RNV they were just left from, awaiting a delayed re-check (see
-    /// TryUnrestoreItemsLeavingRnv).</summary>
-    private readonly List<(string ItemName, long ItemAddress, int DueTick)> _pendingUnrestoreChecks = new();
-    private const int UnrestoreCheckDelayTicks = InventoryIntervalTicks + 4; // let ReconcileTrackedItems run at least once, plus buffer
-
-    /// <summary>The (Room, Node, View) shown during the bellbot's Titania's Eye (Light) dialogue/hand-off
-    /// cutscene.</summary>
-    private static readonly RoomNodeView Eye1HandoffCutsceneRnv = new(7, 11, 1);
-
-    private bool _conversationsAddrShown;
-    private string? _currentRoomName;
-
-    private SaveSeedGuardState _saveSeedGuardState = SaveSeedGuardState.Unverified;
-    private int _saveSeedGuardBeamBridgeMisses;
-    private int _saveSeedGuardTagMismatches;
+    private readonly ClientSession _session;
 
     // --- Top bar (shared across tabs) ---
     private readonly Button _btnAttach = new() { Text = "Attach", Width = 110, Height = 40 };
@@ -69,6 +16,7 @@ public sealed partial class MainForm : Form
     public MainForm(bool isDebug)
     {
         _isDebug = isDebug;
+        _session = new ClientSession();
         Text = AppInfo.TitleBarText;
         Width = 900;   // 500 * 1.5 * 1.20
         Height = 660;  // 600 * 1.10
@@ -76,41 +24,50 @@ public sealed partial class MainForm : Form
 
         BuildLayout();
 
-        ConnectionSettings.Data savedConnection = ConnectionSettings.Load();
-        _txtApServer.Text = savedConnection.Server;
-        _txtApSlot.Text = savedConnection.Slot;
-        _txtApPassword.Text = savedConnection.Password;
+        _txtApServer.Text = _session.Connection.Server;
+        _txtApSlot.Text = _session.Connection.Slot;
+        _txtApPassword.Text = _session.Connection.Password;
         UpdatePendingChecksLabel();
         UpdateApTopStatus();
         UpdateFooterAttachStatus();
         UpdateFooterApStatus();
         UpdateApToggleButton();
 
-        _btnAttach.Click += (_, _) => AttemptAttach();
-        _btnDetach.Click += (_, _) => DoDetach();
-        _timer.Tick += (_, _) => OnTick();
-        _timer.Start();
+        _session.ActionReported += ShowActionResult;
+        _session.CommandCaptured += ShowCapturedCommand;
+        _session.DebugLog += AppendLog;
+        _session.ServerLog += AppendServerLog;
+        _session.AddressChanged += SetAddressRow;
+        _session.AttachChanged += OnAttachChanged;
+        _session.ApStateChanged += OnApStateChanged;
+        _session.PendingChecksChanged += UpdatePendingChecksLabel;
+        _session.ItemsChanged += DoRefreshAllItems;
+        _session.MailChanged += OnMailChanged;
+        _session.RoomNodeViewChanged += OnRoomNodeViewChanged;
+        _session.RoomFlagsChanged += flags => _lblCurrentLocation.Text = FormatCurrentLocation(flags);
+        _session.PassengerClassChanged += cls => _lblClass.Text = $"Class: {PassengerClassNames.GetName(cls)}";
+        _session.Ticked += OnSessionTicked;
+
+        _btnAttach.Click += (_, _) => _session.Attach();
+        _btnDetach.Click += (_, _) => _session.Detach();
 
         _btnApConnect.Click += (_, _) => DoApConnect();
-        _btnApDisconnect.Click += (_, _) => _apConnection.Disconnect();
+        _btnApDisconnect.Click += (_, _) => _session.Ap.Disconnect();
         _btnClearPendingChecks.Click += (_, _) => DoClearPendingChecks();
-        _apConnection.StateChanged += OnApStateChanged;
-        _apConnection.MessageReceived += OnApMessageReceived;
 
         if (!_isDebug)
             WireNormalUiEvents();
+
+        _chkEnforceSaveSeedGuard.CheckedChanged += (_, _) => _session.Options.EnforceSaveSeedGuard = _chkEnforceSaveSeedGuard.Checked;
+        _chkTakeUngrantedItems.CheckedChanged += (_, _) => _session.Options.TakeUngrantedItems = _chkTakeUngrantedItems.Checked;
+        _chkAllowInitialUpgrade.CheckedChanged += (_, _) => _session.Options.AllowInitialUpgrade = _chkAllowInitialUpgrade.Checked;
+        _txtDebugLockedRooms.TextChanged += (_, _) => _session.Options.ExtraLockedRooms = _txtDebugLockedRooms.Text;
 
         _btnSetClass.Click += (_, _) => DoSetClass();
         _btnMoveItem.Click += (_, _) => DoMoveToCustomAddress();
         _btnMoveToInventory.Click += (_, _) => DoMoveSelectedTo(MoveDestination.Inventory);
         _btnMoveToMailman.Click += (_, _) => DoMoveSelectedTo(MoveDestination.Mailman);
         _btnMoveToHiddenRoom.Click += (_, _) => DoMoveSelectedTo(MoveDestination.HiddenRoom);
-        _btnToggleHook.Click += (_, _) => { if (TextCommandHook.IsInstalled) DoUninstallHook(); else DoInstallHook(); };
-        _btnToggleClassLockHook.Click += (_, _) => { if (ClassUpgradeHook.IsInstalled) DoUninstallClassLockHook(); else DoInstallClassLockHook(); };
-        _btnToggleMaitreDHook.Click += (_, _) => { if (MaitreDHook.IsInstalled) DoUninstallMaitreDHook(); else DoInstallMaitreDHook(); };
-        _btnToggleGetLiftEye2GateHook.Click += (_, _) => { if (GetLiftEye2GateHook.IsInstalled) DoUninstallGetLiftEye2GateHook(); else DoInstallGetLiftEye2GateHook(); };
-        _btnToggleRoomAssignHook.Click += (_, _) => { if (RoomAssignHook.IsInstalled) DoUninstallRoomAssignHook(); else DoInstallRoomAssignHook(); };
-        _btnToggleRoomGateHook.Click += (_, _) => { if (RoomGateHook.IsInstalled) DoUninstallRoomGateHook(); else DoInstallRoomGateHook(); };
         _btnDisplayMessageText.Click += (_, _) => DoDisplayMessageText();
         _btnSetDestToCurrentRoom.Click += (_, _) => DoSetMailDestToCurrentRoom();
         _btnCopyInventoryAddress.Click += (_, _) => DoCopyInventoryAddress();
@@ -118,7 +75,7 @@ public sealed partial class MainForm : Form
         _btnExportParentSnapshot.Click += (_, _) => DoExportParentSnapshot();
         _btnCopyParentAddress.Click += (_, _) => DoCopyParentAddress();
         _btnViewFields.Click += (_, _) => DoViewFields();
-        _btnForceTagSaveSeed.Click += (_, _) => DoForceTagSaveSeed();
+        _btnForceTagSaveSeed.Click += (_, _) => _session.ForceTagSaveSeed();
 
         _lvMail.SelectedIndexChanged += (_, _) => UpdateMailButtonState();
         _lvInventory.SelectedIndexChanged += (_, _) =>
@@ -135,7 +92,7 @@ public sealed partial class MainForm : Form
         _btnCopyAddress.Click += (_, _) => DoCopyAddressRow();
         _btnClearLog.Click += (_, _) => _txtLog.Clear();
 
-        AttemptAttach();
+        _session.Start();
     }
 
     private void BuildLayout()
@@ -195,6 +152,48 @@ public sealed partial class MainForm : Form
         Controls.Add(topPanel);
     }
 
+    private void OnAttachChanged()
+    {
+        bool attached = _session.Memory.IsAttached;
+        _lblStatus.Text = _session.AttachStatus;
+        UpdateFooterAttachStatus();
+        _btnAttach.Enabled = !attached;
+        _btnDetach.Enabled = attached;
+        RefreshHookControls();
+
+        if (!attached)
+        {
+            _lblRoomNodeView.Text = "Room: -   Node: -   View: -";
+            _lblCurrentLocation.Text = "Location: -";
+            _lblClass.Text = "Class: -";
+            _lvInventory.Items.Clear();
+            _lblAllItemsStatus.Text = "";
+            _lvMail.Items.Clear();
+            _lblMailCurrentRoom.Text = "Current room: -";
+            _lblMailCount.Text = "";
+        }
+    }
+
+    private void OnRoomNodeViewChanged(RoomNodeView? rnv, string? unavailableReason)
+    {
+        if (rnv is not { } r)
+        {
+            _lblRoomNodeView.Text = $"Room: -   Node: -   View: -   ({unavailableReason})";
+            return;
+        }
+
+        _lblRoomNodeView.Text = $"Room: {r.Room}   Node: {r.Node}   View: {r.View}";
+        UpdateMailCurrentRoomLabel();
+        UpdateInfoRoom(_session.CurrentRoomName ?? RoomNames.GetName(r.Room));
+    }
+
+    private void OnSessionTicked()
+    {
+        UpdateInfoChecks();
+        UpdateSaveSeedGuardStatusLabel();
+        UpdateInfoAreaSaveSeedGuard();
+    }
+
     private static Label SectionLabel(string text) => new()
     {
         Text = text,
@@ -208,17 +207,17 @@ public sealed partial class MainForm : Form
     private bool RequireAttachedAndResolved(out long gameManager)
     {
         gameManager = 0;
-        if (!_mem.IsAttached)
+        if (!_session.Memory.IsAttached)
         {
             ShowActionResult(false, "Not attached");
             return false;
         }
-        if (_currentGameManager is null)
+        if (_session.GameManager is null)
         {
             ShowActionResult(false, "gameManager not resolved yet (menu / loading?)");
             return false;
         }
-        gameManager = _currentGameManager.Value;
+        gameManager = _session.GameManager.Value;
         return true;
     }
 
@@ -242,12 +241,6 @@ public sealed partial class MainForm : Form
     /// <summary>Appends a line to the Log tab's history.</summary>
     private void AppendLog(string line)
     {
-        if (InvokeRequired)
-        {
-            BeginInvoke(new Action(() => AppendLog(line)));
-            return;
-        }
-
         _txtLog.AppendText(line + Environment.NewLine);
 
         const int maxLines = 2000;
@@ -269,33 +262,7 @@ public sealed partial class MainForm : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
-        if (TextCommandHook.IsInstalled)
-        {
-            TextCommandHook.Uninstall(_mem);
-        }
-        if (ClassUpgradeHook.IsInstalled)
-        {
-            ClassUpgradeHook.Uninstall(_mem);
-        }
-        if (MaitreDHook.IsInstalled)
-        {
-            MaitreDHook.Uninstall(_mem);
-        }
-        if (GetLiftEye2GateHook.IsInstalled)
-        {
-            GetLiftEye2GateHook.Uninstall(_mem);
-        }
-        if (RoomGateHook.IsInstalled)
-        {
-            RoomGateHook.Uninstall(_mem);
-        }
-        if (SaveLoadHook.IsInstalled)
-        {
-            SaveLoadHook.Uninstall(_mem);
-        }
-        _timer.Stop();
-        _mem.Dispose();
-        _apConnection.Dispose();
+        _session.Dispose();
         base.OnFormClosed(e);
     }
 }

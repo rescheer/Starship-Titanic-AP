@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+internal sealed partial class ClientSession
 {
     /// <summary>Handles the game rebuilding its object tree (a save was loaded while attached): clears every address
     /// and spoof state cached against the old tree and resets the save/seed guard to Unverified.</summary>
@@ -12,7 +12,6 @@ public sealed partial class MainForm
         _lastDisplayedRnv = null;
         _lastRoomFlags = null;
         _lastPassengerClass = null;
-        _lastInventory = null;
         _lastMailItems = null;
         _pendingUnrestoreChecks.Clear();
         _classUpgradeSpoofOriginalClass = null; // the old PassengerClass value (and any spoof on it) was overwritten by the load
@@ -28,8 +27,8 @@ public sealed partial class MainForm
         _saveSeedGuardTagMismatches = 0;
         GameActions.ClearHiddenRoomAddressCache();
         TextCommandHook.ResetConversationsAddr(_mem);
-        SetAddressRow("Player Inventory (CPetControl)", null);
-        SetAddressRow("Conversations (CPetConversations)", null);
+        ReportAddress("Player Inventory (CPetControl)", null);
+        ReportAddress("Conversations (CPetConversations)", null);
     }
 
     private void OnTick()
@@ -40,7 +39,7 @@ public sealed partial class MainForm
         if (_mem.HasProcessExited())
         {
             AppendServerLog("CLIENT: Starship Titanic (scummvm) closed - detaching");
-            DoDetach();
+            Detach();
             return;
         }
 
@@ -48,7 +47,7 @@ public sealed partial class MainForm
         {
             case SaveLoadHook.LoadState.Loading:
                 // The tree is being torn down and rebuilt on the game thread right now - don't touch any of it.
-                _lblRoomNodeView.Text = "Room: -   Node: -   View: -   (loading save)";
+                RoomNodeViewChanged?.Invoke(null, "loading save");
                 return;
             case SaveLoadHook.LoadState.JustLoaded:
                 AppendLog("SaveLoadHook: save loaded - dropping all cached tree addresses");
@@ -63,13 +62,13 @@ public sealed partial class MainForm
 
         if (gameManager is null)
         {
-            _lblRoomNodeView.Text = "Room: -   Node: -   View: -   (menu / loading)";
-            SetAddressRow("gameManager", null);
+            RoomNodeViewChanged?.Invoke(null, "menu / loading");
+            ReportAddress("gameManager", null);
             return;
         }
 
-        SetAddressRow("gameManager", gameManager.Value);
-        SetAddressRow("PassengerClass field", gameManager.Value + GameOffsets.PassengerClass);
+        ReportAddress("gameManager", gameManager.Value);
+        ReportAddress("PassengerClass field", gameManager.Value + GameOffsets.PassengerClass);
 
         if (_pendingDirtyReassertTick is { } dueTick && _tickCount >= dueTick)
         {
@@ -90,7 +89,7 @@ public sealed partial class MainForm
                     long computed = GameState.ResolveConversationsAddr(_currentInventoryRoom.Value);
                     if (computed != TextCommandHook.ConversationsAddr)
                     {
-                        ShowActionResult(false,
+                        ReportAction(false,
                             $"WARNING: static _conversations offset (0x{computed:X}) disagrees with live hook capture (0x{TextCommandHook.ConversationsAddr:X}) - PetConversationsFieldOffset may need re-checking");
                     }
                 }
@@ -100,17 +99,17 @@ public sealed partial class MainForm
             {
                 if (string.Equals(command.Trim(), "force_seed", StringComparison.OrdinalIgnoreCase))
                 {
-                    ShowCapturedCommand($"{command} (handled locally - not sent to server)");
+                    ReportCapturedCommand($"{command} (handled locally - not sent to server)");
                     HandleForceSeedCommand();
                 }
                 else if (_apConnection.IsConnected)
                 {
                     _apConnection.SendCommand(command);
-                    ShowCapturedCommand($"{command} (sent to server)");
+                    ReportCapturedCommand($"{command} (sent to server)");
                 }
                 else
                 {
-                    ShowCapturedCommand($"{command} (not connected - not sent)");
+                    ReportCapturedCommand($"{command} (not connected - not sent)");
                 }
             }
         }
@@ -121,14 +120,14 @@ public sealed partial class MainForm
             // Normally only the first non-null read after attaching.
             HandleTreeReloaded();
             _currentProject = liveProject;
-            SetAddressRow("_project", _currentProject);
+            ReportAddress("_project", _currentProject);
         }
         if (_currentProject is not null)
         {
             if (_currentInventoryRoom is null)
             {
                 _currentInventoryRoom = GameState.FindInventoryRoom(_mem, _currentProject.Value);
-                SetAddressRow("Player Inventory (CPetControl)", _currentInventoryRoom);
+                ReportAddress("Player Inventory (CPetControl)", _currentInventoryRoom);
             }
             if (_currentMailManRoom is null)
                 _currentMailManRoom = GameState.FindMailManRoom(_mem, _currentProject.Value);
@@ -142,9 +141,7 @@ public sealed partial class MainForm
             _lastDisplayedRnv = rnv;
             string roomName = RoomNames.GetName(rnv.Value.Room);
             _currentRoomName = roomName;
-            _lblRoomNodeView.Text = $"Room: {rnv.Value.Room}   Node: {rnv.Value.Node}   View: {rnv.Value.View}";
-            UpdateMailCurrentRoomLabel();
-            UpdateInfoRoom(roomName);
+            RoomNodeViewChanged?.Invoke(rnv, null);
         }
 
         if (_currentInventoryRoom is not null)
@@ -153,7 +150,7 @@ public sealed partial class MainForm
             if (roomFlags is not null && roomFlags != _lastRoomFlags)
             {
                 _lastRoomFlags = roomFlags;
-                _lblCurrentLocation.Text = FormatCurrentLocation(roomFlags.Value);
+                RoomFlagsChanged?.Invoke(roomFlags.Value);
             }
         }
 
@@ -161,26 +158,23 @@ public sealed partial class MainForm
         if (passengerClass is not null && passengerClass != _lastPassengerClass)
         {
             _lastPassengerClass = passengerClass;
-            _lblClass.Text = $"Class: {PassengerClassNames.GetName(passengerClass.Value)}";
+            PassengerClassChanged?.Invoke(passengerClass.Value);
         }
-
-        UpdateInfoChecks();
 
         if (_tickCount % InventoryIntervalTicks == 0)
         {
-            UpdateInventory(gameManager.Value);
+            RefreshProjectAddresses(gameManager.Value);
         }
         if (_tickCount % MailIntervalTicks == 0)
         {
-            UpdateMail(gameManager.Value);
+            UpdateMail();
         }
 
         // --- Save/seed guard gate: everything below reads and writes the save on the AP server's behalf
         // (item syncing, location checks, mail delivery, class upgrades).
         EvaluateSaveSeedGuard(gameManager.Value);
-        UpdateSaveSeedGuardStatusLabel();
-        UpdateInfoAreaSaveSeedGuard();
-        if (_chkEnforceSaveSeedGuard.Checked && _saveSeedGuardState != SaveSeedGuardState.Ok)
+        Ticked?.Invoke();
+        if (Options.EnforceSaveSeedGuard && _saveSeedGuardState != SaveSeedGuardState.Ok)
             return;
 
         _apConnection.NotifyGameVerifiedForSeed();
@@ -225,7 +219,7 @@ public sealed partial class MainForm
         KeepTelevisionChannel4GlyphOn();
         KeepLiftEyeDestObjectNonNull();
 
-        UpdatePendingChecksLabel();
+        NotifyPendingChecksChanged();
 
         if (_tickCount % InventoryIntervalTicks == 0)
         {
@@ -244,7 +238,7 @@ public sealed partial class MainForm
                     bool handedOff = _apConnection.SendLocationCheck(locationName);
                     if (LocationChecks.TryGetClassUpgradeEventLocationName(attemptedClass.Value, out string eventLocationName))
                         _apConnection.SendLocationCheck(eventLocationName);
-                    ShowActionResult(handedOff, handedOff
+                    ReportAction(handedOff, handedOff
                         ? $"DeskBot upgrade attempt ({PassengerClassNames.GetName(attemptedClass.Value)}) -> {locationName}"
                         : $"DeskBot upgrade attempt ({PassengerClassNames.GetName(attemptedClass.Value)}) queued (offline) -> {locationName}");
                 }
@@ -255,31 +249,31 @@ public sealed partial class MainForm
                         bool applied = GameActions.SetPassengerClassFull(_mem, gameManager.Value, _currentInventoryRoom.Value, attemptedClass.Value);
 
                         bool handedOff = _apConnection.SendLocationCheck(TitaniaRepairedLocation);
-                        ShowActionResult(applied && handedOff, handedOff
+                        ReportAction(applied && handedOff, handedOff
                             ? $"Bridge access granted -> {TitaniaRepairedLocation}"
                             : $"Bridge access granted -> {TitaniaRepairedLocation} (queued offline or class-apply failed)");
-                        UpdatePendingChecksLabel();
+                        NotifyPendingChecksChanged();
                     }
                     else
                     {
-                        ShowActionResult(false, "Bridge-access class upgrade blocked - inventory not resolved yet, will retry on next attempt");
+                        ReportAction(false, "Bridge-access class upgrade blocked - inventory not resolved yet, will retry on next attempt");
                     }
                 }
-                else if (attemptedClass.Value == (int)PassengerClass.Third && _chkAllowInitialUpgrade.Checked)
+                else if (attemptedClass.Value == (int)PassengerClass.Third && Options.AllowInitialUpgrade)
                 {
                     if (_currentInventoryRoom is not null)
                     {
                         bool ok = GameActions.SetPassengerClassFull(_mem, gameManager.Value, _currentInventoryRoom.Value, attemptedClass.Value);
-                        ShowActionResult(ok, "Initial class upgrade (None -> Third) applied directly - no AP item for this yet");
+                        ReportAction(ok, "Initial class upgrade (None -> Third) applied directly - no AP item for this yet");
                     }
                     else
                     {
-                        ShowActionResult(false, "Initial class upgrade blocked - inventory not resolved yet, will retry on next attempt");
+                        ReportAction(false, "Initial class upgrade blocked - inventory not resolved yet, will retry on next attempt");
                     }
                 }
                 else
                 {
-                    ShowActionResult(false, $"DeskBot upgrade attempt for unrecognized class {attemptedClass.Value}");
+                    ReportAction(false, $"DeskBot upgrade attempt for unrecognized class {attemptedClass.Value}");
                 }
             }
         }

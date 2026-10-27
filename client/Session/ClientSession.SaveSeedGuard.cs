@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+internal sealed partial class ClientSession
 {
     /// <summary>Computes and caches whether it's safe to act on the currently attached save under the currently connected AP seed,
     /// re-verifying periodically once a verdict is reached.</summary>
@@ -52,7 +52,7 @@ public sealed partial class MainForm
                 {
                     _saveSeedGuardState = SaveSeedGuardState.Ok;
                     const string taggedMessage = "Save/seed guard: tagged fresh save with current AP seed";
-                    ShowActionResult(true, taggedMessage);
+                    ReportAction(true, taggedMessage);
                     AppendServerLog($"CLIENT: {taggedMessage}", bold: true);
 
                     long? inventoryRoom = _currentInventoryRoom
@@ -91,7 +91,7 @@ public sealed partial class MainForm
         if (alreadyBlocked)
             return;
 
-        ShowActionResult(false, reason);
+        ReportAction(false, reason);
         AppendServerLog($"CLIENT: {reason}", bold: true);
 
         long? inventoryRoom = _currentInventoryRoom;
@@ -118,23 +118,23 @@ public sealed partial class MainForm
     }
 
     /// <summary>Handles the "!force_seed" command, a local-only override for the save/AP-seed guard.</summary>
-    private void HandleForceSeedCommand()
+    internal void HandleForceSeedCommand()
     {
         if (!_mem.IsAttached || _currentGameManager is null)
         {
-            ShowActionResult(false, "!force_seed: not attached / game not resolved yet");
+            ReportAction(false, "!force_seed: not attached / game not resolved yet");
             ShowForceSeedFailureInGame("AP: !force_seed failed - client isn't attached to the game yet.");
             return;
         }
         if (_apConnection.SeedName is not { } seedName)
         {
-            ShowActionResult(false, "!force_seed: not connected to an AP server - no seed to tag with");
+            ReportAction(false, "!force_seed: not connected to an AP server - no seed to tag with");
             ShowForceSeedFailureInGame("AP: !force_seed failed - not connected to an AP server.");
             return;
         }
         if (_currentProject is not { } project)
         {
-            ShowActionResult(false, "!force_seed: project not resolved yet");
+            ReportAction(false, "!force_seed: project not resolved yet");
             ShowForceSeedFailureInGame("AP: !force_seed failed - game state not resolved yet, try again in a moment.");
             return;
         }
@@ -142,7 +142,7 @@ public sealed partial class MainForm
         long? beamBridgeAddr = SaveSeedGuard.FindBeamBridgeAddress(_mem, project);
         if (beamBridgeAddr is null)
         {
-            ShowActionResult(false, "!force_seed: could not locate BeamBridge to tag");
+            ReportAction(false, "!force_seed: could not locate BeamBridge to tag");
             ShowForceSeedFailureInGame("AP: !force_seed failed - could not locate the BeamBridge item to tag.");
             return;
         }
@@ -155,7 +155,7 @@ public sealed partial class MainForm
         string result = ok
             ? "!force_seed: save/AP-seed guard bypassed - this save is now tagged with the current seed"
             : "!force_seed: failed to write the guard tag";
-        ShowActionResult(ok, result);
+        ReportAction(ok, result);
         AppendServerLog($"CLIENT: {result}", bold: true);
 
         if (_currentInventoryRoom is not null)
@@ -164,5 +164,43 @@ public sealed partial class MainForm
                 ? "AP: Save/seed guard bypassed - AP actions are re-enabled for this save."
                 : "AP: !force_seed failed - see client log.");
         }
+    }
+
+    /// <summary>Unconditionally overwrites BeamBridge's save/seed guard tag with the currently connected AP seed.</summary>
+    internal void ForceTagSaveSeed()
+    {
+        if (!_mem.IsAttached)
+        {
+            ReportAction(false, "Not attached");
+            return;
+        }
+        if (_currentGameManager is null)
+        {
+            ReportAction(false, "gameManager not resolved yet (menu / loading?)");
+            return;
+        }
+        if (_apConnection.SeedName is not { } seedName)
+        {
+            ReportAction(false, "Not connected to an AP server - no seed to tag with");
+            return;
+        }
+        if (_currentProject is not { } project)
+        {
+            ReportAction(false, "Project not resolved yet");
+            return;
+        }
+
+        long? beamBridgeAddr = SaveSeedGuard.FindBeamBridgeAddress(_mem, project);
+        if (beamBridgeAddr is null)
+        {
+            ReportAction(false, "Could not locate BeamBridge to tag");
+            return;
+        }
+
+        long tag = SaveSeedGuard.ComputeSeedTag(seedName);
+        bool ok = SaveSeedGuard.WriteSeedTag(_mem, beamBridgeAddr.Value, tag);
+        if (ok)
+            _saveSeedGuardState = SaveSeedGuardState.Ok;
+        ReportAction(ok, "Force-tagged save with current AP seed");
     }
 }

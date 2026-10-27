@@ -81,7 +81,7 @@ public sealed partial class MainForm
 
     private void DoDisplayMessageText()
     {
-        if (!_mem.IsAttached)
+        if (!_session.Memory.IsAttached)
         {
             ShowActionResult(false, "Not attached");
             return;
@@ -91,13 +91,13 @@ public sealed partial class MainForm
             ShowActionResult(false, "Enter a message first");
             return;
         }
-        if (_currentInventoryRoom is null)
+        if (_session.InventoryRoom is null)
         {
             ShowActionResult(false, "PET control address not resolved yet");
             return;
         }
 
-        bool ok = GameActions.DisplayMessageSmart(_mem, _currentInventoryRoom.Value, _txtMsgText.Text);
+        bool ok = GameActions.DisplayMessageSmart(_session.Memory, _session.InventoryRoom.Value, _txtMsgText.Text);
         ShowActionResult(ok, $"Displayed message: \"{_txtMsgText.Text}\"");
     }
 
@@ -118,35 +118,5 @@ public sealed partial class MainForm
         }
 
         MoveItemAndReport(gameManager, itemAddr, roomAddr, isMailDestination: false);
-    }
-
-    /// <summary>Unconditionally overwrites BeamBridge's save/seed guard tag with the currently connected AP seed.</summary>
-    private void DoForceTagSaveSeed()
-    {
-        if (!RequireAttachedAndResolved(out long gameManager))
-            return;
-        if (_apConnection.SeedName is not { } seedName)
-        {
-            ShowActionResult(false, "Not connected to an AP server - no seed to tag with");
-            return;
-        }
-        if (_currentProject is not { } project)
-        {
-            ShowActionResult(false, "Project not resolved yet");
-            return;
-        }
-
-        long? beamBridgeAddr = SaveSeedGuard.FindBeamBridgeAddress(_mem, project);
-        if (beamBridgeAddr is null)
-        {
-            ShowActionResult(false, "Could not locate BeamBridge to tag");
-            return;
-        }
-
-        long tag = SaveSeedGuard.ComputeSeedTag(seedName);
-        bool ok = SaveSeedGuard.WriteSeedTag(_mem, beamBridgeAddr.Value, tag);
-        if (ok)
-            _saveSeedGuardState = SaveSeedGuardState.Ok;
-        ShowActionResult(ok, "Force-tagged save with current AP seed");
     }
 }

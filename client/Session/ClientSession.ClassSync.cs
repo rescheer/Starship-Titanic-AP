@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+internal sealed partial class ClientSession
 {
     private const string TitaniaRepairedLocation = "Titania's Room - Repair Titania";
 
@@ -44,12 +44,12 @@ public sealed partial class MainForm
         if (_classUpgradeSpoofOriginalClass is not null)
         {
             _classUpgradeSpoofOriginalClass = targetClass.Value;
-            ShowActionResult(true, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)} (applied once the class spoof ends)");
+            ReportAction(true, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)} (applied once the class spoof ends)");
             return;
         }
 
         bool ok = GameActions.SetPassengerClassFull(_mem, gameManager, _currentInventoryRoom.Value, targetClass.Value);
-        ShowActionResult(ok, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)}");
+        ReportAction(ok, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)}");
     }
 
     /// <summary>Applies the stateroom assignment(s) implied by "Progressive Stateroom" AP items received so far,
@@ -79,7 +79,7 @@ public sealed partial class MainForm
                 break;
 
             bool ok = GameActions.AssignNextRoom(_mem, gameManager, petControlAddr, rawClass);
-            ShowActionResult(ok, $"Stateroom assignment from items: {PassengerClassNames.GetName(rawClass)}");
+            ReportAction(ok, $"Stateroom assignment from items: {PassengerClassNames.GetName(rawClass)}");
             if (!ok)
                 break;
         }
@@ -133,7 +133,7 @@ public sealed partial class MainForm
             if (reportedClass is not null && reportedClass.Value != (int)PassengerClass.Third
                 && GameActions.SetPassengerClass(_mem, gameManager, (int)PassengerClass.Third))
             {
-                ShowActionResult(true, $"Class upgrade spoof: reporting {PassengerClassNames.GetName((int)PassengerClass.Third)} for Bellbot intro (really {PassengerClassNames.GetName(_classUpgradeSpoofOriginalClass.Value)})");
+                ReportAction(true, $"Class upgrade spoof: reporting {PassengerClassNames.GetName((int)PassengerClass.Third)} for Bellbot intro (really {PassengerClassNames.GetName(_classUpgradeSpoofOriginalClass.Value)})");
             }
             return;
         }
@@ -201,7 +201,7 @@ public sealed partial class MainForm
         if (GameActions.SetPassengerClass(_mem, gameManager, spoofToClass.Value))
         {
             _classUpgradeSpoofOriginalClass = currentClass.Value;
-            ShowActionResult(true, $"Class upgrade spoof: reporting {PassengerClassNames.GetName(spoofToClass.Value)} (really {PassengerClassNames.GetName(currentClass.Value)})");
+            ReportAction(true, $"Class upgrade spoof: reporting {PassengerClassNames.GetName(spoofToClass.Value)} (really {PassengerClassNames.GetName(currentClass.Value)})");
         }
     }
 
@@ -259,7 +259,7 @@ public sealed partial class MainForm
         {
             _sgtGlyphAddr = glyphAddr.Value;
             _sgtGlyphOriginalMode = currentMode.Value;
-            ShowActionResult(true, "SGT Stateroom glyph spoof: reporting assigned (really prev-assigned)");
+            ReportAction(true, "SGT Stateroom glyph spoof: reporting assigned (really prev-assigned)");
         }
     }
 

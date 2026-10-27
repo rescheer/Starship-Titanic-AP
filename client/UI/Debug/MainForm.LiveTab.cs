@@ -48,14 +48,14 @@ public sealed partial class MainForm
 
         int newClass = _cmbClass.SelectedIndex + 1;
 
-        if (_currentInventoryRoom is null)
+        if (_session.InventoryRoom is null)
         {
-            bool wroteOnly = GameActions.SetPassengerClass(_mem, gameManager, newClass);
+            bool wroteOnly = GameActions.SetPassengerClass(_session.Memory, gameManager, newClass);
             ShowActionResult(wroteOnly, $"Set class to {newClass} (CPetControl not resolved yet - color won't refresh immediately)");
             return;
         }
 
-        bool ok = GameActions.SetPassengerClassFull(_mem, gameManager, _currentInventoryRoom.Value, newClass);
+        bool ok = GameActions.SetPassengerClassFull(_session.Memory, gameManager, _session.InventoryRoom.Value, newClass);
         ShowActionResult(ok, $"Set class to {newClass}");
     }
 
@@ -64,13 +64,13 @@ public sealed partial class MainForm
     /// location checks, mail delivery, etc.) are paused because the guard hasn't verified this save yet.</summary>
     private void UpdateSaveSeedGuardStatusLabel()
     {
-        if (!_chkEnforceSaveSeedGuard.Checked)
+        if (!_session.Options.EnforceSaveSeedGuard)
         {
             _lblSaveSeedGuardStatus.Text = "";
             return;
         }
 
-        _lblSaveSeedGuardStatus.Text = _saveSeedGuardState switch
+        _lblSaveSeedGuardStatus.Text = _session.SaveSeedGuardState switch
         {
             SaveSeedGuardState.Ok => "",
             SaveSeedGuardState.Blocked => "AP syncing PAUSED: save belongs to a different AP seed (see Log)",

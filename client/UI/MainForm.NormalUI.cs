@@ -59,8 +59,6 @@ public sealed partial class MainForm
     };
     private readonly Dictionary<string, Label> _accessCardLabels = new();
 
-    private bool _readyToPlayLogged;
-
     private void BuildNormalLayout()
     {
         var buttonRow = new FlowLayoutPanel
@@ -141,20 +139,16 @@ public sealed partial class MainForm
     {
         _btnApToggle.Click += (_, _) =>
         {
-            if (_apConnection.State is ApConnectionState.Connected or ApConnectionState.Connecting)
+            if (_session.Ap.State is ApConnectionState.Connected or ApConnectionState.Connecting)
             {
-                _apConnection.Disconnect();
+                _session.Ap.Disconnect();
                 return;
             }
 
-            using var dlg = new ConnectDialog(_txtApServer.Text, _txtApSlot.Text, _txtApPassword.Text);
+            ConnectionSettings.Data connection = _session.Connection;
+            using var dlg = new ConnectDialog(connection.Server, connection.Slot, connection.Password);
             if (dlg.ShowDialog(this) == DialogResult.OK)
-            {
-                _txtApServer.Text = dlg.Server;
-                _txtApSlot.Text = dlg.Slot;
-                _txtApPassword.Text = dlg.Password;
-                DoApConnect();
-            }
+                _session.Connect(dlg.Server, dlg.Slot, dlg.Password);
         };
 
         _btnChatSend.Click += (_, _) => DoSendChatMessage();
@@ -166,13 +160,7 @@ public sealed partial class MainForm
             DoSendChatMessage();
         };
 
-        _apConnection.ItemReceived += _ => BeginInvoke(new Action(UpdateAccessCards));
-
-        _apConnection.CheckQueued += name =>
-        {
-            if (_apConnection.State != ApConnectionState.Connected)
-                AppendServerLog($"CLIENT: Location check queued: {name}");
-        };
+        _session.ItemReceived += UpdateAccessCards;
     }
 
     private void DoSendChatMessage()
@@ -184,11 +172,11 @@ public sealed partial class MainForm
         if (string.Equals(text, "!force_seed", StringComparison.OrdinalIgnoreCase))
         {
             _txtChatInput.Clear();
-            HandleForceSeedCommand();
+            _session.HandleForceSeedCommand();
             return;
         }
 
-        bool ok = _apConnection.SendCommand(text);
+        bool ok = _session.Ap.SendCommand(text);
         if (ok)
             _txtChatInput.Clear();
         else
@@ -196,14 +184,8 @@ public sealed partial class MainForm
     }
 
     /// <summary>Appends a line to the normal UI's server-only log.</summary>
-    private void AppendServerLog(string line, bool bold = false)
+    private void AppendServerLog(string line, bool bold)
     {
-        if (InvokeRequired)
-        {
-            BeginInvoke(new Action(() => AppendServerLog(line, bold)));
-            return;
-        }
-
         _txtServerLog.SelectionStart = _txtServerLog.TextLength;
         _txtServerLog.SelectionLength = 0;
         _txtServerLog.SelectionFont = bold ? new Font(_txtServerLog.Font, FontStyle.Bold) : _txtServerLog.Font;
@@ -220,36 +202,23 @@ public sealed partial class MainForm
         _txtServerLog.ScrollToCaret();
     }
 
-    /// <summary>Logs "Ready to Play!" to the server log the moment both the game attach and the AP connection are simultaneously up.</summary>
-    private void CheckReadyToPlay()
-    {
-        if (_readyToPlayLogged)
-            return;
-        if (!_mem.IsAttached || _apConnection.State != ApConnectionState.Connected)
-            return;
-
-        _readyToPlayLogged = true;
-        AppendServerLog("Ready to Play!", bold: true);
-    }
-
     private void UpdateFooterAttachStatus()
     {
-        if (_mem.IsAttached)
+        if (_session.Memory.IsAttached)
         {
-            _lblFooterAttach.Text = $"✔ Attached to Starship Titanic (PID {_mem.ProcessId})";
+            _lblFooterAttach.Text = $"✔ Attached to Starship Titanic (PID {_session.Memory.ProcessId})";
             _lblFooterAttach.ForeColor = Color.Green;
         }
         else
         {
             _lblFooterAttach.Text = "✖ Not attached to a game instance";
             _lblFooterAttach.ForeColor = Color.Red;
-            _readyToPlayLogged = false;
         }
     }
 
     private void UpdateFooterApStatus()
     {
-        switch (_apConnection.State)
+        switch (_session.Ap.State)
         {
             case ApConnectionState.Connected:
                 _lblFooterAp.Text = "✔ Connected to Archipelago";
@@ -258,14 +227,12 @@ public sealed partial class MainForm
             case ApConnectionState.Connecting:
                 _lblFooterAp.Text = "Connecting...";
                 _lblFooterAp.ForeColor = Color.Goldenrod;
-                _readyToPlayLogged = false;
                 break;
             case ApConnectionState.Disconnected:
             case ApConnectionState.ConnectionFailed:
             default:
                 _lblFooterAp.Text = "✖ Not connected to an Archipelago server";
                 _lblFooterAp.ForeColor = Color.Red;
-                _readyToPlayLogged = false;
                 break;
         }
     }
@@ -285,12 +252,12 @@ public sealed partial class MainForm
     /// <summary>Sets the information area's "Checks: x/y" and "Visited Succ-U-Bus Stations (x/y)" lines.</summary>
     private void UpdateInfoChecks()
     {
-        if (_apConnection.GetLocationCheckSummary() is { } overall)
+        if (_session.Ap.GetLocationCheckSummary() is { } overall)
             _lblInfoChecks.Text = $"Checks: {overall.Checked}/{overall.Total}";
         else
             _lblInfoChecks.Text = "Checks: -/-";
 
-        if (_apConnection.GetLocationCheckSummary(LocationChecks.SuccUBusStationLocationNames) is { } stations)
+        if (_session.Ap.GetLocationCheckSummary(LocationChecks.SuccUBusStationLocationNames) is { } stations)
             _lblInfoStations.Text = $"Visited Succ-U-Bus Stations ({stations.Checked}/{stations.Total})";
         else
             _lblInfoStations.Text = "Visited Succ-U-Bus Stations (-/-)";
@@ -300,9 +267,9 @@ public sealed partial class MainForm
     /// received, a green ✔ for cards received or not required. Plain names while not connected.</summary>
     private void UpdateAccessCards()
     {
-        bool connected = _apConnection.State == ApConnectionState.Connected;
-        HashSet<string> requiredCards = RoomKeys.GetRequiredCards(_apConnection.SlotData);
-        string[] receivedItems = _apConnection.GetReceivedItemNames();
+        bool connected = _session.Ap.State == ApConnectionState.Connected;
+        HashSet<string> requiredCards = RoomKeys.GetRequiredCards(_session.Ap.SlotData);
+        string[] receivedItems = _session.Ap.GetReceivedItemNames();
 
         foreach ((string card, Label label) in _accessCardLabels)
         {
@@ -336,15 +303,15 @@ public sealed partial class MainForm
     /// warning when AP syncing is paused because the attached save doesn't match the connected AP seed.</summary>
     private void UpdateInfoAreaSaveSeedGuard()
     {
-        bool mismatch = _chkEnforceSaveSeedGuard.Checked && _saveSeedGuardState == SaveSeedGuardState.Blocked;
+        bool mismatch = _session.Options.EnforceSaveSeedGuard && _session.SaveSeedGuardState == SaveSeedGuardState.Blocked;
         _infoPanel.Visible = !mismatch;
         _lblInfoSaveSeedMismatch.Visible = mismatch;
     }
 
     private void UpdateApToggleButton()
     {
-        bool connectedOrConnecting = _apConnection.State is ApConnectionState.Connected or ApConnectionState.Connecting;
+        bool connectedOrConnecting = _session.Ap.State is ApConnectionState.Connected or ApConnectionState.Connecting;
         _btnApToggle.Text = connectedOrConnecting ? "Disconnect" : "Connect to AP...";
-        _btnApToggle.Enabled = _apConnection.State != ApConnectionState.Connecting;
+        _btnApToggle.Enabled = _session.Ap.State != ApConnectionState.Connecting;
     }
 }
