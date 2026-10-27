@@ -415,28 +415,6 @@ public static class GameState
         return results;
     }
 
-    /// <summary>Scans a byte range on an object for embedded CString structures (int32 size @ off, int64 data-ptr @ off+8),
-    /// to help discover unknown field offsets live - e.g. CShipSetting's _itemName/_frameTarget. Read-only, diagnostic only.</summary>
-    public static List<(long Offset, int Size, string Text)> ScanForCStrings(MemoryReader mem, long addr, long startOffset, long endOffset)
-    {
-        var results = new List<(long, int, string)>();
-        for (long off = startOffset; off <= endOffset; off += 4)
-        {
-            int? size = mem.ReadInt32(addr + off);
-            if (size is not int sz || sz <= 0 || sz > 63)
-                continue;
-
-            long? dataPtr = mem.ReadInt64(addr + off + 8);
-            if (dataPtr is not long dp || !LooksLikeHeapPointer(dp))
-                continue;
-
-            string? text = mem.ReadShortAsciiString(dp, sz);
-            if (text is { Length: > 0 })
-                results.Add((off, sz, text));
-        }
-        return results;
-    }
-
     /// <summary>Reads a CShipSetting's _itemName (the fuse currently "installed" in that Fuse Box socket, or "NULL").</summary>
     public static string? ReadShipSettingItemName(MemoryReader mem, long shipSettingAddr)
     {

@@ -82,20 +82,6 @@ public static class MaitreDHook
         return restored;
     }
 
-    /// <summary>Checks the mailbox for a newly-blocked Maitre'D win.</summary>
-    public static bool PollDefeated(MemoryReader mem)
-    {
-        if (!_installed)
-            return false;
-
-        byte[]? readyByte = mem.ReadBytes(_mailboxAddr, 1);
-        if (readyByte is null || readyByte[0] == 0)
-            return false;
-
-        mem.WriteByte(_mailboxAddr, 0); // clear ready flag
-        return true;
-    }
-
     // ------------------------------------------------------------------
     // Stub construction
     // ------------------------------------------------------------------

@@ -89,15 +89,7 @@ public sealed partial class MainForm
         _lvMail.Items.Clear();
         _lblMailCurrentRoom.Text = "Current room: -";
         _lblMailCount.Text = "";
-        _lblHookStatus.Text = "Hook not installed";
-        _btnInstallHook.Enabled = true;
-        _btnUninstallHook.Enabled = false;
-        _lblClassLockHookStatus.Text = "Lock not installed";
-        _btnInstallClassLockHook.Enabled = true;
-        _btnUninstallClassLockHook.Enabled = false;
-        _lblRoomGateHookStatus.Text = "Gate not installed";
-        _btnInstallRoomGateHook.Enabled = true;
-        _btnUninstallRoomGateHook.Enabled = false;
+        ResetHookControls();
         _btnAttach.Enabled = true;
         _btnDetach.Enabled = false;
         ResetCachedState();

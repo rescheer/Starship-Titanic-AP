@@ -7,6 +7,8 @@ public sealed partial class MainForm
     private readonly Label _lblCurrentLocation = new() { Text = "Location: -", AutoSize = true };
     private readonly Label _lblClass = new() { Text = "Class: -", AutoSize = true };
     private readonly Label _lblSaveSeedGuardStatus = new() { Text = "", AutoSize = true, ForeColor = Color.DimGray };
+    private readonly ComboBox _cmbClass = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140 };
+    private readonly Button _btnSetClass = new() { Text = "Set Class", Width = 100 };
 
     private TabPage BuildLiveTab()
     {
@@ -24,11 +26,37 @@ public sealed partial class MainForm
         var guardPanel = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 30, Padding = new Padding(8, 0, 8, 0) };
         guardPanel.Controls.Add(_lblSaveSeedGuardStatus);
 
+        _cmbClass.Items.AddRange(new object[] { "1 - First Class", "2 - Second Class", "3 - Third Class", "4 - No Class" });
+        _cmbClass.SelectedIndex = 0;
+
+        var setClassPanel = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 34, Padding = new Padding(8, 0, 8, 0) };
+        setClassPanel.Controls.Add(_cmbClass);
+        setClassPanel.Controls.Add(_btnSetClass);
+
+        page.Controls.Add(setClassPanel);
         page.Controls.Add(guardPanel);
         page.Controls.Add(classPanel);
         page.Controls.Add(locationPanel);
         page.Controls.Add(rnvPanel);
         return page;
+    }
+
+    private void DoSetClass()
+    {
+        if (!RequireAttachedAndResolved(out long gameManager))
+            return;
+
+        int newClass = _cmbClass.SelectedIndex + 1;
+
+        if (_currentInventoryRoom is null)
+        {
+            bool wroteOnly = GameActions.SetPassengerClass(_mem, gameManager, newClass);
+            ShowActionResult(wroteOnly, $"Set class to {newClass} (CPetControl not resolved yet - color won't refresh immediately)");
+            return;
+        }
+
+        bool ok = GameActions.SetPassengerClassFull(_mem, gameManager, _currentInventoryRoom.Value, newClass);
+        ShowActionResult(ok, $"Set class to {newClass}");
     }
 
     /// <summary>Reflects the save/AP-seed guard's current state; read-only display data (Live/Mail/Items tabs, RNV,

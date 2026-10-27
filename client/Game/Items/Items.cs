@@ -58,12 +58,4 @@ public static class Items
     /// <summary>Looks up the item(s) whose home RNV is the given (Room, Node, View).</summary>
     public static bool TryGetForHomeRnv(RoomNodeView rnv, out string[] names) =>
         ByHomeRnv.TryGetValue(rnv, out names!);
-
-    private static readonly Dictionary<string, string> ApItemNameToItemName = All
-        .Where(d => d.ApItemName is not null)
-        .ToDictionary(d => d.ApItemName!, d => d.Name, StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>Looks up the engine item name for a granted AP item name.</summary>
-    public static bool TryGetForApItemName(string apItemName, out string itemName) =>
-        ApItemNameToItemName.TryGetValue(apItemName, out itemName!);
 }

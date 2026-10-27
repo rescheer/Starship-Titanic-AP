@@ -47,10 +47,6 @@ public sealed class MemoryReader : IDisposable
     public int ProcessId { get; private set; }
     internal IntPtr ProcessHandle => _processHandle;
 
-    /// <summary>True if addr falls within the attached module's own mapped range.</summary>
-    public bool IsWithinModule(long addr) =>
-        IsAttached && addr >= ModuleBase && addr < ModuleBase + ModuleSize;
-
     /// <summary>Attempts to attach to the named process. Returns true on success.</summary>
     public bool Attach(string processName)
     {

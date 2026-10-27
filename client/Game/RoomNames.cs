@@ -51,9 +51,6 @@ public static class RoomNames
     public static string GetName(int roomId) =>
         Names.TryGetValue(roomId, out string? name) ? name : $"(unknown room {roomId})";
 
-    /// <summary>Returns true if the given string is one of the known room names.</summary>
-    public static bool IsKnownRoomName(string name) => Names.ContainsValue(name);
-
     // Rooms that are two states of one location - the game itself gives each pair one location ID
     // (CRoomItem::getSoundId) and moves the player between them by script (CreatorsChamber's lever cutscene,
     // the Arboretum's season change, the Bilge succubus's sneeze).

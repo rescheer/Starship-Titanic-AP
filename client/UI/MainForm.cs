@@ -102,33 +102,15 @@ public sealed partial class MainForm : Form
 
         _btnSetClass.Click += (_, _) => DoSetClass();
         _btnMoveItem.Click += (_, _) => DoMoveToCustomAddress();
-        _btnForceReconcileItems.Click += (_, _) => DoForceReconcileItems();
-        _btnScanShipSettings.Click += (_, _) => DoScanShipSettings();
-        _btnFindGetLiftEye2.Click += (_, _) => DoFindGetLiftEye2();
-        _btnClearGhostFuseSockets.Click += (_, _) => DoClearGhostFuseSockets();
-        _btnDiffSnapshotA.Click += (_, _) => DoDiffSnapshotA();
-        _btnDiffSnapshotB.Click += (_, _) => DoDiffSnapshotB();
-        _btnValueScanUseCurrentRoomFlags.Click += (_, _) => DoUseCurrentRoomFlagsForValueScan();
-        _btnValueScan.Click += (_, _) => DoValueScan();
-        _btnDumpMemory.Click += (_, _) => DoDumpMemory();
-        _btnListRoomGlyphs.Click += (_, _) => DoListRoomGlyphs();
         _btnMoveToInventory.Click += (_, _) => DoMoveSelectedTo(MoveDestination.Inventory);
         _btnMoveToMailman.Click += (_, _) => DoMoveSelectedTo(MoveDestination.Mailman);
         _btnMoveToHiddenRoom.Click += (_, _) => DoMoveSelectedTo(MoveDestination.HiddenRoom);
-        _btnMarkAllDirty.Click += (_, _) => DoMarkAllDirty();
-        _btnResetPet.Click += (_, _) => DoResetPetControl();
-        _btnInstallHook.Click += (_, _) => DoInstallHook();
-        _btnUninstallHook.Click += (_, _) => DoUninstallHook();
-        _btnInstallClassLockHook.Click += (_, _) => DoInstallClassLockHook();
-        _btnUninstallClassLockHook.Click += (_, _) => DoUninstallClassLockHook();
-        _btnInstallMaitreDHook.Click += (_, _) => DoInstallMaitreDHook();
-        _btnUninstallMaitreDHook.Click += (_, _) => DoUninstallMaitreDHook();
-        _btnInstallGetLiftEye2GateHook.Click += (_, _) => DoInstallGetLiftEye2GateHook();
-        _btnUninstallGetLiftEye2GateHook.Click += (_, _) => DoUninstallGetLiftEye2GateHook();
-        _btnInstallRoomAssignHook.Click += (_, _) => DoInstallRoomAssignHook();
-        _btnUninstallRoomAssignHook.Click += (_, _) => DoUninstallRoomAssignHook();
-        _btnInstallRoomGateHook.Click += (_, _) => DoInstallRoomGateHook();
-        _btnUninstallRoomGateHook.Click += (_, _) => DoUninstallRoomGateHook();
+        _btnToggleHook.Click += (_, _) => { if (TextCommandHook.IsInstalled) DoUninstallHook(); else DoInstallHook(); };
+        _btnToggleClassLockHook.Click += (_, _) => { if (ClassUpgradeHook.IsInstalled) DoUninstallClassLockHook(); else DoInstallClassLockHook(); };
+        _btnToggleMaitreDHook.Click += (_, _) => { if (MaitreDHook.IsInstalled) DoUninstallMaitreDHook(); else DoInstallMaitreDHook(); };
+        _btnToggleGetLiftEye2GateHook.Click += (_, _) => { if (GetLiftEye2GateHook.IsInstalled) DoUninstallGetLiftEye2GateHook(); else DoInstallGetLiftEye2GateHook(); };
+        _btnToggleRoomAssignHook.Click += (_, _) => { if (RoomAssignHook.IsInstalled) DoUninstallRoomAssignHook(); else DoInstallRoomAssignHook(); };
+        _btnToggleRoomGateHook.Click += (_, _) => { if (RoomGateHook.IsInstalled) DoUninstallRoomGateHook(); else DoInstallRoomGateHook(); };
         _btnDisplayMessageText.Click += (_, _) => DoDisplayMessageText();
         _btnSetDestToCurrentRoom.Click += (_, _) => DoSetMailDestToCurrentRoom();
         _btnCopyInventoryAddress.Click += (_, _) => DoCopyInventoryAddress();
@@ -203,7 +185,7 @@ public sealed partial class MainForm : Form
         tabs.TabPages.Add(BuildLiveTab());
         tabs.TabPages.Add(BuildItemsTab());
         tabs.TabPages.Add(BuildMailTab());
-        tabs.TabPages.Add(BuildPetTab());
+        tabs.TabPages.Add(BuildHooksTab());
         tabs.TabPages.Add(BuildAddressesTab());
         tabs.TabPages.Add(BuildDebugTab());
         tabs.TabPages.Add(BuildLogTab());
@@ -219,15 +201,6 @@ public sealed partial class MainForm : Form
         AutoSize = true,
         Font = new Font(Control.DefaultFont, FontStyle.Bold),
         Margin = new Padding(0, 6, 0, 4),
-    };
-
-    private static Label HelpLabel(string text) => new()
-    {
-        Text = text,
-        AutoSize = true,
-        MaximumSize = new Size(380, 0),
-        ForeColor = Color.DimGray,
-        Margin = new Padding(0, 0, 0, 4),
     };
 
     private static Panel Spacer() => new() { Height = 10, Width = 1 };

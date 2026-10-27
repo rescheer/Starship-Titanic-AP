@@ -37,7 +37,6 @@ public static class GameOffsets
     // CPetControl::_conversations member offset
     public const long PetConversationsFieldOffset = 0x168;
     public const long SetAreaFunc = 0x242A150; // CPetControl::setArea()
-    public const long DisplayMessageFunc = 0x242A6C0; // CPetControl::displayMessage(StringId, int)
     public const long DisplayMessageTextFunc = 0x242A730; // CPetControl::displayMessage(const CString&, int)
 
     // CPetControl's own current-area field - which tab is visibly active
@@ -47,9 +46,6 @@ public static class GameOffsets
     // CPetControl area codes (tabs)
     public const int PetAreaInventory = 0;
     public const int PetAreaConversation = 1;
-    public const int PetAreaController = 2;
-    public const int PetAreaChevron = 3;
-    public const int PetAreaSaveLoad = 4;
 
     // CGameObject::setPassengerClass() - the DeskBot's own vanilla class-upgrade trigger
     public const long SetPassengerClassFunc = 0x23A2740;
@@ -63,24 +59,11 @@ public static class GameOffsets
     // Call with rcx = petControlAddr + PetRoomsOffset (CPetRooms* this), edx = class number.
     public const long ReassignRoomBodyFunc = 0x2437440;
 
-    // Previous PassengerClass value, written by setPassengerClass() right
-    // before it overwrites PassengerClass with the new one.
-    public const long PreviousPassengerClass = 0xE774;
-
     // CNamedItem::_name field offset, relative to the object's own base
     public const long NamedItemNameOffset = 0x30;
 
     // CString(const char*) constructor (BaseString<char>'s)
     public const long CStringCharPtrCtorFunc = 0x3783980;
-
-    // --- CPetConversations line-log append ("addLine()") ---
-    public const long ConversationAddLineFunc = 0x240E260;
-
-    // Offset from CPetConversations' own base to the sub-object addLine() operates on
-    public const long ConversationSubObjectOffset = 0x420;
-
-    // r8 at the addLine call site - CPetConversations::getColor(1)'s return value
-    public const long ConversationAddLineKnownGoodR8 = 0x10101;
 
     // --- CPetConversations::displayMessage(const CString&) ---
     public const long PetConversationsDisplayMessageFunc = 0x242C700;
@@ -126,24 +109,10 @@ public static class GameOffsets
     // _unused1 is this app's own tool-placed/game-placed mail marker (see ToolPlacedSentinel below).
     // _unused2 remains available, unused.
     public const long GameObjectUnused1Offset = 0x58;
-    public const long GameObjectUnused2Offset = 0x60;
     public const long GameObjectUnused3Offset = 0x68;
-    public const long GameObjectNonvisualOffset = 0x70;
-    public const long GameObjectToggleROffset = 0x71;
-    public const long GameObjectToggleGOffset = 0x72;
-    public const long GameObjectToggleBOffset = 0x73;
-    public const long GameObjectMovieClipsOffset = 0x78;
-    public const long GameObjectInitialFrameOffset = 0x90;
-    public const long GameObjectMovieRangeInfoListOffset = 0x98;
-    public const long GameObjectFrameNumberOffset = 0xB0;
-    public const long GameObjectTextOffset = 0xB8;
-    public const long GameObjectTextBorderOffset = 0xC0;
-    public const long GameObjectTextBorderRightOffset = 0xC4;
-    public const long GameObjectSavedPosOffset = 0xC8;
     public const long GameObjectSurfaceOffset = 0xD0;
     public const long GameObjectUnused4Offset = 0x100;
     public const long GameObjectBoundsOffset = 0x104;
-    public const long GameObjectHandleMouseFlagOffset = 0x118;
     public const long GameObjectCursorIdOffset = 0x11C;
     public const long GameObjectVisibleOffset = 0x120;
 
@@ -202,9 +171,6 @@ public static class GameOffsets
     // named object directly.
     public const long ShipSettingFrameTargetOffset = 0x1E0; // CString: size (int32) @ +0, data ptr (int64) @ +8
     public const int CursorArrow = 1;
-
-    // CPetControl::moveToHiddenRoom() itself
-    public const long PetControlMoveToHiddenRoomFunc = 0x242AB40;
 
     // --- PET talk input hook ---
     public const long TextLineEnteredFunc = 0x242D6A0; // CPetConversations::textLineEntered()

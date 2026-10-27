@@ -43,12 +43,6 @@ public sealed class ArchipelagoConnection : IDisposable
         return id == -1 ? null : id;
     }
 
-    /// <summary>Resolves a location id back to its AP display name via the connected session's data package.</summary>
-    public string? ResolveLocationName(long locationId)
-    {
-        return _session?.Locations.GetLocationNameFromId(locationId);
-    }
-
     /// <summary>Checked/total location counts for this slot.</summary>
     public (int Checked, int Total)? GetLocationCheckSummary()
     {

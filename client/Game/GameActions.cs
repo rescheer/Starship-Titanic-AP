@@ -382,17 +382,6 @@ public static class GameActions
         }
     }
 
-    /// <summary>Finds the CPetRoomsGlyph matching a given roomFlags value. Null if not found.</summary>
-    public static long? FindGlyphByRoomFlags(MemoryReader mem, long petControlAddr, uint roomFlags)
-    {
-        foreach (RoomGlyph glyph in EnumerateGlyphs(mem, petControlAddr))
-        {
-            if (glyph.RoomFlags == roomFlags)
-                return glyph.GlyphAddr;
-        }
-        return null;
-    }
-
     /// <summary>Finds the glyph flagged RGM_PREV_ASSIGNED_ROOM for a specific passenger class (raw value: 1=First,
     /// 2=Second, 3=Third, 4=None - see RoomFlags.Decode's classNum) - i.e. the room that used to be assigned
     /// before a later class upgrade bumped it out, identified by its roomFlags-encoded class.

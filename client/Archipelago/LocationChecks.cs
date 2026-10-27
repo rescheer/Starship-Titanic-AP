@@ -186,8 +186,4 @@ public static class LocationChecks
         apItemName = "";
         return false;
     }
-
-    /// <summary>Looks up the engine item name for a granted AP item name.</summary>
-    public static bool TryGetEngineItemName(string apItemName, out string itemName) =>
-        Items.TryGetForApItemName(apItemName, out itemName);
 }
