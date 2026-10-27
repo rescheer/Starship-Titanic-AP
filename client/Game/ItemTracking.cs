@@ -35,4 +35,7 @@ public static class ItemTracking
 
     public static bool SkipsFirstChildReorderOnRestore(string itemName) =>
         Items.TryGet(itemName, out ItemDefinition item) && item.SkipFirstChildReorderOnRestore;
+
+    public static bool HomeParentIsDropTargetDisplay(string itemName) =>
+        Items.TryGet(itemName, out ItemDefinition item) && item.HomeParentIsDropTargetDisplay;
 }

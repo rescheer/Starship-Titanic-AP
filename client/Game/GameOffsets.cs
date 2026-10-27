@@ -172,6 +172,12 @@ public static class GameOffsets
     public const long ShipSettingFrameTargetOffset = 0x1E0; // CString: size (int32) @ +0, data ptr (int64) @ +8
     public const int CursorArrow = 1;
 
+    // CDropTarget (titanic/core/drop_target.h) - fields follow CGameObject from 0x124, same as CCarry's. A drop target
+    // shows its held item by its own frame (_dropFrame) rather than the item's, picked only in EnterViewMsg.
+    public const long DropTargetDropFrameOffset = 0x1BC;   // int
+    public const long DropTargetClipNameOffset = 0x1C8;    // CString: size (int32) @ +0, data ptr (int64) @ +8
+    public const long DropTargetDropCursorIdOffset = 0x1F4; // CursorId
+
     // --- PET talk input hook ---
     public const long TextLineEnteredFunc = 0x242D6A0; // CPetConversations::textLineEntered()
     public const long ClearTextControlFunc = 0x240CED0; // CTextControl::setup() - clears the input box

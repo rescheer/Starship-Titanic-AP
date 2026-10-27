@@ -497,6 +497,12 @@ internal sealed class ItemSync
                             GameActions.SetItemVisible(_ctx.Mem, siblingAddr.Value, false);
                     }
 
+                    if (ItemTracking.HomeParentIsDropTargetDisplay(name)
+                        && !GameActions.ShowDropTargetHolding(_ctx.Mem, homeParent.Value))
+                    {
+                        _ctx.Report.ReportAction(false, $"{name} restored, but its drop target's frame couldn't be updated");
+                    }
+
                     ScheduleDirtyReassert();
                     _ctx.Report.NotifyItemsChanged();
                 }

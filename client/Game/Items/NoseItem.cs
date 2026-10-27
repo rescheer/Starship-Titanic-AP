@@ -9,5 +9,6 @@ internal static class NoseItem
         PickupLocationName = "Parrot Lobby - Titania's Nose",
         HomeRnvs = new[] { new RoomNodeView(9, 2, 3) },
         DefaultParent = new DefaultParent("NoseHolder", "CNoseHolder"),
+        HomeParentIsDropTargetDisplay = true,
     };
 }
