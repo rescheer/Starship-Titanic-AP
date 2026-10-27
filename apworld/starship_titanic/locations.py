@@ -152,7 +152,7 @@ location_table: Dict[str, STLocationData] = {
     # ---------------------------------------------------------------- #
     # POI/Visit
     # Item
-    "Broken Elevator - Titania's Eye (Elevator)": STLocationData("Bottom of the Well"),
+    "Broken Elevator - Titania's Eye (Elevator)": STLocationData("2nd Class Lobby"),
     # Puzzle
     # Other
 

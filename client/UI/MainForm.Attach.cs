@@ -20,6 +20,7 @@ public sealed partial class MainForm
             DoInstallMaitreDHook();
             DoInstallGetLiftEye2GateHook();
             DoInstallRoomAssignHook();
+            DoInstallRoomGateHook();
             bool saveLoadHookOk = SaveLoadHook.Install(_mem);
             ShowActionResult(saveLoadHookOk, "Install save-load detection hook");
             if (!saveLoadHookOk)
@@ -68,6 +69,10 @@ public sealed partial class MainForm
         {
             RoomAssignHook.Uninstall(_mem);
         }
+        if (RoomGateHook.IsInstalled)
+        {
+            RoomGateHook.Uninstall(_mem);
+        }
         if (SaveLoadHook.IsInstalled)
         {
             SaveLoadHook.Uninstall(_mem);
@@ -90,6 +95,9 @@ public sealed partial class MainForm
         _lblClassLockHookStatus.Text = "Lock not installed";
         _btnInstallClassLockHook.Enabled = true;
         _btnUninstallClassLockHook.Enabled = false;
+        _lblRoomGateHookStatus.Text = "Gate not installed";
+        _btnInstallRoomGateHook.Enabled = true;
+        _btnUninstallRoomGateHook.Enabled = false;
         _btnAttach.Enabled = true;
         _btnDetach.Enabled = false;
         ResetCachedState();
@@ -117,6 +125,7 @@ public sealed partial class MainForm
         _currentInventoryRoom = null;
         _currentMailManRoom = null;
         _currentRoomName = null;
+        _movers = null;
         _conversationsAddrShown = false;
         _saveSeedGuardState = SaveSeedGuardState.Unverified;
         _saveSeedGuardBeamBridgeMisses = 0;

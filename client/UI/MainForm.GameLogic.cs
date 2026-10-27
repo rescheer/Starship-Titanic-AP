@@ -967,6 +967,95 @@ public sealed partial class MainForm
             "AP: You can't take that. Maybe if you had something to replace it with.");
     }
 
+    // Every scripted door in the current tree (MoverDestinations.FindAll), found once per tree - null until scanned
+    private List<Mover>? _movers;
+
+    /// <summary>Keeps RoomGateHook's remote tables in sync: rooms whose AP key hasn't been received, plus any extra
+    /// rooms typed into the debug box, and the scripted doors leading into them. A locked room locks every variant
+    /// of its location, and the location the player is currently in is never locked - the hook's own stub only
+    /// exempts the exact current room, which would block the game's scripted moves between variants.</summary>
+    private void SyncRoomGate()
+    {
+        if (!RoomGateHook.IsInstalled)
+            return;
+
+        var locked = new HashSet<int>();
+        void Lock(int roomId)
+        {
+            foreach (int variant in RoomNames.GetVariants(roomId))
+                locked.Add(variant);
+        }
+
+        HashSet<string> requiredCards = RoomKeys.GetRequiredCards(_apConnection.SlotData);
+        foreach (int roomId in RoomKeys.GetLockedRooms(requiredCards, _apConnection.GetReceivedItemNames()))
+            Lock(roomId);
+        foreach (string entry in _txtDebugLockedRooms.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (int.TryParse(entry, out int roomId) || RoomNames.TryGetRoomId(entry, out roomId))
+                Lock(roomId);
+        }
+        if (_lastRoomNodeView is { } rnv)
+            locked.ExceptWith(RoomNames.GetVariants(rnv.Room));
+
+        RoomGateHook.SetLockedRooms(_mem, locked);
+
+        if (_movers is null && _currentProject is { } project)
+        {
+            _movers = MoverDestinations.FindAll(_mem, project);
+            AppendLog($"RoomGateHook: found {_movers.Count} scripted doors with resolvable destinations");
+        }
+        if (_movers is not null)
+        {
+            RoomGateHook.SetCursorBlockedObjects(_mem, _movers
+                .Where(m => MoverDestinations.ResolveDestRoom(_mem, m, _currentInventoryRoom) is int dest
+                    && dest != m.OwnRoom && locked.Contains(dest))
+                .Select(m => m.Address));
+        }
+    }
+
+    /// <summary>Reacts to RoomGateHook firing: tells the player which key the room they tried to enter needs.</summary>
+    private void HandleBlockedRoomMove(int fromRoom, int toRoom)
+    {
+        string toRoomName = RoomNames.GetName(toRoom);
+        AppendLog($"RoomGateHook: blocked move from {RoomNames.GetName(fromRoom)} into locked room {toRoomName}");
+
+        if (_currentInventoryRoom is null)
+            return;
+
+        string message = RoomKeys.TryGetKeyItem(toRoom, out string keyItem)
+            ? PickRandom(MissingKeyMessages, keyItem)
+            : PickRandom(LockedRoomMessages, toRoomName);
+        GameActions.DisplayMessageSmart(_mem, _currentInventoryRoom.Value, message);
+    }
+
+    /// <summary>Responses when the locked room has a known key item. {0} is the key item name.</summary>
+    private static readonly string[] MissingKeyMessages =
+    [
+        "No {0}? Get lost.",
+        "Interstellar law prohibits passage through this door without the {0}.",
+        "Come back with a {0}.",
+        "Trying to waltz in without the {0}? Who exactly do you think you are?",
+        "You need the {0}. Go bother another door.",
+        "Please do not touch that. Especially without the {0}.",
+        "Without the {0}, this door remains in an advanded state of non-functionality.",
+        "You do not have the {0}. You owe this door an apology.",
+        "Passengers are reminded to treat the ship's doors with respect. And with the proper Access Card.",
+        "Without the {0}, it is hopeless. The door has won the day.",
+        "Trying to enter without the {0}? Indecorous.",
+        "No {0}? The door will remember this. It would laugh if it could. It's trying.",
+        "You do no have an Access Card for this area. Security has been dispatched. Security has fallen down the well.",
+        "Everything else on the ship may be broken, but this door stands resolute. Bring an Access Card next time.",
+    ];
+
+    /// <summary>Responses when the locked room has no known key item. {0} is the room name.</summary>
+    private static readonly string[] LockedRoomMessages =
+    [
+        "AP: {0} is locked.",
+    ];
+
+    private static string PickRandom(string[] templates, string arg) =>
+        string.Format(templates[Random.Shared.Next(templates.Length)], arg);
+
     /// <summary>True when a fuse is currently installed in a Fuse Box socket (an installed fuse's real item is parked
     /// in the hidden room).</summary>
     private bool IsInstalledInFuseBox(long project, string itemName) =>
@@ -1040,6 +1129,8 @@ public sealed partial class MainForm
 
                     if (ItemTracking.RequiresCanTakeRestoreToggle(name))
                         GameActions.SetItemCanTake(_mem, item.Address, false);
+                    else if (ItemTracking.RequiresCanTakeOverride(name))
+                        GameActions.SetItemCanTake(_mem, item.Address, true);
 
                     if (ItemHomeLocations.TryGetRestoreFieldOverride(name, out var fields))
                     {

@@ -82,6 +82,16 @@ public sealed partial class MainForm
         layout.Controls.Add(_lblRoomAssignHookStatus);
         layout.Controls.Add(HelpLabel("Blocks CGameObject::petReassignRoom() for every class - including SGT/Third, unlike the Class Upgrade Lock above - so a stateroom is never assigned except by this app itself. Assignment now applies only from receiving a 'Progressive Stateroom' item over the multiworld (GameActions.AssignNextRoom, which briefly lifts this lock to let the real function run for real, then reinstalls it). Installs automatically on attach. Try a legitimate DeskBot upgrade with the lock installed and confirm no new stateroom gets assigned until the matching item arrives."));
 
+        layout.Controls.Add(Spacer());
+        layout.Controls.Add(SectionLabel("Room Key Gate [experimental]"));
+        var roomGateRow = new FlowLayoutPanel { AutoSize = true };
+        roomGateRow.Controls.Add(_btnInstallRoomGateHook);
+        roomGateRow.Controls.Add(_btnUninstallRoomGateHook);
+        layout.Controls.Add(roomGateRow);
+        layout.Controls.Add(_lblRoomGateHookStatus);
+        layout.Controls.Add(_txtDebugLockedRooms);
+        layout.Controls.Add(HelpLabel("Hooks CGameState::changeView() - the one function every room change goes through (walking, lifts, the Pellerator, scripted doors) - and refuses any move into a room whose AP key item (RoomKeys.cs) hasn't been received yet. The player simply stays where they are and the PET says which key is missing. Hovering a walking link into a locked room also shows the 'invalid' cursor (display only - the link's saved cursor is untouched). Moves within the current location are never blocked - including between the two states of a multi-state room (Arboretum/FrozenArboretum, CreatorsChamber/CreatorsChamberOn, BilgeRoom/BilgeRoomWith, EmbLobby/MoonEmbLobby), which lock together - so a player somehow already inside a locked room can always walk back out. The text box locks extra rooms on top of that (room names or IDs, comma-separated) for testing. Installs automatically on attach. Type a neighbouring room into the box, try to walk into it, and confirm you stay put and the PET message appears."));
+
         page.Controls.Add(layout);
         return page;
     }

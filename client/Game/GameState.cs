@@ -87,8 +87,19 @@ public static class GameState
         return raw is null ? null : raw[0] != 0;
     }
 
-    private static bool LooksLikeHeapPointer(long value) =>
+    internal static bool LooksLikeHeapPointer(long value) =>
         value > 0x1000 && value < 0x0000800000000000;
+
+    /// <summary>Reads a CString field (see GameOffsets.CStringSizeOffset) at fieldAddr.</summary>
+    public static string? ReadCString(MemoryReader mem, long fieldAddr, int maxLength = 63)
+    {
+        int? size = mem.ReadInt32(fieldAddr + GameOffsets.CStringSizeOffset);
+        long? dataPtr = mem.ReadInt64(fieldAddr + GameOffsets.CStringDataPtrOffset);
+        if (size is not int sz || sz <= 0 || dataPtr is not long dp || !LooksLikeHeapPointer(dp))
+            return null;
+
+        return mem.ReadShortAsciiString(dp, Math.Min(sz, maxLength));
+    }
 
     /// <summary>Scans a node's name-pointer window for a pointer to a short printable-ASCII string.</summary>
     public static string? TryReadName(MemoryReader mem, long nodeAddress)

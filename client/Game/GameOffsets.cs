@@ -287,6 +287,75 @@ public static class GameOffsets
     // CProjectItem::getGameManager's address). SaveLoadHook's stub rebuilds it as an absolute mov.
     public const long ProjectPostLoadLeaTarget = 0x23A4720;
 
+    // CGameState::changeView(CViewItem *newView, CMovieClip *clip) (titanic/game_state.cpp) - every walking link,
+    // scripted mover and cutscene-deferred move funnels through it, and its leaveView/preEnterView/enterView calls
+    // all happen inside it. rcx = CGameState* (embedded in CGameManager at GameStateFromGameManager). Its prologue
+    // (6 pushes + sub rsp,0x28 + mov rbx,rcx = 16 bytes) has no RIP-relative operands; RoomGateHook replays it.
+    public const long GameStateChangeViewFunc = 0x246D160;
+    public const long GameStateFromGameManager = 0xE728;
+
+    // CGameState::_gameLocation._roomNumber, relative to CGameState (== RoomFromGameManager - GameStateFromGameManager).
+    // Refreshed by CGameLocation::setView/getView, so it tracks the current room.
+    public const long GameStateRoomNumberOffset = 0x18;
+
+    // CNamedItem::findRoom()'s vtable slot - called on a view, walks _parent up to its CRoomItem (the same call
+    // CGameLocation::getView makes).
+    public const long NamedItemFindRoomVtableOffset = 0xE8;
+
+    // CRoomItem::_roomNumber, relative to the room object's own base (the IDs in RoomNames.cs).
+    public const long RoomItemRoomNumberOffset = 0x78;
+
+    // CViewItem::MouseMoveMsg (titanic/core/view_item.cpp) - its hovered-link branch:
+    //   0x...FF2A: mov edx,[rax+0x70] / mov rcx,[rdi+0x30] / call setCursor / jmp epilogue   (17 bytes)
+    // with rax = the hovered CLinkItem*, rdi = CScreenManager*. RoomGateHook rebuilds it to show CURSOR_INVALID
+    // on links into locked rooms.
+    public const long ViewMouseMoveLinkCursorSite = 0x23CFF2A;
+    public const long ViewMouseMoveEpilogue = 0x23CFEB7; // `mov eax,1` + pops + ret
+    public const long MouseCursorSetCursorFunc = 0x2459080; // CMouseCursor::setCursor(CursorId)
+
+    // CLinkItem field offsets, relative to the link's own base. _roomNumber/_nodeNumber/_viewNumber are the
+    // link's DESTINATION; _cursorId is saved with the link, so it's never written - only the displayed cursor is
+    // swapped.
+    public const long LinkItemRoomNumberOffset = 0x58;
+    public const long LinkItemCursorIdOffset = 0x70;
+
+    // CViewItem::handleMouseMsg (titanic/core/view_item.cpp) - its hovered-object branch, picking the topmost
+    // object's cursor:
+    //   0x...FA8D: movsxd rdx,eax / mov rdx,[r12+rdx*8] / mov edx,[rdx+0x11C] / cmp edx,0xC / je next   (18 bytes)
+    // with eax = idx, r12 = gameObjects' data; the setCursor call follows at the end of those bytes. "next"
+    // decrements idx and loops.
+    public const long ViewHandleMouseObjectCursorSite = 0x23CFA8D;
+    public const long ViewHandleMouseObjectNext = 0x23CFA80;
+
+    public const int CursorInvalid = 10; // CURSOR_INVALID (titanic/support/mouse_cursor.h)
+    public const int CursorIgnore = 12;  // CURSOR_IGNORE - an object that defers to whatever's under it
+
+    // CMovePlayerTo::_destination (titanic/moves/move_player_to.h) - a "Room.Node N.Dir" view name CString,
+    // relative to the object's own base. Shared by its subclasses.
+    public const long MovePlayerToDestinationOffset = 0x128;
+
+    // CMultiMove::_viewNames[5] (titanic/moves/multi_move.h) - the views MouseButtonDownMsg changes to in order,
+    // up to the first "NULL". Directly follows CMovePlayerTo::_destination, one CString (0x28) apart.
+    public const long MultiMoveViewNamesOffset = 0x150;
+    public const int MultiMoveViewNameCount = 5;
+    public const long CStringSize = 0x28;
+
+    // CExitLift::_viewName (titanic/moves/exit_lift.h) - the view the last exit went to. MouseButtonDownMsg
+    // recomputes it from the PET's floor/elevator numbers, but leaves it unchanged for combinations it doesn't map.
+    public const long ExitLiftViewNameOffset = 0x128;
+
+    // CPetRooms::_floorNum / _elevatorNum, relative to CPetControl (PetRoomsOffset + 0x270/0x274) - the lift's
+    // current floor and which of the four elevators the player is in. Read by CExitLift::MouseButtonDownMsg.
+    public const long PetControlRoomsFloorNum = 0x1260;
+    public const long PetControlRoomsElevatorNum = 0x1264;
+
+    // CExitPellerator::_statics (titanic/moves/exit_pellerator.h) - a STATIC `CExitPelleratorStatics *`, so a
+    // module-relative global holding a pointer. _v2 is the stop the Pellerator is at (0 Promenade, 1 Music Room
+    // Lobby, 2 Bar, 4 Top of Well, 5 Restaurant, 6 Arboretum); _isWinter picks Frozen Arboretum for stop 6.
+    public const long ExitPelleratorStaticsPtrStatic = 0x5F32C90;
+    public const long ExitPelleratorStaticsStopOffset = 0x28;
+    public const long ExitPelleratorStaticsIsWinterOffset = 0x2C;
+
     // Window scanned for a name-string pointer on each tree node.
     public const long NameScanStart = HeaderOffset + 0x20;
     public const long NameScanEnd = HeaderOffset + 0x60;
