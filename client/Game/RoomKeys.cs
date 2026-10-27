@@ -32,6 +32,9 @@ public static class RoomKeys
         ["1st Class Staterooms Access Card"] = new[] { "1stClassLobby", "1stClassState" },
     };
 
+    /// <summary>Every Access Card item name, in the order listed above.</summary>
+    public static IEnumerable<string> AllCards => Cards.Keys;
+
     // room ID -> the card that unlocks it, resolved from Cards once
     private static readonly Dictionary<int, string> CardForRoom = Cards
         .SelectMany(card => card.Value.Select(room => (RoomNames.TryGetRoomId(room, out int id) ? id : -1, card.Key)))

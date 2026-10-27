@@ -70,7 +70,7 @@ public sealed partial class MainForm : Form
     {
         _isDebug = isDebug;
         Text = AppInfo.TitleBarText;
-        Width = 750;   // 500 * 1.5
+        Width = 900;   // 500 * 1.5 * 1.20
         Height = 660;  // 600 * 1.10
         StartPosition = FormStartPosition.CenterScreen;
 

@@ -129,6 +129,7 @@ public sealed partial class MainForm
 
         UpdateApTopStatus();
         UpdateFooterApStatus();
+        UpdateAccessCards();
         UpdateApToggleButton();
         UpdateInfoChecks();
         AppendLog(_lblApStatus.Text);
