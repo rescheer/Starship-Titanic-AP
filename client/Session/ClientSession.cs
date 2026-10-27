@@ -14,6 +14,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = RoomNodeViewIntervalMs };
     private readonly SessionContext _ctx;
     private readonly SaveSeedGuard _saveSeedGuard;
+    private readonly ClassSync _classSync;
 
     private readonly SynchronizationContext _uiContext;
     private readonly int _uiThreadId;
@@ -30,9 +31,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
 
     private readonly HashSet<string> _sentRoomVisitChecks = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<RoomNodeView> _sentPointOfInterestChecks = new();
-    private int _lastItemsReceivedCount = -1;
     private int _lastTableAccessItemsCount = -1;
-    private int _lastStateroomItemsReceivedCount = -1;
 
     private int? _pendingDirtyReassertTick;
     private const int DirtyReassertDelayTicks = 4; // 4 * 50ms = 200ms
@@ -62,6 +61,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         Connection = ConnectionSettings.Load();
         _ctx = new SessionContext(_mem, _apConnection, Options, this);
         _saveSeedGuard = new SaveSeedGuard(_ctx);
+        _classSync = new ClassSync(_ctx);
 
         _timer.Tick += (_, _) => OnTick();
         _apConnection.StateChanged += (state, message) => RunOnUiThread(() => OnApStateChanged(state, message));
@@ -175,9 +175,8 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
                 _sentRoomVisitChecks.Clear();
                 _sentPointOfInterestChecks.Clear();
                 _saveSeedGuard.Reset();
-                _lastItemsReceivedCount = -1;
+                _classSync.ResyncFromItems();
                 _lastTableAccessItemsCount = -1;
-                _lastStateroomItemsReceivedCount = -1;
                 if (_currentRoomName is not null)
                     TrySendRoomVisitCheck(_currentRoomName);
                 if (_lastRoomNodeView is not null)
@@ -247,6 +246,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     void ISessionReporter.ReportAction(bool ok, string what) => ReportAction(ok, what);
     void ISessionReporter.AppendLog(string line) => AppendLog(line);
     void ISessionReporter.AppendServerLog(string line, bool bold) => AppendServerLog(line, bold);
+    void ISessionReporter.NotifyPendingChecksChanged() => NotifyPendingChecksChanged();
 
     private void ReportAddress(string label, long? value) => AddressChanged?.Invoke(label, value);
 

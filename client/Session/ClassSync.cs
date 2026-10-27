@@ -1,8 +1,117 @@
 namespace StarshipTitanicAp;
 
-internal sealed partial class ClientSession
+/// <summary>Keeps the player's passenger class and stateroom assignments in line with the AP items received, and
+/// temporarily spoofs class and stateroom state at the RNVs whose vanilla interactions (DeskBot upgrades, the SGT
+/// stateroom puzzles) would otherwise be unreachable under item-gated progression.</summary>
+internal sealed class ClassSync
 {
     private const string TitaniaRepairedLocation = "Titania's Room - Repair Titania";
+
+    private readonly SessionContext _ctx;
+
+    /// <summary>AP items received as of the last class/stateroom sync; -1 forces the next sync to run.</summary>
+    private int _lastItemsReceivedCount = -1;
+    private int _lastStateroomItemsReceivedCount = -1;
+
+    public ClassSync(SessionContext ctx)
+    {
+        _ctx = ctx;
+    }
+
+    /// <summary>Forgets all spoof state and re-syncs from items next tick. Call when the game tree is rebuilt (a save
+    /// load overwrites PassengerClass and the glyphs, along with any spoof on them).</summary>
+    public void Reset()
+    {
+        _classUpgradeSpoofOriginalClass = null;
+        _sgtGlyphAddr = null;
+        _sgtGlyphOriginalMode = null;
+        ResyncFromItems();
+    }
+
+    /// <summary>Re-applies class and staterooms from the received items on the next sync, e.g. after reconnecting.</summary>
+    public void ResyncFromItems()
+    {
+        _lastItemsReceivedCount = -1;
+        _lastStateroomItemsReceivedCount = -1;
+    }
+
+    /// <summary>Applies the class and stateroom assignments implied by the received AP items. Runs before anything
+    /// else reads or writes PassengerClass.</summary>
+    public void SyncFromItems(long gameManager)
+    {
+        SyncPassengerClassFromItems(gameManager);
+        SyncStateroomFromItems(gameManager);
+    }
+
+    /// <summary>Undoes any spoof that doesn't apply at the player's new RNV.</summary>
+    public void RevertSpoofs(RoomNodeView newRnv, long gameManager)
+    {
+        TryRevertClassUpgradeSpoof(newRnv, gameManager);
+        TryRevertSgtGlyphSpoof(newRnv);
+    }
+
+    /// <summary>Starts any spoof the player's new RNV calls for.</summary>
+    public void ApplySpoofs(RoomNodeView rnv, long gameManager)
+    {
+        TryApplyClassUpgradeSpoof(rnv, gameManager);
+        TryApplySgtGlyphSpoof(rnv);
+    }
+
+    /// <summary>Handles a class upgrade that ClassUpgradeHook blocked: sends the matching AP check, or applies the
+    /// upgrade directly for Bridge access (and for the initial None -> Third, if allowed).</summary>
+    public void PollClassUpgradeHook(long gameManager)
+    {
+        if (!ClassUpgradeHook.IsInstalled)
+            return;
+        int? attemptedClass = ClassUpgradeHook.PollAttemptedClass(_ctx.Mem);
+        if (attemptedClass is null)
+            return;
+
+        if (LocationChecks.TryGetClassUpgradeLocationName(attemptedClass.Value, out string locationName))
+        {
+            _ctx.Report.AppendLog($"ClassUpgradeHook: blocked setPassengerClass({PassengerClassNames.GetName(attemptedClass.Value)}) from taking effect - real class stays item-gated");
+
+            bool handedOff = _ctx.Ap.SendLocationCheck(locationName);
+            if (LocationChecks.TryGetClassUpgradeEventLocationName(attemptedClass.Value, out string eventLocationName))
+                _ctx.Ap.SendLocationCheck(eventLocationName);
+            _ctx.Report.ReportAction(handedOff, handedOff
+                ? $"DeskBot upgrade attempt ({PassengerClassNames.GetName(attemptedClass.Value)}) -> {locationName}"
+                : $"DeskBot upgrade attempt ({PassengerClassNames.GetName(attemptedClass.Value)}) queued (offline) -> {locationName}");
+        }
+        else if (attemptedClass.Value == SpecialPassengerClassValues.BridgeAccessClassValue)
+        {
+            if (_ctx.InventoryRoom is not null)
+            {
+                bool applied = GameActions.SetPassengerClassFull(_ctx.Mem, gameManager, _ctx.InventoryRoom.Value, attemptedClass.Value);
+
+                bool handedOff = _ctx.Ap.SendLocationCheck(TitaniaRepairedLocation);
+                _ctx.Report.ReportAction(applied && handedOff, handedOff
+                    ? $"Bridge access granted -> {TitaniaRepairedLocation}"
+                    : $"Bridge access granted -> {TitaniaRepairedLocation} (queued offline or class-apply failed)");
+                _ctx.Report.NotifyPendingChecksChanged();
+            }
+            else
+            {
+                _ctx.Report.ReportAction(false, "Bridge-access class upgrade blocked - inventory not resolved yet, will retry on next attempt");
+            }
+        }
+        else if (attemptedClass.Value == (int)PassengerClass.Third && _ctx.Options.AllowInitialUpgrade)
+        {
+            if (_ctx.InventoryRoom is not null)
+            {
+                bool ok = GameActions.SetPassengerClassFull(_ctx.Mem, gameManager, _ctx.InventoryRoom.Value, attemptedClass.Value);
+                _ctx.Report.ReportAction(ok, "Initial class upgrade (None -> Third) applied directly - no AP item for this yet");
+            }
+            else
+            {
+                _ctx.Report.ReportAction(false, "Initial class upgrade blocked - inventory not resolved yet, will retry on next attempt");
+            }
+        }
+        else
+        {
+            _ctx.Report.ReportAction(false, $"DeskBot upgrade attempt for unrecognized class {attemptedClass.Value}");
+        }
+    }
 
     /// <summary>Applies the class upgrade implied by AP items received so far, if any. With no class items yet,
     /// clamps a First/Second class (only reachable via a spoof that was saved or never reverted) back to Third.
@@ -10,24 +119,24 @@ internal sealed partial class ClientSession
     /// <see cref="TryRevertClassUpgradeSpoof"/> restores the new class rather than the stale one.</summary>
     private void SyncPassengerClassFromItems(long gameManager)
     {
-        IReadOnlyDictionary<string, object>? slotData = _apConnection.SlotData;
+        IReadOnlyDictionary<string, object>? slotData = _ctx.Ap.SlotData;
         if (slotData is null)
             return;
         if (_ctx.InventoryRoom is null)
             return;
 
-        string[] receivedItems = _apConnection.GetReceivedItemNames();
+        string[] receivedItems = _ctx.Ap.GetReceivedItemNames();
         if (receivedItems.Length == _lastItemsReceivedCount)
             return;
         _lastItemsReceivedCount = receivedItems.Length;
 
-        int? currentClass = _classUpgradeSpoofOriginalClass ?? GameState.ReadPassengerClass(_mem, gameManager);
+        int? currentClass = _classUpgradeSpoofOriginalClass ?? GameState.ReadPassengerClass(_ctx.Mem, gameManager);
         if (currentClass is null)
             return;
 
         // Bridge access shares its raw value with None - never overwrite it once Titania has been repaired.
         if (currentClass.Value == SpecialPassengerClassValues.BridgeAccessClassValue
-            && _apConnection.IsLocationChecked(TitaniaRepairedLocation))
+            && _ctx.Ap.IsLocationChecked(TitaniaRepairedLocation))
             return;
 
         int? targetClass = ClassUpgradeTracker.ComputeClass(receivedItems, slotData);
@@ -44,12 +153,12 @@ internal sealed partial class ClientSession
         if (_classUpgradeSpoofOriginalClass is not null)
         {
             _classUpgradeSpoofOriginalClass = targetClass.Value;
-            ReportAction(true, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)} (applied once the class spoof ends)");
+            _ctx.Report.ReportAction(true, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)} (applied once the class spoof ends)");
             return;
         }
 
-        bool ok = GameActions.SetPassengerClassFull(_mem, gameManager, _ctx.InventoryRoom.Value, targetClass.Value);
-        ReportAction(ok, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)}");
+        bool ok = GameActions.SetPassengerClassFull(_ctx.Mem, gameManager, _ctx.InventoryRoom.Value, targetClass.Value);
+        _ctx.Report.ReportAction(ok, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)}");
     }
 
     /// <summary>Applies the stateroom assignment(s) implied by "Progressive Stateroom" AP items received so far,
@@ -57,13 +166,13 @@ internal sealed partial class ClientSession
     /// SGT/Third, then Second, then First.</summary>
     private void SyncStateroomFromItems(long gameManager)
     {
-        IReadOnlyDictionary<string, object>? slotData = _apConnection.SlotData;
+        IReadOnlyDictionary<string, object>? slotData = _ctx.Ap.SlotData;
         if (slotData is null)
             return;
         if (_ctx.InventoryRoom is not { } petControlAddr)
             return;
 
-        string[] receivedItems = _apConnection.GetReceivedItemNames();
+        string[] receivedItems = _ctx.Ap.GetReceivedItemNames();
         if (receivedItems.Length == _lastStateroomItemsReceivedCount)
             return;
         _lastStateroomItemsReceivedCount = receivedItems.Length;
@@ -72,14 +181,14 @@ internal sealed partial class ClientSession
         if (targetCount is null)
             return;
 
-        int achievedCount = GameActions.GetAchievedStateroomClass(_mem, petControlAddr);
+        int achievedCount = GameActions.GetAchievedStateroomClass(_ctx.Mem, petControlAddr);
         for (int next = achievedCount + 1; next <= targetCount.Value; next++)
         {
             if (StateroomAssignTracker.ClassForAssignedCount(next) is not { } rawClass)
                 break;
 
-            bool ok = GameActions.AssignNextRoom(_mem, gameManager, petControlAddr, rawClass);
-            ReportAction(ok, $"Stateroom assignment from items: {PassengerClassNames.GetName(rawClass)}");
+            bool ok = GameActions.AssignNextRoom(_ctx.Mem, gameManager, petControlAddr, rawClass);
+            _ctx.Report.ReportAction(ok, $"Stateroom assignment from items: {PassengerClassNames.GetName(rawClass)}");
             if (!ok)
                 break;
         }
@@ -129,11 +238,11 @@ internal sealed partial class ClientSession
             if (_classUpgradeSpoofOriginalClass is null)
                 return;
 
-            int? reportedClass = GameState.ReadPassengerClass(_mem, gameManager);
+            int? reportedClass = GameState.ReadPassengerClass(_ctx.Mem, gameManager);
             if (reportedClass is not null && reportedClass.Value != (int)PassengerClass.Third
-                && GameActions.SetPassengerClass(_mem, gameManager, (int)PassengerClass.Third))
+                && GameActions.SetPassengerClass(_ctx.Mem, gameManager, (int)PassengerClass.Third))
             {
-                ReportAction(true, $"Class upgrade spoof: reporting {PassengerClassNames.GetName((int)PassengerClass.Third)} for Bellbot intro (really {PassengerClassNames.GetName(_classUpgradeSpoofOriginalClass.Value)})");
+                _ctx.Report.ReportAction(true, $"Class upgrade spoof: reporting {PassengerClassNames.GetName((int)PassengerClass.Third)} for Bellbot intro (really {PassengerClassNames.GetName(_classUpgradeSpoofOriginalClass.Value)})");
             }
             return;
         }
@@ -149,16 +258,16 @@ internal sealed partial class ClientSession
         if (!LocationChecks.TryGetClassUpgradeLocationName((int)PassengerClass.First, out string firstLocationName))
             return;
 
-        int? currentClass = GameState.ReadPassengerClass(_mem, gameManager);
+        int? currentClass = GameState.ReadPassengerClass(_ctx.Mem, gameManager);
         if (currentClass is null)
             return;
 
         int? spoofToClass = null;
         // Queued counts as checked, so a check made while offline still advances the spoof.
-        bool secondClassPending = !_apConnection.IsLocationCheckedOrQueued(secondLocationName);
+        bool secondClassPending = !_ctx.Ap.IsLocationCheckedOrQueued(secondLocationName);
         // None before Titania's repair means the player hasn't checked in yet (after it, None is Bridge access).
         bool notCheckedIn = currentClass.Value == (int)PassengerClass.None
-            && !_apConnection.IsLocationCheckedOrQueued(TitaniaRepairedLocation);
+            && !_ctx.Ap.IsLocationCheckedOrQueued(TitaniaRepairedLocation);
 
         // Not checked in: leave the DeskBot unspoofed so the check-in conversation runs first - otherwise the player
         // can never leave the Embarkation Lobby. Once it pays out the real class is Third, so a Magazine hand-off
@@ -167,7 +276,7 @@ internal sealed partial class ClientSession
             return;
 
         bool magazineHandOffPending = rnv == DeskBotRnv && secondClassPending
-            && GameState.FindAllCarryItems(_mem, project).Any(item =>
+            && GameState.FindAllCarryItems(_ctx.Mem, project).Any(item =>
                 string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
                 && item.ParentAddress == _ctx.InventoryRoom.Value);
 
@@ -181,7 +290,7 @@ internal sealed partial class ClientSession
         {
             spoofToClass = configuredSpoofClass;
         }
-        else if (rnv == DeskBotRnv && !secondClassPending && !_apConnection.IsLocationCheckedOrQueued(firstLocationName))
+        else if (rnv == DeskBotRnv && !secondClassPending && !_ctx.Ap.IsLocationCheckedOrQueued(firstLocationName))
         {
             // DeskbotScript's 1st Class upgrade pays out only at exactly Second.
             if (currentClass.Value != (int)PassengerClass.Second)
@@ -189,7 +298,7 @@ internal sealed partial class ClientSession
         }
         else if (rnv == DeskBotRnv
             && currentClass.Value != (int)PassengerClass.None
-            && !GameActions.HasAnyAssignedRoom(_mem, _ctx.InventoryRoom.Value))
+            && !GameActions.HasAnyAssignedRoom(_ctx.Mem, _ctx.InventoryRoom.Value))
         {
             // No room assigned yet: report None so the initial DeskBot conversation and room assignment run.
             spoofToClass = (int)PassengerClass.None;
@@ -198,10 +307,10 @@ internal sealed partial class ClientSession
         if (spoofToClass is null)
             return;
 
-        if (GameActions.SetPassengerClass(_mem, gameManager, spoofToClass.Value))
+        if (GameActions.SetPassengerClass(_ctx.Mem, gameManager, spoofToClass.Value))
         {
             _classUpgradeSpoofOriginalClass = currentClass.Value;
-            ReportAction(true, $"Class upgrade spoof: reporting {PassengerClassNames.GetName(spoofToClass.Value)} (really {PassengerClassNames.GetName(currentClass.Value)})");
+            _ctx.Report.ReportAction(true, $"Class upgrade spoof: reporting {PassengerClassNames.GetName(spoofToClass.Value)} (really {PassengerClassNames.GetName(currentClass.Value)})");
         }
     }
 
@@ -216,9 +325,9 @@ internal sealed partial class ClientSession
             return;
 
         if (_ctx.InventoryRoom is { } petControlAddr)
-            GameActions.SetPassengerClassFull(_mem, gameManager, petControlAddr, originalClass);
+            GameActions.SetPassengerClassFull(_ctx.Mem, gameManager, petControlAddr, originalClass);
         else
-            GameActions.SetPassengerClass(_mem, gameManager, originalClass);
+            GameActions.SetPassengerClass(_ctx.Mem, gameManager, originalClass);
 
         _classUpgradeSpoofOriginalClass = null;
     }
@@ -247,19 +356,19 @@ internal sealed partial class ClientSession
         if (_ctx.InventoryRoom is not { } petControlAddr)
             return;
 
-        long? glyphAddr = GameActions.FindPrevAssignedGlyphForClass(_mem, petControlAddr, (int)PassengerClass.Third);
+        long? glyphAddr = GameActions.FindPrevAssignedGlyphForClass(_ctx.Mem, petControlAddr, (int)PassengerClass.Third);
         if (glyphAddr is null)
             return; // no prev-assigned Third-class glyph - either never upgraded, or nothing to spoof
 
-        int? currentMode = GameActions.ReadGlyphMode(_mem, glyphAddr.Value);
+        int? currentMode = GameActions.ReadGlyphMode(_ctx.Mem, glyphAddr.Value);
         if (currentMode is null || currentMode == GameOffsets.RgmAssignedRoom)
             return; // unreadable, or already the real assignment - nothing to spoof
 
-        if (GameActions.WriteGlyphMode(_mem, glyphAddr.Value, GameOffsets.RgmAssignedRoom))
+        if (GameActions.WriteGlyphMode(_ctx.Mem, glyphAddr.Value, GameOffsets.RgmAssignedRoom))
         {
             _sgtGlyphAddr = glyphAddr.Value;
             _sgtGlyphOriginalMode = currentMode.Value;
-            ReportAction(true, "SGT Stateroom glyph spoof: reporting assigned (really prev-assigned)");
+            _ctx.Report.ReportAction(true, "SGT Stateroom glyph spoof: reporting assigned (really prev-assigned)");
         }
     }
 
@@ -272,7 +381,7 @@ internal sealed partial class ClientSession
         if (Array.IndexOf(SgtGlyphSpoofTriggerRnvs, newRnv) >= 0)
             return;
 
-        GameActions.WriteGlyphMode(_mem, glyphAddr, originalMode);
+        GameActions.WriteGlyphMode(_ctx.Mem, glyphAddr, originalMode);
 
         _sgtGlyphAddr = null;
         _sgtGlyphOriginalMode = null;

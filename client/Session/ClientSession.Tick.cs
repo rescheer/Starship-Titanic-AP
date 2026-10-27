@@ -14,11 +14,7 @@ internal sealed partial class ClientSession
         _lastPassengerClass = null;
         _lastMailItems = null;
         _pendingUnrestoreChecks.Clear();
-        _classUpgradeSpoofOriginalClass = null; // the old PassengerClass value (and any spoof on it) was overwritten by the load
-        _lastItemsReceivedCount = -1; // re-sync class and staterooms against the loaded save
-        _lastStateroomItemsReceivedCount = -1;
-        _sgtGlyphAddr = null; // the glyph lived inside the old CPetControl
-        _sgtGlyphOriginalMode = null;
+        _classSync.Reset(); // the load overwrote PassengerClass and the glyphs, along with any spoof on them
         _eatenMagazineAddr = null; // flagged against the old tree
         _movers = null; // scanned from the old tree
         _conversationsAddrShown = false;
@@ -178,8 +174,7 @@ internal sealed partial class ClientSession
         _apConnection.NotifyGameVerifiedForSeed();
 
         // Runs before anything below reads or writes PassengerClass.
-        SyncPassengerClassFromItems(gameManager.Value);
-        SyncStateroomFromItems(gameManager.Value);
+        _classSync.SyncFromItems(gameManager.Value);
 
         ProcessPendingUnrestoreChecks(gameManager.Value);
 
@@ -205,11 +200,9 @@ internal sealed partial class ClientSession
             {
                 TryUnrestoreItemsLeavingRnv(previousRnv.Value, gameManager.Value);
             }
-            TryRevertClassUpgradeSpoof(rnv.Value, gameManager.Value);
-            TryRevertSgtGlyphSpoof(rnv.Value);
+            _classSync.RevertSpoofs(rnv.Value, gameManager.Value);
             TryRestoreItemsAtHomeRnv(rnv.Value, gameManager.Value);
-            TryApplyClassUpgradeSpoof(rnv.Value, gameManager.Value);
-            TryApplySgtGlyphSpoof(rnv.Value);
+            _classSync.ApplySpoofs(rnv.Value, gameManager.Value);
         }
 
         SyncTableAccessFromItems();
@@ -224,57 +217,7 @@ internal sealed partial class ClientSession
             ReconcileTrackedItems(gameManager.Value);
         }
 
-        if (ClassUpgradeHook.IsInstalled)
-        {
-            int? attemptedClass = ClassUpgradeHook.PollAttemptedClass(_mem);
-            if (attemptedClass is not null)
-            {
-                if (LocationChecks.TryGetClassUpgradeLocationName(attemptedClass.Value, out string locationName))
-                {
-                    AppendLog($"ClassUpgradeHook: blocked setPassengerClass({PassengerClassNames.GetName(attemptedClass.Value)}) from taking effect - real class stays item-gated");
-
-                    bool handedOff = _apConnection.SendLocationCheck(locationName);
-                    if (LocationChecks.TryGetClassUpgradeEventLocationName(attemptedClass.Value, out string eventLocationName))
-                        _apConnection.SendLocationCheck(eventLocationName);
-                    ReportAction(handedOff, handedOff
-                        ? $"DeskBot upgrade attempt ({PassengerClassNames.GetName(attemptedClass.Value)}) -> {locationName}"
-                        : $"DeskBot upgrade attempt ({PassengerClassNames.GetName(attemptedClass.Value)}) queued (offline) -> {locationName}");
-                }
-                else if (attemptedClass.Value == SpecialPassengerClassValues.BridgeAccessClassValue)
-                {
-                    if (_ctx.InventoryRoom is not null)
-                    {
-                        bool applied = GameActions.SetPassengerClassFull(_mem, gameManager.Value, _ctx.InventoryRoom.Value, attemptedClass.Value);
-
-                        bool handedOff = _apConnection.SendLocationCheck(TitaniaRepairedLocation);
-                        ReportAction(applied && handedOff, handedOff
-                            ? $"Bridge access granted -> {TitaniaRepairedLocation}"
-                            : $"Bridge access granted -> {TitaniaRepairedLocation} (queued offline or class-apply failed)");
-                        NotifyPendingChecksChanged();
-                    }
-                    else
-                    {
-                        ReportAction(false, "Bridge-access class upgrade blocked - inventory not resolved yet, will retry on next attempt");
-                    }
-                }
-                else if (attemptedClass.Value == (int)PassengerClass.Third && Options.AllowInitialUpgrade)
-                {
-                    if (_ctx.InventoryRoom is not null)
-                    {
-                        bool ok = GameActions.SetPassengerClassFull(_mem, gameManager.Value, _ctx.InventoryRoom.Value, attemptedClass.Value);
-                        ReportAction(ok, "Initial class upgrade (None -> Third) applied directly - no AP item for this yet");
-                    }
-                    else
-                    {
-                        ReportAction(false, "Initial class upgrade blocked - inventory not resolved yet, will retry on next attempt");
-                    }
-                }
-                else
-                {
-                    ReportAction(false, $"DeskBot upgrade attempt for unrecognized class {attemptedClass.Value}");
-                }
-            }
-        }
+        _classSync.PollClassUpgradeHook(gameManager.Value);
 
         if (RoomAssignHook.IsInstalled)
         {

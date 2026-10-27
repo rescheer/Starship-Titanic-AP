@@ -7,6 +7,7 @@ internal interface ISessionReporter
     void ReportAction(bool ok, string what);
     void AppendLog(string line);
     void AppendServerLog(string line, bool bold = false);
+    void NotifyPendingChecksChanged();
 }
 
 /// <summary>What a session feature needs from its <see cref="ClientSession"/>: the game and AP handles, the
