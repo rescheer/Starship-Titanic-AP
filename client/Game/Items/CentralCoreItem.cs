@@ -9,5 +9,6 @@ internal static class CentralCoreItem
         PickupLocationName = "Parrot Lobby - Titania's Core",
         HomeRnvs = new[] { new RoomNodeView(9, 1, 2) },
         DefaultParent = new DefaultParent("PerchCoreHolder", "CParrotPerchHolder"),
+        HomeParentIsDropTargetDisplay = true,
     };
 }
