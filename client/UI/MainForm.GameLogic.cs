@@ -551,6 +551,27 @@ public sealed partial class MainForm
         UpdatePendingChecksLabel();
     }
 
+    /// <summary>Displays how many AP items are waiting in the mail system when the player arrives at an
+    /// already-checked Succ-U-Bus terminal.</summary>
+    private void TryShowWaitingMailReminder(RoomNodeView rnv)
+    {
+        if (!LocationChecks.TryGetPointOfInterestLocationName(rnv, out string locationName))
+            return;
+        if (!LocationChecks.SuccUBusStationLocationNames.Contains(locationName))
+            return;
+        if (!_apConnection.IsLocationCheckedOrQueued(locationName))
+            return;
+        if (_currentMailManRoom is null || _currentInventoryRoom is null)
+            return;
+
+        int count = GameState.ReadMailItems(_mem, _currentMailManRoom.Value).Count(i => i.ToolPlaced);
+        if (count == 0)
+            return;
+
+        GameActions.DisplayMessageSmart(_mem, _currentInventoryRoom.Value,
+            $"You have {count} AP item{(count == 1 ? "" : "s")} waiting to be delivered.");
+    }
+
     /// <summary>Displays a reminder message if the player arrives at a point of interest without the AP item it requires.</summary>
     private void TryShowItemNeededReminder(RoomNodeView rnv)
     {

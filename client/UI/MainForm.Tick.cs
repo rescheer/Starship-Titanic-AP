@@ -204,6 +204,8 @@ public sealed partial class MainForm
                 TrySendRoomVisitCheck(roomName);
             }
 
+            // Runs before TrySendPointOfInterestCheck so a first visit's own check doesn't count as already checked.
+            TryShowWaitingMailReminder(rnv.Value);
             TrySendPointOfInterestCheck(rnv.Value);
             TryShowItemNeededReminder(rnv.Value);
 
