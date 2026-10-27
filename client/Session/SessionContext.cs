@@ -8,6 +8,12 @@ internal interface ISessionReporter
     void AppendLog(string line);
     void AppendServerLog(string line, bool bold = false);
     void NotifyPendingChecksChanged();
+
+    /// <summary>Items were moved in the game tree; any item listing is stale.</summary>
+    void NotifyItemsChanged();
+
+    /// <summary>The mail system's contents were changed; re-read them on the next poll.</summary>
+    void NotifyMailChanged();
 }
 
 /// <summary>What a session feature needs from its <see cref="ClientSession"/>: the game and AP handles, the
@@ -37,4 +43,7 @@ internal sealed class SessionContext
     public long? InventoryRoom { get; set; }
 
     public long? MailManRoom { get; set; }
+
+    /// <summary>The engine name (see <see cref="RoomNames"/>) of the room the player is in.</summary>
+    public string? CurrentRoomName { get; set; }
 }

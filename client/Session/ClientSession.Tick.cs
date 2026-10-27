@@ -13,9 +13,8 @@ internal sealed partial class ClientSession
         _lastRoomFlags = null;
         _lastPassengerClass = null;
         _lastMailItems = null;
-        _pendingUnrestoreChecks.Clear();
+        _itemSync.Reset(); // pending unrestores and the eaten Magazine were tracked against the old tree
         _classSync.Reset(); // the load overwrote PassengerClass and the glyphs, along with any spoof on them
-        _eatenMagazineAddr = null; // flagged against the old tree
         _movers = null; // scanned from the old tree
         _conversationsAddrShown = false;
         _saveSeedGuard.Reset();
@@ -64,11 +63,7 @@ internal sealed partial class ClientSession
         ReportAddress("gameManager", gameManager.Value);
         ReportAddress("PassengerClass field", gameManager.Value + GameOffsets.PassengerClass);
 
-        if (_pendingDirtyReassertTick is { } dueTick && _ctx.TickCount >= dueTick)
-        {
-            _pendingDirtyReassertTick = null;
-            GameActions.MarkAllDirty(_mem, gameManager.Value);
-        }
+        _itemSync.ProcessPendingDirtyReassert(gameManager.Value);
 
         if (TextCommandHook.IsInstalled)
         {
@@ -134,7 +129,7 @@ internal sealed partial class ClientSession
         {
             _lastDisplayedRnv = rnv;
             string roomName = RoomNames.GetName(rnv.Value.Room);
-            _currentRoomName = roomName;
+            _ctx.CurrentRoomName = roomName;
             RoomNodeViewChanged?.Invoke(rnv, null);
         }
 
@@ -176,14 +171,14 @@ internal sealed partial class ClientSession
         // Runs before anything below reads or writes PassengerClass.
         _classSync.SyncFromItems(gameManager.Value);
 
-        ProcessPendingUnrestoreChecks(gameManager.Value);
+        _itemSync.ProcessPendingUnrestoreChecks(gameManager.Value);
 
         if (rnv is not null && rnv != _lastRoomNodeView)
         {
             RoomNodeView? previousRnv = _lastRoomNodeView;
             int? previousRoom = previousRnv?.Room;
             _lastRoomNodeView = rnv;
-            string roomName = _currentRoomName ?? RoomNames.GetName(rnv.Value.Room);
+            string roomName = _ctx.CurrentRoomName ?? RoomNames.GetName(rnv.Value.Room);
 
             if (rnv.Value.Room != previousRoom)
             {
@@ -198,10 +193,10 @@ internal sealed partial class ClientSession
 
             if (previousRnv is not null)
             {
-                TryUnrestoreItemsLeavingRnv(previousRnv.Value, gameManager.Value);
+                _itemSync.TryUnrestoreItemsLeavingRnv(previousRnv.Value, gameManager.Value);
             }
             _classSync.RevertSpoofs(rnv.Value, gameManager.Value);
-            TryRestoreItemsAtHomeRnv(rnv.Value, gameManager.Value);
+            _itemSync.TryRestoreItemsAtHomeRnv(rnv.Value, gameManager.Value);
             _classSync.ApplySpoofs(rnv.Value, gameManager.Value);
         }
 
@@ -214,7 +209,7 @@ internal sealed partial class ClientSession
 
         if (_ctx.TickCount % InventoryIntervalTicks == 0)
         {
-            ReconcileTrackedItems(gameManager.Value);
+            _itemSync.ReconcileTrackedItems(gameManager.Value);
         }
 
         _classSync.PollClassUpgradeHook(gameManager.Value);
@@ -243,5 +238,25 @@ internal sealed partial class ClientSession
                 HandleBlockedRoomMove(blocked.FromRoom, blocked.ToRoom);
             }
         }
+    }
+
+    /// <summary>Re-resolves _project and the PET control (inventory room), reporting both addresses.</summary>
+    private void RefreshProjectAddresses(long gameManager)
+    {
+        long? project = GameState.ResolveProject(_mem, gameManager);
+        _ctx.Project = project;
+        ReportAddress("_project", project);
+
+        if (project is null)
+            return;
+
+        // Only a non-null result replaces the cached address; OnTick's project-change handling clears it.
+        long? inventoryRoom = GameState.FindInventoryRoom(_mem, project.Value);
+        if (inventoryRoom is not null)
+            _ctx.InventoryRoom = inventoryRoom;
+        ReportAddress("Player Inventory (CPetControl)", _ctx.InventoryRoom);
+
+        ReportAddress("Conversations (CPetConversations)",
+            _ctx.InventoryRoom is not null ? GameState.ResolveConversationsAddr(_ctx.InventoryRoom.Value) : null);
     }
 }

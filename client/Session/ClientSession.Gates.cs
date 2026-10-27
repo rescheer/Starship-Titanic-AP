@@ -79,22 +79,6 @@ internal sealed partial class ClientSession
             : "CGetLiftEye2::_destObject was \"NULL\" - failed to overwrite it");
     }
 
-    /// <summary>Keeps GetLiftEye2GateHook's remote "may take the Eye" gate byte in sync with whether the LiftBot
-    /// Head is both AP-granted and physically sitting in the player's inventory.</summary>
-    private void SyncLiftEyeGate(List<CarryItemLocation> items, string[] receivedItems)
-    {
-        if (!GetLiftEye2GateHook.IsInstalled || _ctx.InventoryRoom is null)
-            return;
-
-        bool headGranted = LocationChecks.TryGetApItemName("BrokenLiftbotHead", out string headApName)
-            && receivedItems.Contains(headApName, StringComparer.OrdinalIgnoreCase);
-        bool headInInventory = headGranted
-            && FindByName(items, "BrokenLiftbotHead") is { } head
-            && head.ParentAddress == _ctx.InventoryRoom.Value;
-
-        GetLiftEye2GateHook.SetGateAllowed(_mem, headInInventory);
-    }
-
     /// <summary>Reacts to GetLiftEye2GateHook firing: tells the player what they're missing.</summary>
     private void HandleBlockedLiftEyeDrag()
     {

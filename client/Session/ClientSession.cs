@@ -6,7 +6,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
 {
     private const string ProcessName = "scummvm";
     private const int RoomNodeViewIntervalMs = 50;   // ~20Hz
-    private const int InventoryIntervalTicks = 20;   // every 20 * 50ms = 1s
+    internal const int InventoryIntervalTicks = 20;  // every 20 * 50ms = 1s
     private const int MailIntervalTicks = 20;        // every 20 * 50ms = 1s
 
     private readonly MemoryReader _mem = new();
@@ -15,6 +15,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     private readonly SessionContext _ctx;
     private readonly SaveSeedGuard _saveSeedGuard;
     private readonly ClassSync _classSync;
+    private readonly ItemSync _itemSync;
 
     private readonly SynchronizationContext _uiContext;
     private readonly int _uiThreadId;
@@ -33,21 +34,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     private readonly HashSet<RoomNodeView> _sentPointOfInterestChecks = new();
     private int _lastTableAccessItemsCount = -1;
 
-    private int? _pendingDirtyReassertTick;
-    private const int DirtyReassertDelayTicks = 4; // 4 * 50ms = 200ms
-
-    /// <summary>Items still Restored at the RNV they were just left from, awaiting a delayed re-check (see
-    /// TryUnrestoreItemsLeavingRnv).</summary>
-    private readonly List<(string ItemName, long ItemAddress, int DueTick)> _pendingUnrestoreChecks = new();
-    private const int UnrestoreCheckDelayTicks = InventoryIntervalTicks + 4; // let ReconcileTrackedItems run at least once, plus buffer
-
-    /// <summary>The (Room, Node, View) shown during the bellbot's Titania's Eye (Light) dialogue/hand-off
-    /// cutscene.</summary>
-    private static readonly RoomNodeView Eye1HandoffCutsceneRnv = new(7, 11, 1);
-
     private bool _conversationsAddrShown;
-    private string? _currentRoomName;
-
 
     private bool _readyToPlayLogged;
 
@@ -62,6 +49,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         _ctx = new SessionContext(_mem, _apConnection, Options, this);
         _saveSeedGuard = new SaveSeedGuard(_ctx);
         _classSync = new ClassSync(_ctx);
+        _itemSync = new ItemSync(_ctx);
 
         _timer.Tick += (_, _) => OnTick();
         _apConnection.StateChanged += (state, message) => RunOnUiThread(() => OnApStateChanged(state, message));
@@ -90,7 +78,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     internal long? Project => _ctx.Project;
     internal long? InventoryRoom => _ctx.InventoryRoom;
     internal long? MailManRoom => _ctx.MailManRoom;
-    internal string? CurrentRoomName => _currentRoomName;
+    internal string? CurrentRoomName => _ctx.CurrentRoomName;
     internal SaveSeedGuardState SaveSeedGuardState => _saveSeedGuard.State;
 
     // --- Events for the UI ---
@@ -177,8 +165,8 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
                 _saveSeedGuard.Reset();
                 _classSync.ResyncFromItems();
                 _lastTableAccessItemsCount = -1;
-                if (_currentRoomName is not null)
-                    TrySendRoomVisitCheck(_currentRoomName);
+                if (_ctx.CurrentRoomName is not null)
+                    TrySendRoomVisitCheck(_ctx.CurrentRoomName);
                 if (_lastRoomNodeView is not null)
                     TrySendPointOfInterestCheck(_lastRoomNodeView.Value);
                 NotifyPendingChecksChanged();
@@ -247,6 +235,8 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     void ISessionReporter.AppendLog(string line) => AppendLog(line);
     void ISessionReporter.AppendServerLog(string line, bool bold) => AppendServerLog(line, bold);
     void ISessionReporter.NotifyPendingChecksChanged() => NotifyPendingChecksChanged();
+    void ISessionReporter.NotifyItemsChanged() => NotifyItemsChanged();
+    void ISessionReporter.NotifyMailChanged() => InvalidateMail();
 
     private void ReportAddress(string label, long? value) => AddressChanged?.Invoke(label, value);
 

@@ -69,17 +69,4 @@ internal sealed partial class ClientSession
 
         GameActions.DisplayMessageSmart(_mem, _ctx.InventoryRoom.Value, message);
     }
-
-    /// <summary>Sends the AP location check for physically finding a tracked item, if one is mapped.</summary>
-    private void SendItemPickupCheck(string itemName)
-    {
-        if (!LocationChecks.TryGetItemPickupLocationName(itemName, out string locationName))
-            return;
-
-        bool handedOff = _apConnection.SendLocationCheck(locationName);
-        ReportAction(handedOff, handedOff
-            ? $"Location check: {itemName} -> {locationName}"
-            : $"Location check queued (offline): {itemName} -> {locationName}");
-        NotifyPendingChecksChanged();
-    }
 }

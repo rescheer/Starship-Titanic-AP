@@ -119,7 +119,7 @@ internal sealed partial class ClientSession
         _ctx.Project = null;
         _ctx.InventoryRoom = null;
         _ctx.MailManRoom = null;
-        _currentRoomName = null;
+        _ctx.CurrentRoomName = null;
         _movers = null;
         _conversationsAddrShown = false;
         _saveSeedGuard.Reset();
