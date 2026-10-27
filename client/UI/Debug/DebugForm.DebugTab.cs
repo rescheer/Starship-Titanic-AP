@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+public sealed partial class DebugForm
 {
     private readonly Button _btnDetach = new() { Text = "Detach", Width = 110, Enabled = false };
 

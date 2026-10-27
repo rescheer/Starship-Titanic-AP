@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+public sealed partial class DebugForm
 {
     // --- Items tab ---
     private readonly ListView _lvInventory = new()

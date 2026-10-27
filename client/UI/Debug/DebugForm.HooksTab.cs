@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+public sealed partial class DebugForm
 {
     // --- Hooks tab ---
 

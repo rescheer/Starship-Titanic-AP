@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+public sealed partial class DebugForm
 {
     // --- Live tab ---
     private readonly Label _lblRoomNodeView = new() { Text = "Room: -   Node: -   View: -", AutoSize = true };

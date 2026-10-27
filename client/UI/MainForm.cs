@@ -1,21 +1,68 @@
 namespace StarshipTitanicAp;
 
-/// <summary>Main application window.</summary>
-public sealed partial class MainForm : Form
+/// <summary>Main application window: the player-facing view of a <see cref="ClientSession"/>.</summary>
+public sealed class MainForm : Form
 {
     private readonly ClientSession _session;
 
-    // --- Top bar (shared across tabs) ---
     private readonly Button _btnAttach = new() { Text = "Attach", Width = 110, Height = 40 };
-    private readonly Label _lblStatus = new() { Text = "Not attached", AutoSize = true };
-    private readonly Label _lblApTopStatus = new() { Text = "AP: Not connected", AutoSize = true, ForeColor = Color.DimGray };
-    private readonly Label _lblActionResult = new() { Text = "", AutoSize = true, ForeColor = Color.DarkSlateGray };
+    private readonly Button _btnApToggle = new() { Text = "Connect to AP...", Width = 110, Height = 40 };
 
-    private readonly bool _isDebug;
-
-    public MainForm(bool isDebug)
+    // Server log
+    private readonly RichTextBox _txtServerLog = new()
     {
-        _isDebug = isDebug;
+        Multiline = true,
+        ReadOnly = true,
+        Dock = DockStyle.Fill,
+        ScrollBars = RichTextBoxScrollBars.Vertical,
+        Font = new Font(FontFamily.GenericMonospace, 12),
+        WordWrap = true,
+    };
+
+    private readonly TextBox _txtChatInput = new() { Dock = DockStyle.Fill };
+    private readonly Button _btnChatSend = new() { Text = "Send", Width = 80, Dock = DockStyle.Right };
+
+    private static readonly Font InfoFont = new(Control.DefaultFont.FontFamily, 11f);
+    private readonly Label _lblInfoRoom = new() { Text = "Room: -", AutoSize = true, Font = InfoFont };
+    private readonly Label _lblInfoMail = new() { Text = "Succ-U-Bus has 0 AP items ready for delivery.", AutoSize = true, Font = InfoFont };
+    private readonly Label _lblInfoChecks = new() { Text = "Checks: -/-", AutoSize = true, Font = InfoFont };
+    private readonly Label _lblInfoStations = new() { Text = "Visited Succ-U-Bus Stations (-/-)", AutoSize = true, Font = InfoFont };
+    private readonly TableLayoutPanel _infoPanel = new()
+    {
+        Dock = DockStyle.Top,
+        ColumnCount = 2,
+        RowCount = 2,
+        AutoSize = true,
+        Padding = new Padding(6),
+    };
+    private readonly Label _lblInfoSaveSeedMismatch = new()
+    {
+        Text = "Save seed does not match server seed! AP sync paused",
+        Dock = DockStyle.Top,
+        Height = 40,
+        TextAlign = ContentAlignment.MiddleCenter,
+        Font = new Font(InfoFont, FontStyle.Bold),
+        ForeColor = Color.Red,
+        Visible = false,
+    };
+
+    private readonly Label _lblFooterAp = new() { Text = "✖ Not connected to an Archipelago server", AutoSize = true, Anchor = AnchorStyles.Right, ForeColor = Color.Red };
+    private readonly Label _lblFooterAttach = new() { Text = "✖ Not attached to a game instance", AutoSize = true, Anchor = AnchorStyles.Right, ForeColor = Color.Red };
+
+    // Access Cards panel - one label per card, in RoomKeys order
+    private readonly FlowLayoutPanel _accessCardsPanel = new()
+    {
+        Dock = DockStyle.Right,
+        Width = 280,
+        FlowDirection = FlowDirection.TopDown,
+        WrapContents = false,
+        AutoScroll = true,
+        Padding = new Padding(8, 6, 8, 6),
+    };
+    private readonly Dictionary<string, Label> _accessCardLabels = new();
+
+    public MainForm()
+    {
         _session = new ClientSession();
         Text = AppInfo.TitleBarText;
         Width = 900;   // 500 * 1.5 * 1.20
@@ -23,246 +70,299 @@ public sealed partial class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
 
         BuildLayout();
-
-        _txtApServer.Text = _session.Connection.Server;
-        _txtApSlot.Text = _session.Connection.Slot;
-        _txtApPassword.Text = _session.Connection.Password;
-        UpdatePendingChecksLabel();
-        UpdateApTopStatus();
         UpdateFooterAttachStatus();
         UpdateFooterApStatus();
         UpdateApToggleButton();
 
-        _session.ActionReported += ShowActionResult;
-        _session.CommandCaptured += ShowCapturedCommand;
-        _session.DebugLog += AppendLog;
         _session.ServerLog += AppendServerLog;
-        _session.AddressChanged += SetAddressRow;
-        _session.AttachChanged += OnAttachChanged;
-        _session.ApStateChanged += OnApStateChanged;
-        _session.PendingChecksChanged += UpdatePendingChecksLabel;
-        _session.ItemsChanged += DoRefreshAllItems;
-        _session.MailChanged += OnMailChanged;
-        _session.RoomNodeViewChanged += OnRoomNodeViewChanged;
-        _session.RoomFlagsChanged += flags => _lblCurrentLocation.Text = FormatCurrentLocation(flags);
-        _session.PassengerClassChanged += cls => _lblClass.Text = $"Class: {PassengerClassNames.GetName(cls)}";
-        _session.Ticked += OnSessionTicked;
+        _session.AttachChanged += () =>
+        {
+            UpdateFooterAttachStatus();
+            _btnAttach.Enabled = !_session.Memory.IsAttached;
+        };
+        _session.ApStateChanged += (_, _) =>
+        {
+            UpdateFooterApStatus();
+            UpdateAccessCards();
+            UpdateApToggleButton();
+            UpdateInfoChecks();
+        };
+        _session.ItemReceived += UpdateAccessCards;
+        _session.MailChanged += items =>
+        {
+            if (items is not null)
+                UpdateInfoMailCount(items.Count(i => i.ToolPlaced));
+        };
+        _session.RoomNodeViewChanged += (rnv, _) =>
+        {
+            if (rnv is { } r)
+                UpdateInfoRoom(_session.CurrentRoomName ?? RoomNames.GetName(r.Room));
+        };
+        _session.Ticked += () =>
+        {
+            UpdateInfoChecks();
+            UpdateInfoAreaSaveSeedGuard();
+        };
 
         _btnAttach.Click += (_, _) => _session.Attach();
-        _btnDetach.Click += (_, _) => _session.Detach();
-
-        _btnApConnect.Click += (_, _) => DoApConnect();
-        _btnApDisconnect.Click += (_, _) => _session.Ap.Disconnect();
-        _btnClearPendingChecks.Click += (_, _) => DoClearPendingChecks();
-
-        if (!_isDebug)
-            WireNormalUiEvents();
-
-        _chkEnforceSaveSeedGuard.CheckedChanged += (_, _) => _session.Options.EnforceSaveSeedGuard = _chkEnforceSaveSeedGuard.Checked;
-        _chkTakeUngrantedItems.CheckedChanged += (_, _) => _session.Options.TakeUngrantedItems = _chkTakeUngrantedItems.Checked;
-        _chkAllowInitialUpgrade.CheckedChanged += (_, _) => _session.Options.AllowInitialUpgrade = _chkAllowInitialUpgrade.Checked;
-        _txtDebugLockedRooms.TextChanged += (_, _) => _session.Options.ExtraLockedRooms = _txtDebugLockedRooms.Text;
-
-        _btnSetClass.Click += (_, _) => DoSetClass();
-        _btnMoveItem.Click += (_, _) => DoMoveToCustomAddress();
-        _btnMoveToInventory.Click += (_, _) => DoMoveSelectedTo(MoveDestination.Inventory);
-        _btnMoveToMailman.Click += (_, _) => DoMoveSelectedTo(MoveDestination.Mailman);
-        _btnMoveToHiddenRoom.Click += (_, _) => DoMoveSelectedTo(MoveDestination.HiddenRoom);
-        _btnDisplayMessageText.Click += (_, _) => DoDisplayMessageText();
-        _btnSetDestToCurrentRoom.Click += (_, _) => DoSetMailDestToCurrentRoom();
-        _btnCopyInventoryAddress.Click += (_, _) => DoCopyInventoryAddress();
-        _btnRefreshAllItems.Click += (_, _) => DoRefreshAllItems();
-        _btnExportParentSnapshot.Click += (_, _) => DoExportParentSnapshot();
-        _btnCopyParentAddress.Click += (_, _) => DoCopyParentAddress();
-        _btnViewFields.Click += (_, _) => DoViewFields();
-        _btnForceTagSaveSeed.Click += (_, _) => _session.ForceTagSaveSeed();
-
-        _lvMail.SelectedIndexChanged += (_, _) => UpdateMailButtonState();
-        _lvInventory.SelectedIndexChanged += (_, _) =>
+        _btnApToggle.Click += (_, _) => DoToggleApConnection();
+        _btnChatSend.Click += (_, _) => DoSendChatMessage();
+        _txtChatInput.KeyDown += (_, e) =>
         {
-            bool hasSelection = _lvInventory.SelectedItems.Count > 0;
-            _btnCopyInventoryAddress.Enabled = hasSelection;
-            _btnCopyParentAddress.Enabled = hasSelection;
-            _btnMoveToInventory.Enabled = hasSelection;
-            _btnMoveToMailman.Enabled = hasSelection;
-            _btnMoveToHiddenRoom.Enabled = hasSelection;
-            _btnViewFields.Enabled = hasSelection;
+            if (e.KeyCode != Keys.Enter)
+                return;
+            e.SuppressKeyPress = true;
+            DoSendChatMessage();
         };
-        _lvAddresses.SelectedIndexChanged += (_, _) => _btnCopyAddress.Enabled = _lvAddresses.SelectedItems.Count > 0;
-        _btnCopyAddress.Click += (_, _) => DoCopyAddressRow();
-        _btnClearLog.Click += (_, _) => _txtLog.Clear();
 
         _session.Start();
-    }
-
-    private void BuildLayout()
-    {
-        if (!_isDebug)
-        {
-            BuildNormalLayout();
-            return;
-        }
-
-        var topPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            Height = 78,
-            Padding = new Padding(8),
-            ColumnCount = 2,
-            RowCount = 1,
-            AutoSize = false,
-        };
-        topPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        topPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-
-        topPanel.Controls.Add(_btnAttach, 0, 0);
-
-        var infoPanel = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            AutoSize = true,
-            Margin = new Padding(12, 6, 0, 0),
-        };
-        infoPanel.Controls.Add(_lblStatus);
-        infoPanel.Controls.Add(_lblApTopStatus);
-        topPanel.Controls.Add(infoPanel, 1, 0);
-
-        var feedbackPanel = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            Height = 26,
-            Padding = new Padding(8, 0, 8, 0),
-        };
-        feedbackPanel.Controls.Add(_lblActionResult);
-
-        var tabs = new TabControl { Dock = DockStyle.Fill };
-        tabs.TabPages.Add(BuildArchipelagoTab());
-        tabs.TabPages.Add(BuildLiveTab());
-        tabs.TabPages.Add(BuildItemsTab());
-        tabs.TabPages.Add(BuildMailTab());
-        tabs.TabPages.Add(BuildHooksTab());
-        tabs.TabPages.Add(BuildAddressesTab());
-        tabs.TabPages.Add(BuildDebugTab());
-        tabs.TabPages.Add(BuildLogTab());
-
-        Controls.Add(tabs);
-        Controls.Add(feedbackPanel);
-        Controls.Add(topPanel);
-    }
-
-    private void OnAttachChanged()
-    {
-        bool attached = _session.Memory.IsAttached;
-        _lblStatus.Text = _session.AttachStatus;
-        UpdateFooterAttachStatus();
-        _btnAttach.Enabled = !attached;
-        _btnDetach.Enabled = attached;
-        RefreshHookControls();
-
-        if (!attached)
-        {
-            _lblRoomNodeView.Text = "Room: -   Node: -   View: -";
-            _lblCurrentLocation.Text = "Location: -";
-            _lblClass.Text = "Class: -";
-            _lvInventory.Items.Clear();
-            _lblAllItemsStatus.Text = "";
-            _lvMail.Items.Clear();
-            _lblMailCurrentRoom.Text = "Current room: -";
-            _lblMailCount.Text = "";
-        }
-    }
-
-    private void OnRoomNodeViewChanged(RoomNodeView? rnv, string? unavailableReason)
-    {
-        if (rnv is not { } r)
-        {
-            _lblRoomNodeView.Text = $"Room: -   Node: -   View: -   ({unavailableReason})";
-            return;
-        }
-
-        _lblRoomNodeView.Text = $"Room: {r.Room}   Node: {r.Node}   View: {r.View}";
-        UpdateMailCurrentRoomLabel();
-        UpdateInfoRoom(_session.CurrentRoomName ?? RoomNames.GetName(r.Room));
-    }
-
-    private void OnSessionTicked()
-    {
-        UpdateInfoChecks();
-        UpdateSaveSeedGuardStatusLabel();
-        UpdateInfoAreaSaveSeedGuard();
-    }
-
-    private static Label SectionLabel(string text) => new()
-    {
-        Text = text,
-        AutoSize = true,
-        Font = new Font(Control.DefaultFont, FontStyle.Bold),
-        Margin = new Padding(0, 6, 0, 4),
-    };
-
-    private static Panel Spacer() => new() { Height = 10, Width = 1 };
-
-    private bool RequireAttachedAndResolved(out long gameManager)
-    {
-        gameManager = 0;
-        if (!_session.Memory.IsAttached)
-        {
-            ShowActionResult(false, "Not attached");
-            return false;
-        }
-        if (_session.GameManager is null)
-        {
-            ShowActionResult(false, "gameManager not resolved yet (menu / loading?)");
-            return false;
-        }
-        gameManager = _session.GameManager.Value;
-        return true;
-    }
-
-    private void ShowActionResult(bool ok, string what)
-    {
-        string ts = DateTime.Now.ToString("HH:mm:ss");
-        _lblActionResult.ForeColor = ok ? Color.DarkGreen : Color.DarkRed;
-        _lblActionResult.Text = $"[{ts}] {what}: {(ok ? "OK" : "FAILED")}";
-        AppendLog(_lblActionResult.Text);
-    }
-
-    /// <summary>Surfaces a PET talk command captured by the hook in the top-level feedback line.</summary>
-    private void ShowCapturedCommand(string command)
-    {
-        string ts = DateTime.Now.ToString("HH:mm:ss");
-        _lblActionResult.ForeColor = Color.DarkSlateBlue;
-        _lblActionResult.Text = $"[{ts}] PET command captured: {command}";
-        AppendLog(_lblActionResult.Text);
-    }
-
-    /// <summary>Appends a line to the Log tab's history.</summary>
-    private void AppendLog(string line)
-    {
-        _txtLog.AppendText(line + Environment.NewLine);
-
-        const int maxLines = 2000;
-        string[] lines = _txtLog.Lines;
-        if (lines.Length > maxLines)
-        {
-            _txtLog.Lines = lines[(lines.Length - maxLines / 2)..];
-            _txtLog.SelectionStart = _txtLog.TextLength;
-        }
-    }
-
-    private static bool TryParseHex(string text, out long value)
-    {
-        text = text.Trim();
-        if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-            text = text[2..];
-        return long.TryParse(text, System.Globalization.NumberStyles.HexNumber, null, out value);
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         _session.Dispose();
         base.OnFormClosed(e);
+    }
+
+    private void BuildLayout()
+    {
+        var buttonRow = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0),
+        };
+        buttonRow.Controls.Add(_btnAttach);
+        buttonRow.Controls.Add(_btnApToggle);
+
+        var statusPanel = new TableLayoutPanel
+        {
+            ColumnCount = 1,
+            RowCount = 2,
+            AutoSize = true,
+            Anchor = AnchorStyles.Right,
+            Margin = new Padding(0),
+        };
+        statusPanel.Controls.Add(_lblFooterAp, 0, 0);
+        statusPanel.Controls.Add(_lblFooterAttach, 0, 1);
+
+        var footerPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            ColumnCount = 2,
+            RowCount = 1,
+            AutoSize = true,
+            Padding = new Padding(8, 4, 8, 6),
+        };
+        footerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        footerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        footerPanel.Controls.Add(buttonRow, 0, 0);
+        footerPanel.Controls.Add(statusPanel, 1, 0);
+
+        var chatRow = new Panel { Dock = DockStyle.Bottom, Height = 30, Padding = new Padding(4, 2, 4, 2) };
+        chatRow.Controls.Add(_btnChatSend);
+        chatRow.Controls.Add(_txtChatInput);
+
+        _infoPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        _infoPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        _lblInfoRoom.Margin = new Padding(0, 0, 16, 8);
+        _lblInfoMail.Margin = new Padding(0, 0, 0, 8);
+        _lblInfoChecks.Margin = new Padding(0, 0, 16, 0);
+        _lblInfoStations.Margin = new Padding(0);
+        _infoPanel.Controls.Add(_lblInfoRoom, 0, 0);
+        _infoPanel.Controls.Add(_lblInfoMail, 1, 0);
+        _infoPanel.Controls.Add(_lblInfoChecks, 0, 1);
+        _infoPanel.Controls.Add(_lblInfoStations, 1, 1);
+
+        _accessCardsPanel.Controls.Add(new Label
+        {
+            Text = "Access Cards",
+            AutoSize = true,
+            Font = new Font(InfoFont, FontStyle.Bold),
+            Margin = new Padding(0, 0, 0, 6),
+        });
+        foreach (string card in RoomKeys.AllCards)
+        {
+            var label = new Label { Text = AccessCardDisplayName(card), AutoSize = true, Font = InfoFont, Margin = new Padding(0, 0, 0, 4) };
+            _accessCardLabels[card] = label;
+            _accessCardsPanel.Controls.Add(label);
+        }
+
+        // Docking runs from the last-added control inward: footer, seed warning and info area across the full width,
+        // then the cards panel down the right side, leaving the chat row and log to share what remains on the left
+        Controls.Add(_txtServerLog);
+        Controls.Add(chatRow);
+        Controls.Add(_accessCardsPanel);
+        Controls.Add(_infoPanel);
+        Controls.Add(_lblInfoSaveSeedMismatch);
+        Controls.Add(footerPanel);
+    }
+
+    private void DoToggleApConnection()
+    {
+        if (_session.Ap.State is ApConnectionState.Connected or ApConnectionState.Connecting)
+        {
+            _session.Ap.Disconnect();
+            return;
+        }
+
+        ConnectionSettings.Data connection = _session.Connection;
+        using var dlg = new ConnectDialog(connection.Server, connection.Slot, connection.Password);
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+            _session.Connect(dlg.Server, dlg.Slot, dlg.Password);
+    }
+
+    private void DoSendChatMessage()
+    {
+        string text = _txtChatInput.Text.Trim();
+        if (text.Length == 0)
+            return;
+
+        if (string.Equals(text, "!force_seed", StringComparison.OrdinalIgnoreCase))
+        {
+            _txtChatInput.Clear();
+            _session.HandleForceSeedCommand();
+            return;
+        }
+
+        bool ok = _session.Ap.SendCommand(text);
+        if (ok)
+            _txtChatInput.Clear();
+        else
+            AppendServerLog("CLIENT: Not connected - message not sent", bold: false);
+    }
+
+    /// <summary>Appends a line to the normal UI's server-only log.</summary>
+    private void AppendServerLog(string line, bool bold)
+    {
+        _txtServerLog.SelectionStart = _txtServerLog.TextLength;
+        _txtServerLog.SelectionLength = 0;
+        _txtServerLog.SelectionFont = bold ? new Font(_txtServerLog.Font, FontStyle.Bold) : _txtServerLog.Font;
+        _txtServerLog.AppendText(line + Environment.NewLine);
+
+        const int maxLines = 2000;
+        string[] lines = _txtServerLog.Lines;
+        if (lines.Length > maxLines)
+        {
+            _txtServerLog.Lines = lines[(lines.Length - maxLines / 2)..];
+            _txtServerLog.SelectionStart = _txtServerLog.TextLength;
+        }
+
+        _txtServerLog.ScrollToCaret();
+    }
+
+    private void UpdateFooterAttachStatus()
+    {
+        if (_session.Memory.IsAttached)
+        {
+            _lblFooterAttach.Text = $"✔ Attached to Starship Titanic (PID {_session.Memory.ProcessId})";
+            _lblFooterAttach.ForeColor = Color.Green;
+        }
+        else
+        {
+            _lblFooterAttach.Text = "✖ Not attached to a game instance";
+            _lblFooterAttach.ForeColor = Color.Red;
+        }
+    }
+
+    private void UpdateFooterApStatus()
+    {
+        switch (_session.Ap.State)
+        {
+            case ApConnectionState.Connected:
+                _lblFooterAp.Text = "✔ Connected to Archipelago";
+                _lblFooterAp.ForeColor = Color.Green;
+                break;
+            case ApConnectionState.Connecting:
+                _lblFooterAp.Text = "Connecting...";
+                _lblFooterAp.ForeColor = Color.Goldenrod;
+                break;
+            case ApConnectionState.Disconnected:
+            case ApConnectionState.ConnectionFailed:
+            default:
+                _lblFooterAp.Text = "✖ Not connected to an Archipelago server";
+                _lblFooterAp.ForeColor = Color.Red;
+                break;
+        }
+    }
+
+    /// <summary>Sets the information area's room line to the given engine room name's readable form.</summary>
+    private void UpdateInfoRoom(string roomName)
+    {
+        _lblInfoRoom.Text = $"Room: {LocationChecks.GetReadableRoomName(roomName)}";
+    }
+
+    /// <summary>Sets the information area's mail line to the current count of tool-placed AP items sitting in the mail system.</summary>
+    private void UpdateInfoMailCount(int count)
+    {
+        _lblInfoMail.Text = $"Succ-U-Bus has {count} AP item{(count == 1 ? "" : "s")} ready for delivery.";
+    }
+
+    /// <summary>Sets the information area's "Checks: x/y" and "Visited Succ-U-Bus Stations (x/y)" lines.</summary>
+    private void UpdateInfoChecks()
+    {
+        if (_session.Ap.GetLocationCheckSummary() is { } overall)
+            _lblInfoChecks.Text = $"Checks: {overall.Checked}/{overall.Total}";
+        else
+            _lblInfoChecks.Text = "Checks: -/-";
+
+        if (_session.Ap.GetLocationCheckSummary(LocationChecks.SuccUBusStationLocationNames) is { } stations)
+            _lblInfoStations.Text = $"Visited Succ-U-Bus Stations ({stations.Checked}/{stations.Total})";
+        else
+            _lblInfoStations.Text = "Visited Succ-U-Bus Stations (-/-)";
+    }
+
+    /// <summary>Marks each Access Card in the right-hand panel: a red ✖ for cards the seed requires that haven't been
+    /// received, a green ✔ for cards received or not required. Plain names while not connected.</summary>
+    private void UpdateAccessCards()
+    {
+        bool connected = _session.Ap.State == ApConnectionState.Connected;
+        HashSet<string> requiredCards = RoomKeys.GetRequiredCards(_session.Ap.SlotData);
+        string[] receivedItems = _session.Ap.GetReceivedItemNames();
+
+        foreach ((string card, Label label) in _accessCardLabels)
+        {
+            string name = AccessCardDisplayName(card);
+            if (!connected)
+            {
+                label.Text = name;
+                label.ForeColor = SystemColors.ControlText;
+            }
+            else if (requiredCards.Contains(card) && !receivedItems.Contains(card, StringComparer.OrdinalIgnoreCase))
+            {
+                label.Text = $"✖ {name}";
+                label.ForeColor = Color.Red;
+            }
+            else
+            {
+                label.Text = $"✔ {name}";
+                label.ForeColor = Color.Green;
+            }
+        }
+    }
+
+    /// <summary>The card's item name without the " Access Card" suffix - redundant under the panel's heading.</summary>
+    private static string AccessCardDisplayName(string card)
+    {
+        const string suffix = " Access Card";
+        return card.EndsWith(suffix, StringComparison.Ordinal) ? card[..^suffix.Length] : card;
+    }
+
+    /// <summary>Swaps the info area between the normal room/mail/checks/stations labels and a single centered
+    /// warning when AP syncing is paused because the attached save doesn't match the connected AP seed.</summary>
+    private void UpdateInfoAreaSaveSeedGuard()
+    {
+        bool mismatch = _session.Options.EnforceSaveSeedGuard && _session.SaveSeedGuardState == SaveSeedGuardState.Blocked;
+        _infoPanel.Visible = !mismatch;
+        _lblInfoSaveSeedMismatch.Visible = mismatch;
+    }
+
+    private void UpdateApToggleButton()
+    {
+        bool connectedOrConnecting = _session.Ap.State is ApConnectionState.Connected or ApConnectionState.Connecting;
+        _btnApToggle.Text = connectedOrConnecting ? "Disconnect" : "Connect to AP...";
+        _btnApToggle.Enabled = _session.Ap.State != ApConnectionState.Connecting;
     }
 }

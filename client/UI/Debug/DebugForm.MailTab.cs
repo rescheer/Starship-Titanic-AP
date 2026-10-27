@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+public sealed partial class DebugForm
 {
     // --- Mail System tab ---
     private readonly ListView _lvMail = new()
@@ -51,8 +51,6 @@ public sealed partial class MainForm
             _lblMailCount.Text = "CMailMan not resolved";
             return;
         }
-
-        UpdateInfoMailCount(items.Count(i => i.ToolPlaced));
 
         _lvMail.Items.Clear();
         foreach (GameState.MailItem item in items)

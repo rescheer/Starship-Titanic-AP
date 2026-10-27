@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+public sealed partial class DebugForm
 {
     // --- Archipelago tab ---
     private readonly TextBox _txtApServer = new() { Width = 220, PlaceholderText = "archipelago.gg:38281" };
@@ -95,10 +95,6 @@ public sealed partial class MainForm
         }
 
         UpdateApTopStatus();
-        UpdateFooterApStatus();
-        UpdateAccessCards();
-        UpdateApToggleButton();
-        UpdateInfoChecks();
         AppendLog(_lblApStatus.Text);
     }
 
