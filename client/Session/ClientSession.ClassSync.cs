@@ -13,7 +13,7 @@ internal sealed partial class ClientSession
         IReadOnlyDictionary<string, object>? slotData = _apConnection.SlotData;
         if (slotData is null)
             return;
-        if (_currentInventoryRoom is null)
+        if (_ctx.InventoryRoom is null)
             return;
 
         string[] receivedItems = _apConnection.GetReceivedItemNames();
@@ -48,7 +48,7 @@ internal sealed partial class ClientSession
             return;
         }
 
-        bool ok = GameActions.SetPassengerClassFull(_mem, gameManager, _currentInventoryRoom.Value, targetClass.Value);
+        bool ok = GameActions.SetPassengerClassFull(_mem, gameManager, _ctx.InventoryRoom.Value, targetClass.Value);
         ReportAction(ok, $"Class upgrade from items: {PassengerClassNames.GetName(targetClass.Value)}");
     }
 
@@ -60,7 +60,7 @@ internal sealed partial class ClientSession
         IReadOnlyDictionary<string, object>? slotData = _apConnection.SlotData;
         if (slotData is null)
             return;
-        if (_currentInventoryRoom is not { } petControlAddr)
+        if (_ctx.InventoryRoom is not { } petControlAddr)
             return;
 
         string[] receivedItems = _apConnection.GetReceivedItemNames();
@@ -140,7 +140,7 @@ internal sealed partial class ClientSession
 
         if (!ClassSpoofTriggerRnvs.TryGetValue(rnv, out int configuredSpoofClass))
             return;
-        if (_currentProject is not { } project || _currentInventoryRoom is null)
+        if (_ctx.Project is not { } project || _ctx.InventoryRoom is null)
             return;
         if (_classUpgradeSpoofOriginalClass is not null)
             return;
@@ -169,7 +169,7 @@ internal sealed partial class ClientSession
         bool magazineHandOffPending = rnv == DeskBotRnv && secondClassPending
             && GameState.FindAllCarryItems(_mem, project).Any(item =>
                 string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
-                && item.ParentAddress == _currentInventoryRoom.Value);
+                && item.ParentAddress == _ctx.InventoryRoom.Value);
 
         if (magazineHandOffPending)
         {
@@ -189,7 +189,7 @@ internal sealed partial class ClientSession
         }
         else if (rnv == DeskBotRnv
             && currentClass.Value != (int)PassengerClass.None
-            && !GameActions.HasAnyAssignedRoom(_mem, _currentInventoryRoom.Value))
+            && !GameActions.HasAnyAssignedRoom(_mem, _ctx.InventoryRoom.Value))
         {
             // No room assigned yet: report None so the initial DeskBot conversation and room assignment run.
             spoofToClass = (int)PassengerClass.None;
@@ -215,7 +215,7 @@ internal sealed partial class ClientSession
         if (ClassSpoofTriggerRnvs.ContainsKey(newRnv) || newRnv == BellBotIntroRnv)
             return;
 
-        if (_currentInventoryRoom is { } petControlAddr)
+        if (_ctx.InventoryRoom is { } petControlAddr)
             GameActions.SetPassengerClassFull(_mem, gameManager, petControlAddr, originalClass);
         else
             GameActions.SetPassengerClass(_mem, gameManager, originalClass);
@@ -244,7 +244,7 @@ internal sealed partial class ClientSession
             return; // already spoofed
         if (Array.IndexOf(SgtGlyphSpoofTriggerRnvs, rnv) < 0)
             return;
-        if (_currentInventoryRoom is not { } petControlAddr)
+        if (_ctx.InventoryRoom is not { } petControlAddr)
             return;
 
         long? glyphAddr = GameActions.FindPrevAssignedGlyphForClass(_mem, petControlAddr, (int)PassengerClass.Third);

@@ -6,7 +6,7 @@ internal sealed partial class ClientSession
     private void RefreshProjectAddresses(long gameManager)
     {
         long? project = GameState.ResolveProject(_mem, gameManager);
-        _currentProject = project;
+        _ctx.Project = project;
         ReportAddress("_project", project);
 
         if (project is null)
@@ -15,19 +15,19 @@ internal sealed partial class ClientSession
         // Only a non-null result replaces the cached address; OnTick's project-change handling clears it.
         long? inventoryRoom = GameState.FindInventoryRoom(_mem, project.Value);
         if (inventoryRoom is not null)
-            _currentInventoryRoom = inventoryRoom;
-        ReportAddress("Player Inventory (CPetControl)", _currentInventoryRoom);
+            _ctx.InventoryRoom = inventoryRoom;
+        ReportAddress("Player Inventory (CPetControl)", _ctx.InventoryRoom);
 
         ReportAddress("Conversations (CPetConversations)",
-            _currentInventoryRoom is not null ? GameState.ResolveConversationsAddr(_currentInventoryRoom.Value) : null);
+            _ctx.InventoryRoom is not null ? GameState.ResolveConversationsAddr(_ctx.InventoryRoom.Value) : null);
     }
 
     /// <summary>Runs the full-tree item-state reconciliation pass for every tracked item.</summary>
     private void ReconcileTrackedItems(long gameManager)
     {
-        if (_currentProject is not { } project)
+        if (_ctx.Project is not { } project)
             return;
-        if (_currentInventoryRoom is null || _currentMailManRoom is null)
+        if (_ctx.InventoryRoom is null || _ctx.MailManRoom is null)
             return;
 
         List<CarryItemLocation> items = GameState.FindAllCarryItems(_mem, project);
@@ -55,7 +55,7 @@ internal sealed partial class ClientSession
                 ItemPersistedState carryParrotPersisted = GameActions.ReadItemPersistedState(_mem, item.Address);
                 if (!carryParrotPersisted.CheckFired)
                 {
-                    bool parrotInInventory = item.ParentAddress == _currentInventoryRoom.Value;
+                    bool parrotInInventory = item.ParentAddress == _ctx.InventoryRoom.Value;
                     if (parrotInInventory)
                     {
                         if (carryParrotPersisted.PulledFrom != ItemPulledFrom.Inventory)
@@ -66,7 +66,7 @@ internal sealed partial class ClientSession
                     }
                     else if (carryParrotPersisted.PulledFrom == ItemPulledFrom.Inventory)
                     {
-                        bool wentToMail = item.ParentAddress == _currentMailManRoom.Value;
+                        bool wentToMail = item.ParentAddress == _ctx.MailManRoom.Value;
                         if (wentToMail)
                         {
                             GameActions.WriteItemPersistedState(_mem, item.Address,
@@ -102,12 +102,12 @@ internal sealed partial class ClientSession
                     continue;
                 }
 
-                bool serverGrantedInInventory = item.ParentAddress == _currentInventoryRoom.Value;
-                bool serverGrantedInMail = item.ParentAddress == _currentMailManRoom.Value;
+                bool serverGrantedInInventory = item.ParentAddress == _ctx.InventoryRoom.Value;
+                bool serverGrantedInMail = item.ParentAddress == _ctx.MailManRoom.Value;
                 if (serverGrantedInInventory || serverGrantedInMail || serverGrantedInHidden)
                     continue;
 
-                bool serverGrantedMoved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _currentInventoryRoom.Value, gameManager);
+                bool serverGrantedMoved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _ctx.InventoryRoom.Value, gameManager);
                 if (serverGrantedMoved)
                 {
                     // Clears any Fuse Box socket's CShipSetting state for this fuse.
@@ -130,9 +130,9 @@ internal sealed partial class ClientSession
             bool granted = LocationChecks.TryGetApItemName(item.Name, out string apItemName)
                 && receivedItems.Contains(apItemName, StringComparer.OrdinalIgnoreCase);
 
-            bool inInventory = item.ParentAddress == _currentInventoryRoom.Value;
+            bool inInventory = item.ParentAddress == _ctx.InventoryRoom.Value;
             bool inHiddenRoom = GameActions.HiddenRoomAddress is { } hiddenAddr && item.ParentAddress == hiddenAddr;
-            bool inMail = item.ParentAddress == _currentMailManRoom.Value;
+            bool inMail = item.ParentAddress == _ctx.MailManRoom.Value;
 
             if (inInventory)
             {
@@ -153,7 +153,7 @@ internal sealed partial class ClientSession
                     // Hides an ungranted natural pickup pending its AP grant.
                     if (fireCheck && !granted && !ItemTracking.IsOneDirectionalItem(item.Name) && Options.TakeUngrantedItems)
                     {
-                        bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _currentInventoryRoom.Value, gameManager);
+                        bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _ctx.InventoryRoom.Value, gameManager);
                         if (moved)
                         {
                             GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Hidden, true, ItemPulledFrom.None));
@@ -188,7 +188,7 @@ internal sealed partial class ClientSession
                 }
                 else
                 {
-                    bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _currentInventoryRoom.Value, gameManager);
+                    bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _ctx.InventoryRoom.Value, gameManager);
                     if (moved)
                     {
                         GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Hidden, true, ItemPulledFrom.None));
@@ -263,7 +263,7 @@ internal sealed partial class ClientSession
     /// Flags it on one pass and only acts on a later one, once it's still eaten and the check is still pending.</summary>
     private void TryReturnEatenMagazine(List<CarryItemLocation> items, long gameManager)
     {
-        if (_currentInventoryRoom is not { } petControlAddr || _currentMailManRoom is not { } mailManAddr)
+        if (_ctx.InventoryRoom is not { } petControlAddr || _ctx.MailManRoom is not { } mailManAddr)
             return;
         if (!LocationChecks.TryGetClassUpgradeLocationName((int)PassengerClass.Second, out string secondLocationName))
             return;
@@ -279,11 +279,11 @@ internal sealed partial class ClientSession
         if (_eatenMagazineAddr != magazine.Address)
         {
             _eatenMagazineAddr = magazine.Address;
-            _eatenMagazineFlaggedTick = _tickCount;
+            _eatenMagazineFlaggedTick = _ctx.TickCount;
             AppendLog("Magazine looks eaten by the DeskBot with the 2nd Class check still pending - returning it if that holds");
             return;
         }
-        if (_tickCount - _eatenMagazineFlaggedTick < EatenMagazineConfirmTicks)
+        if (_ctx.TickCount - _eatenMagazineFlaggedTick < EatenMagazineConfirmTicks)
             return;
 
         _eatenMagazineAddr = null;
@@ -326,7 +326,7 @@ internal sealed partial class ClientSession
     /// Never sends the Feathers check.</summary>
     private void TryHideOrDeliverFeather(List<CarryItemLocation> items, string[] receivedItems, long gameManager)
     {
-        if (_currentInventoryRoom is null)
+        if (_ctx.InventoryRoom is null)
             return;
         if (FindByName(items, "Feathers") is not { } feather)
             return;
@@ -364,10 +364,10 @@ internal sealed partial class ClientSession
             return;
         }
 
-        if (feather.ParentAddress != _currentInventoryRoom.Value)
+        if (feather.ParentAddress != _ctx.InventoryRoom.Value)
             return;
 
-        bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, feather.Address, _currentInventoryRoom.Value, gameManager);
+        bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, feather.Address, _ctx.InventoryRoom.Value, gameManager);
         if (moved)
         {
             GameActions.WriteItemPersistedState(_mem, feather.Address, new ItemPersistedState(ItemStage.Hidden, true, ItemPulledFrom.None));
@@ -397,7 +397,7 @@ internal sealed partial class ClientSession
 
     /// <summary>Arms a follow-up dirty-mark reassert a few ticks in the future.</summary>
     private void ScheduleDirtyReassert() =>
-        _pendingDirtyReassertTick = _tickCount + DirtyReassertDelayTicks;
+        _pendingDirtyReassertTick = _ctx.TickCount + DirtyReassertDelayTicks;
 
     /// <summary>Restores eligible items to their home parent, or self-heals a stray item, on arrival at the RNV that owns them.</summary>
     private void TryRestoreItemsAtHomeRnv(RoomNodeView rnv, long gameManager)
@@ -408,7 +408,7 @@ internal sealed partial class ClientSession
         // Cancels any delayed unrestore-check still queued for these items.
         CancelPendingUnrestoreChecks(itemNames);
 
-        if (_currentProject is not { } project || _currentInventoryRoom is null)
+        if (_ctx.Project is not { } project || _ctx.InventoryRoom is null)
             return;
 
         List<CarryItemLocation>? items = null;
@@ -439,7 +439,7 @@ internal sealed partial class ClientSession
                 }
 
                 ItemPulledFrom pulledFrom = eligibleFromMail ? ItemPulledFrom.Mail : ItemPulledFrom.Inventory;
-                bool moved = GameActions.MoveItemSmart(_mem, item.Address, homeParent.Value, _currentInventoryRoom, gameManager);
+                bool moved = GameActions.MoveItemSmart(_mem, item.Address, homeParent.Value, _ctx.InventoryRoom, gameManager);
                 if (moved)
                 {
                     GameActions.WriteItemPersistedState(_mem, item.Address,
@@ -500,7 +500,7 @@ internal sealed partial class ClientSession
     {
         if (!ItemHomeLocations.TryGetItemsForRnv(rnv, out string[] itemNames))
             return;
-        if (_currentProject is not { } project)
+        if (_ctx.Project is not { } project)
             return;
 
         List<CarryItemLocation>? items = null;
@@ -518,7 +518,7 @@ internal sealed partial class ClientSession
             if (_pendingUnrestoreChecks.Any(p => p.ItemAddress == item.Address))
                 continue; // a quick leave/return/leave already re-queued this one
 
-            _pendingUnrestoreChecks.Add((name, item.Address, _tickCount + UnrestoreCheckDelayTicks));
+            _pendingUnrestoreChecks.Add((name, item.Address, _ctx.TickCount + UnrestoreCheckDelayTicks));
         }
     }
 
@@ -543,7 +543,7 @@ internal sealed partial class ClientSession
         for (int i = _pendingUnrestoreChecks.Count - 1; i >= 0; i--)
         {
             (string name, long itemAddress, int dueTick) = _pendingUnrestoreChecks[i];
-            if (_tickCount < dueTick)
+            if (_ctx.TickCount < dueTick)
                 continue;
 
             ItemPersistedState persisted = GameActions.ReadItemPersistedState(_mem, itemAddress);
@@ -556,7 +556,7 @@ internal sealed partial class ClientSession
             // Defers Eye1's decision while the player is still at the bellbot hand-off cutscene RNV.
             if (string.Equals(name, "Eye1", StringComparison.OrdinalIgnoreCase) && currentRnv == Eye1HandoffCutsceneRnv)
             {
-                _pendingUnrestoreChecks[i] = (name, itemAddress, _tickCount + UnrestoreCheckDelayTicks);
+                _pendingUnrestoreChecks[i] = (name, itemAddress, _ctx.TickCount + UnrestoreCheckDelayTicks);
                 continue;
             }
 
@@ -592,7 +592,7 @@ internal sealed partial class ClientSession
     {
         if (!string.Equals(item.Name, "Ear1", StringComparison.OrdinalIgnoreCase))
             return false;
-        if (item.ParentAddress is not { } parentAddr || _currentInventoryRoom is not { } inventoryRoom)
+        if (item.ParentAddress is not { } parentAddr || _ctx.InventoryRoom is not { } inventoryRoom)
             return false;
 
         long? actorAddr = GameState.FindDescendant(_mem, parentAddr, "ParrotNutBowlActor", "CParrotNutBowlActor");
@@ -612,7 +612,7 @@ internal sealed partial class ClientSession
     {
         if (!string.Equals(item.Name, "Eye1", StringComparison.OrdinalIgnoreCase))
             return false;
-        if (_currentProject is not { } project)
+        if (_ctx.Project is not { } project)
             return false;
 
         long? homeParent = GameState.ResolveHomeParent(_mem, project, "Eye1");
@@ -651,9 +651,9 @@ internal sealed partial class ClientSession
 
     private bool RevertToInventory(CarryItemLocation item, long gameManager)
     {
-        if (_currentInventoryRoom is null)
+        if (_ctx.InventoryRoom is null)
             return false;
-        bool moved = GameActions.MoveItemSmart(_mem, item.Address, _currentInventoryRoom.Value, _currentInventoryRoom, gameManager);
+        bool moved = GameActions.MoveItemSmart(_mem, item.Address, _ctx.InventoryRoom.Value, _ctx.InventoryRoom, gameManager);
         if (moved)
             GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Inventory, false, ItemPulledFrom.None));
         return moved;
@@ -661,9 +661,9 @@ internal sealed partial class ClientSession
 
     private bool RevertToHidden(CarryItemLocation item, ItemPersistedState persisted, long gameManager)
     {
-        if (_currentInventoryRoom is null)
+        if (_ctx.InventoryRoom is null)
             return false;
-        bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _currentInventoryRoom.Value, gameManager);
+        bool moved = GameActions.MoveItemToHiddenRoomFull(_mem, item.Address, _ctx.InventoryRoom.Value, gameManager);
         if (moved)
             GameActions.WriteItemPersistedState(_mem, item.Address, new ItemPersistedState(ItemStage.Hidden, persisted.CheckFired, ItemPulledFrom.None));
         return moved;
@@ -671,9 +671,9 @@ internal sealed partial class ClientSession
 
     private bool RevertToMail(CarryItemLocation item, ItemPersistedState persisted, long gameManager)
     {
-        if (_currentMailManRoom is null || _currentInventoryRoom is null)
+        if (_ctx.MailManRoom is null || _ctx.InventoryRoom is null)
             return false;
-        bool moved = GameActions.MoveItemSmart(_mem, item.Address, _currentMailManRoom.Value, _currentInventoryRoom, gameManager);
+        bool moved = GameActions.MoveItemSmart(_mem, item.Address, _ctx.MailManRoom.Value, _ctx.InventoryRoom, gameManager);
         if (moved)
         {
             // PulledFrom.Mail is only recorded for ToolDelivered items, so ToolDelivered is restamped.
@@ -686,16 +686,16 @@ internal sealed partial class ClientSession
     /// <summary>Delivers a tracked item to the player via the mail system.</summary>
     private bool DeliverToMail(CarryItemLocation item, long gameManager)
     {
-        if (_currentInventoryRoom is null || _currentMailManRoom is null)
+        if (_ctx.InventoryRoom is null || _ctx.MailManRoom is null)
             return false;
 
         string destRoomName = _currentRoomName is not null && ChevronCodes.HasStation(_currentRoomName)
             ? _currentRoomName
             : "EmbLobby";
-        uint? liveRoomFlags = GameState.ReadCurrentRoomFlags(_mem, _currentInventoryRoom.Value);
+        uint? liveRoomFlags = GameState.ReadCurrentRoomFlags(_mem, _ctx.InventoryRoom.Value);
         ChevronCodes.TryGetCode(destRoomName, liveRoomFlags, out uint code);
 
-        bool moved = GameActions.MoveItemSmart(_mem, item.Address, _currentMailManRoom.Value, _currentInventoryRoom, gameManager);
+        bool moved = GameActions.MoveItemSmart(_mem, item.Address, _ctx.MailManRoom.Value, _ctx.InventoryRoom, gameManager);
         bool ok = moved && GameActions.SetItemMailDestination(_mem, item.Address, code);
         if (ok)
         {

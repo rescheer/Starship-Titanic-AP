@@ -7,23 +7,23 @@ internal sealed partial class ClientSession
 
     private void UpdateMail()
     {
-        long? project = _currentProject;
+        long? project = _ctx.Project;
         if (project is null)
             return;
 
         // Only a non-null result replaces the cached address.
         long? mailManRoom = GameState.FindMailManRoom(_mem, project.Value);
         if (mailManRoom is not null)
-            _currentMailManRoom = mailManRoom;
-        ReportAddress("Mail Inventory (CMailMan)", _currentMailManRoom);
+            _ctx.MailManRoom = mailManRoom;
+        ReportAddress("Mail Inventory (CMailMan)", _ctx.MailManRoom);
 
-        if (_currentMailManRoom is null)
+        if (_ctx.MailManRoom is null)
         {
             MailChanged?.Invoke(null);
             return;
         }
 
-        List<GameState.MailItem> items = GameState.ReadMailItems(_mem, _currentMailManRoom.Value);
+        List<GameState.MailItem> items = GameState.ReadMailItems(_mem, _ctx.MailManRoom.Value);
 
         bool changed = _lastMailItems is null
             || items.Count != _lastMailItems.Count
@@ -40,13 +40,13 @@ internal sealed partial class ClientSession
     /// <summary>Called on every real room change; retargets any tool-placed mail item to this room's station.</summary>
     private void DeliverQueuedMailAtStation(string roomName)
     {
-        if (_currentMailManRoom is null)
+        if (_ctx.MailManRoom is null)
             return;
-        uint? liveRoomFlags = _currentInventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_mem, petControl) : null;
+        uint? liveRoomFlags = _ctx.InventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_mem, petControl) : null;
         if (!ChevronCodes.TryGetCode(roomName, liveRoomFlags, out uint code))
             return;
 
-        List<GameState.MailItem> items = GameState.ReadMailItems(_mem, _currentMailManRoom.Value);
+        List<GameState.MailItem> items = GameState.ReadMailItems(_mem, _ctx.MailManRoom.Value);
         int delivered = 0;
         foreach (GameState.MailItem item in items)
         {

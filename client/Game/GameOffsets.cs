@@ -105,7 +105,7 @@ public static class GameOffsets
     //   0x120    0x1    _visible               bool, true
     //
     // _unused4 is this app's own per-item state storage (see ItemPersistedState.cs).
-    // _unused3 is used by SaveSeedGuard.cs, but only on the BeamBridge (Red Fuse) item.
+    // _unused3 is used by SaveSeedTag.cs, but only on the BeamBridge (Red Fuse) item.
     // _unused1 is this app's own tool-placed/game-placed mail marker (see ToolPlacedSentinel below).
     // _unused2 remains available, unused.
     public const long GameObjectUnused1Offset = 0x58;

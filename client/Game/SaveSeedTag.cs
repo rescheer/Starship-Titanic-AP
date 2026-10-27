@@ -1,15 +1,8 @@
 namespace StarshipTitanicAp;
 
-public enum SaveSeedGuardState
-{
-    /// <summary>Not enough information yet - treated as "don't act" by callers, same as Blocked.</summary>
-    Unverified,
-    Ok,
-    Blocked,
-}
-
-/// <summary>Guards against attaching to a save file that belongs to a different Archipelago seed, or that was played without the client.</summary>
-public static class SaveSeedGuard
+/// <summary>The AP seed tag stored on a save's BeamBridge item, which <see cref="SaveSeedGuard"/> uses to tell
+/// whether a save belongs to the connected seed.</summary>
+public static class SaveSeedTag
 {
     private const string BeamBridgeItemName = "BeamBridge";
 

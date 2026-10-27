@@ -8,7 +8,7 @@ internal sealed partial class ClientSession
     /// AP item is received, regardless of whether the MaitreD was ever defeated naturally.</summary>
     private void SyncTableAccessFromItems()
     {
-        if (_currentProject is not { } project)
+        if (_ctx.Project is not { } project)
             return;
 
         string[] receivedItems = _apConnection.GetReceivedItemNames();
@@ -83,14 +83,14 @@ internal sealed partial class ClientSession
     /// Head is both AP-granted and physically sitting in the player's inventory.</summary>
     private void SyncLiftEyeGate(List<CarryItemLocation> items, string[] receivedItems)
     {
-        if (!GetLiftEye2GateHook.IsInstalled || _currentInventoryRoom is null)
+        if (!GetLiftEye2GateHook.IsInstalled || _ctx.InventoryRoom is null)
             return;
 
         bool headGranted = LocationChecks.TryGetApItemName("BrokenLiftbotHead", out string headApName)
             && receivedItems.Contains(headApName, StringComparer.OrdinalIgnoreCase);
         bool headInInventory = headGranted
             && FindByName(items, "BrokenLiftbotHead") is { } head
-            && head.ParentAddress == _currentInventoryRoom.Value;
+            && head.ParentAddress == _ctx.InventoryRoom.Value;
 
         GetLiftEye2GateHook.SetGateAllowed(_mem, headInInventory);
     }
@@ -98,10 +98,10 @@ internal sealed partial class ClientSession
     /// <summary>Reacts to GetLiftEye2GateHook firing: tells the player what they're missing.</summary>
     private void HandleBlockedLiftEyeDrag()
     {
-        if (_currentInventoryRoom is null)
+        if (_ctx.InventoryRoom is null)
             return;
 
-        GameActions.DisplayMessageSmart(_mem, _currentInventoryRoom.Value,
+        GameActions.DisplayMessageSmart(_mem, _ctx.InventoryRoom.Value,
             "AP: You can't take that. Maybe if you had something to replace it with.");
     }
 
@@ -137,7 +137,7 @@ internal sealed partial class ClientSession
 
         RoomGateHook.SetLockedRooms(_mem, locked);
 
-        if (_movers is null && _currentProject is { } project)
+        if (_movers is null && _ctx.Project is { } project)
         {
             _movers = MoverDestinations.FindAll(_mem, project);
             AppendLog($"RoomGateHook: found {_movers.Count} scripted doors with resolvable destinations");
@@ -145,7 +145,7 @@ internal sealed partial class ClientSession
         if (_movers is not null)
         {
             RoomGateHook.SetCursorBlockedObjects(_mem, _movers
-                .Where(m => MoverDestinations.ResolveDestRoom(_mem, m, _currentInventoryRoom) is int dest
+                .Where(m => MoverDestinations.ResolveDestRoom(_mem, m, _ctx.InventoryRoom) is int dest
                     && dest != m.OwnRoom && locked.Contains(dest))
                 .Select(m => m.Address));
         }
@@ -157,13 +157,13 @@ internal sealed partial class ClientSession
         string toRoomName = RoomNames.GetName(toRoom);
         AppendLog($"RoomGateHook: blocked move from {RoomNames.GetName(fromRoom)} into locked room {toRoomName}");
 
-        if (_currentInventoryRoom is null)
+        if (_ctx.InventoryRoom is null)
             return;
 
         string message = RoomKeys.TryGetKeyItem(toRoom, out string keyItem)
             ? PickRandom(MissingKeyMessages, keyItem)
             : PickRandom(LockedRoomMessages, toRoomName);
-        GameActions.DisplayMessageSmart(_mem, _currentInventoryRoom.Value, message);
+        GameActions.DisplayMessageSmart(_mem, _ctx.InventoryRoom.Value, message);
     }
 
     /// <summary>Responses when the locked room has a known key item. {0} is the key item name.</summary>

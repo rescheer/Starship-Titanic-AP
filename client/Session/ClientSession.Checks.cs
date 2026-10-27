@@ -44,14 +44,14 @@ internal sealed partial class ClientSession
             return;
         if (!_apConnection.IsLocationCheckedOrQueued(locationName))
             return;
-        if (_currentMailManRoom is null || _currentInventoryRoom is null)
+        if (_ctx.MailManRoom is null || _ctx.InventoryRoom is null)
             return;
 
-        int count = GameState.ReadMailItems(_mem, _currentMailManRoom.Value).Count(i => i.ToolPlaced);
+        int count = GameState.ReadMailItems(_mem, _ctx.MailManRoom.Value).Count(i => i.ToolPlaced);
         if (count == 0)
             return;
 
-        GameActions.DisplayMessageSmart(_mem, _currentInventoryRoom.Value,
+        GameActions.DisplayMessageSmart(_mem, _ctx.InventoryRoom.Value,
             $"You have {count} AP item{(count == 1 ? "" : "s")} waiting to be delivered.");
     }
 
@@ -60,14 +60,14 @@ internal sealed partial class ClientSession
     {
         if (!RnvItemReminders.TryGetReminder(rnv, out string apItemName, out string message))
             return;
-        if (_currentInventoryRoom is null)
+        if (_ctx.InventoryRoom is null)
             return;
 
         string[] receivedItems = _apConnection.GetReceivedItemNames();
         if (receivedItems.Contains(apItemName, StringComparer.OrdinalIgnoreCase))
             return;
 
-        GameActions.DisplayMessageSmart(_mem, _currentInventoryRoom.Value, message);
+        GameActions.DisplayMessageSmart(_mem, _ctx.InventoryRoom.Value, message);
     }
 
     /// <summary>Sends the AP location check for physically finding a tracked item, if one is mapped.</summary>

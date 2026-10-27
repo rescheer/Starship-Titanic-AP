@@ -2,21 +2,18 @@ namespace StarshipTitanicAp;
 
 /// <summary>The client engine: attaches to the game, polls it every tick, and keeps it in sync with the AP server.
 /// Owns no UI - forms subscribe to its events and read its state. Events are always raised on the UI thread.</summary>
-internal sealed partial class ClientSession : IDisposable
+internal sealed partial class ClientSession : IDisposable, ISessionReporter
 {
     private const string ProcessName = "scummvm";
     private const int RoomNodeViewIntervalMs = 50;   // ~20Hz
     private const int InventoryIntervalTicks = 20;   // every 20 * 50ms = 1s
     private const int MailIntervalTicks = 20;        // every 20 * 50ms = 1s
 
-    private const int SaveSeedGuardBeamBridgeMissLimit = 100; // 100 * 50ms = 5s
-    private const int SaveSeedGuardTagMismatchLimit = 40; // 40 * 50ms = 2s of consecutive mismatched reads before blocking
-    private const int SaveSeedGuardRecheckIntervalTicks = 40; // every 40 * 50ms = 2s, once verified
-
     private readonly MemoryReader _mem = new();
     private readonly ArchipelagoConnection _apConnection = new();
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = RoomNodeViewIntervalMs };
-    private int _tickCount;
+    private readonly SessionContext _ctx;
+    private readonly SaveSeedGuard _saveSeedGuard;
 
     private readonly SynchronizationContext _uiContext;
     private readonly int _uiThreadId;
@@ -37,11 +34,6 @@ internal sealed partial class ClientSession : IDisposable
     private int _lastTableAccessItemsCount = -1;
     private int _lastStateroomItemsReceivedCount = -1;
 
-    private long? _currentGameManager;
-    private long? _currentProject;
-    private long? _currentInventoryRoom;
-    private long? _currentMailManRoom;
-
     private int? _pendingDirtyReassertTick;
     private const int DirtyReassertDelayTicks = 4; // 4 * 50ms = 200ms
 
@@ -57,9 +49,6 @@ internal sealed partial class ClientSession : IDisposable
     private bool _conversationsAddrShown;
     private string? _currentRoomName;
 
-    private SaveSeedGuardState _saveSeedGuardState = SaveSeedGuardState.Unverified;
-    private int _saveSeedGuardBeamBridgeMisses;
-    private int _saveSeedGuardTagMismatches;
 
     private bool _readyToPlayLogged;
 
@@ -71,6 +60,8 @@ internal sealed partial class ClientSession : IDisposable
             ?? throw new InvalidOperationException("ClientSession must be created on the UI thread");
         _uiThreadId = Environment.CurrentManagedThreadId;
         Connection = ConnectionSettings.Load();
+        _ctx = new SessionContext(_mem, _apConnection, Options, this);
+        _saveSeedGuard = new SaveSeedGuard(_ctx);
 
         _timer.Tick += (_, _) => OnTick();
         _apConnection.StateChanged += (state, message) => RunOnUiThread(() => OnApStateChanged(state, message));
@@ -95,12 +86,12 @@ internal sealed partial class ClientSession : IDisposable
     /// <summary>One-line description of the attach state, e.g. "Attached (PID 1234, base 0x...)".</summary>
     internal string AttachStatus { get; private set; } = "Not attached";
 
-    internal long? GameManager => _currentGameManager;
-    internal long? Project => _currentProject;
-    internal long? InventoryRoom => _currentInventoryRoom;
-    internal long? MailManRoom => _currentMailManRoom;
+    internal long? GameManager => _ctx.GameManager;
+    internal long? Project => _ctx.Project;
+    internal long? InventoryRoom => _ctx.InventoryRoom;
+    internal long? MailManRoom => _ctx.MailManRoom;
     internal string? CurrentRoomName => _currentRoomName;
-    internal SaveSeedGuardState SaveSeedGuardState => _saveSeedGuardState;
+    internal SaveSeedGuardState SaveSeedGuardState => _saveSeedGuard.State;
 
     // --- Events for the UI ---
 
@@ -150,6 +141,11 @@ internal sealed partial class ClientSession : IDisposable
         Attach();
     }
 
+    /// <summary>Handles the "!force_seed" command (typed in game or in the client's chat box).</summary>
+    internal void HandleForceSeedCommand() => _saveSeedGuard.HandleForceSeedCommand();
+
+    internal void ForceTagSaveSeed() => _saveSeedGuard.ForceTag();
+
     internal void Connect(string server, string slot, string password)
     {
         Connection = new ConnectionSettings.Data { Server = server.Trim(), Slot = slot.Trim(), Password = password };
@@ -178,9 +174,7 @@ internal sealed partial class ClientSession : IDisposable
             case ApConnectionState.Connected:
                 _sentRoomVisitChecks.Clear();
                 _sentPointOfInterestChecks.Clear();
-                _saveSeedGuardState = SaveSeedGuardState.Unverified;
-                _saveSeedGuardBeamBridgeMisses = 0;
-                _saveSeedGuardTagMismatches = 0;
+                _saveSeedGuard.Reset();
                 _lastItemsReceivedCount = -1;
                 _lastTableAccessItemsCount = -1;
                 _lastStateroomItemsReceivedCount = -1;
@@ -214,7 +208,7 @@ internal sealed partial class ClientSession : IDisposable
         if (!_mem.IsAttached)
             return;
 
-        bool ok = _currentInventoryRoom is not null && GameActions.DisplayMessageSmart(_mem, _currentInventoryRoom.Value, text);
+        bool ok = _ctx.InventoryRoom is not null && GameActions.DisplayMessageSmart(_mem, _ctx.InventoryRoom.Value, text);
 
         if (!ok)
             ReportAction(false, $"Failed to display AP message: \"{text}\"");
@@ -249,6 +243,10 @@ internal sealed partial class ClientSession : IDisposable
     private void AppendLog(string line) => RunOnUiThread(() => DebugLog?.Invoke(line));
 
     private void AppendServerLog(string line, bool bold = false) => RunOnUiThread(() => ServerLog?.Invoke(line, bold));
+
+    void ISessionReporter.ReportAction(bool ok, string what) => ReportAction(ok, what);
+    void ISessionReporter.AppendLog(string line) => AppendLog(line);
+    void ISessionReporter.AppendServerLog(string line, bool bold) => AppendServerLog(line, bold);
 
     private void ReportAddress(string label, long? value) => AddressChanged?.Invoke(label, value);
 

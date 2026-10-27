@@ -23,15 +23,15 @@ internal sealed partial class ClientSession
             InstallHooks();
 
             long? gameManager = GameState.ResolveGameManager(_mem);
-            _currentGameManager = gameManager;
+            _ctx.GameManager = gameManager;
             if (gameManager is not null)
             {
-                _currentProject = GameState.ResolveProject(_mem, gameManager.Value);
-                if (_currentProject is not null)
+                _ctx.Project = GameState.ResolveProject(_mem, gameManager.Value);
+                if (_ctx.Project is not null)
                 {
                     NotifyItemsChanged();
 
-                    EvaluateSaveSeedGuard(gameManager.Value);
+                    _saveSeedGuard.Evaluate(gameManager.Value);
                 }
             }
         }
@@ -115,16 +115,14 @@ internal sealed partial class ClientSession
         _lastRoomFlags = null;
         _lastPassengerClass = null;
         _lastMailItems = null;
-        _currentGameManager = null;
-        _currentProject = null;
-        _currentInventoryRoom = null;
-        _currentMailManRoom = null;
+        _ctx.GameManager = null;
+        _ctx.Project = null;
+        _ctx.InventoryRoom = null;
+        _ctx.MailManRoom = null;
         _currentRoomName = null;
         _movers = null;
         _conversationsAddrShown = false;
-        _saveSeedGuardState = SaveSeedGuardState.Unverified;
-        _saveSeedGuardBeamBridgeMisses = 0;
-        _saveSeedGuardTagMismatches = 0;
+        _saveSeedGuard.Reset();
         GameActions.ClearHiddenRoomAddressCache();
         GameState.ClearClassNameCache();
     }

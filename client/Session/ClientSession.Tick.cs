@@ -6,8 +6,8 @@ internal sealed partial class ClientSession
     /// and spoof state cached against the old tree and resets the save/seed guard to Unverified.</summary>
     private void HandleTreeReloaded()
     {
-        _currentInventoryRoom = null;
-        _currentMailManRoom = null;
+        _ctx.InventoryRoom = null;
+        _ctx.MailManRoom = null;
         _lastRoomNodeView = null;
         _lastDisplayedRnv = null;
         _lastRoomFlags = null;
@@ -22,9 +22,7 @@ internal sealed partial class ClientSession
         _eatenMagazineAddr = null; // flagged against the old tree
         _movers = null; // scanned from the old tree
         _conversationsAddrShown = false;
-        _saveSeedGuardState = SaveSeedGuardState.Unverified;
-        _saveSeedGuardBeamBridgeMisses = 0;
-        _saveSeedGuardTagMismatches = 0;
+        _saveSeedGuard.Reset();
         GameActions.ClearHiddenRoomAddressCache();
         TextCommandHook.ResetConversationsAddr(_mem);
         ReportAddress("Player Inventory (CPetControl)", null);
@@ -55,10 +53,10 @@ internal sealed partial class ClientSession
                 return; // postLoad itself may still be running on the game thread - pick up fresh on the next tick
         }
 
-        _tickCount++;
+        _ctx.TickCount++;
 
         long? gameManager = GameState.ResolveGameManager(_mem);
-        _currentGameManager = gameManager;
+        _ctx.GameManager = gameManager;
 
         if (gameManager is null)
         {
@@ -70,7 +68,7 @@ internal sealed partial class ClientSession
         ReportAddress("gameManager", gameManager.Value);
         ReportAddress("PassengerClass field", gameManager.Value + GameOffsets.PassengerClass);
 
-        if (_pendingDirtyReassertTick is { } dueTick && _tickCount >= dueTick)
+        if (_pendingDirtyReassertTick is { } dueTick && _ctx.TickCount >= dueTick)
         {
             _pendingDirtyReassertTick = null;
             GameActions.MarkAllDirty(_mem, gameManager.Value);
@@ -84,9 +82,9 @@ internal sealed partial class ClientSession
             {
                 _conversationsAddrShown = true;
 
-                if (_currentInventoryRoom is not null)
+                if (_ctx.InventoryRoom is not null)
                 {
-                    long computed = GameState.ResolveConversationsAddr(_currentInventoryRoom.Value);
+                    long computed = GameState.ResolveConversationsAddr(_ctx.InventoryRoom.Value);
                     if (computed != TextCommandHook.ConversationsAddr)
                     {
                         ReportAction(false,
@@ -115,22 +113,22 @@ internal sealed partial class ClientSession
         }
 
         long? liveProject = GameState.ResolveProject(_mem, gameManager.Value);
-        if (liveProject != _currentProject)
+        if (liveProject != _ctx.Project)
         {
             // Normally only the first non-null read after attaching.
             HandleTreeReloaded();
-            _currentProject = liveProject;
-            ReportAddress("_project", _currentProject);
+            _ctx.Project = liveProject;
+            ReportAddress("_project", _ctx.Project);
         }
-        if (_currentProject is not null)
+        if (_ctx.Project is not null)
         {
-            if (_currentInventoryRoom is null)
+            if (_ctx.InventoryRoom is null)
             {
-                _currentInventoryRoom = GameState.FindInventoryRoom(_mem, _currentProject.Value);
-                ReportAddress("Player Inventory (CPetControl)", _currentInventoryRoom);
+                _ctx.InventoryRoom = GameState.FindInventoryRoom(_mem, _ctx.Project.Value);
+                ReportAddress("Player Inventory (CPetControl)", _ctx.InventoryRoom);
             }
-            if (_currentMailManRoom is null)
-                _currentMailManRoom = GameState.FindMailManRoom(_mem, _currentProject.Value);
+            if (_ctx.MailManRoom is null)
+                _ctx.MailManRoom = GameState.FindMailManRoom(_mem, _ctx.Project.Value);
         }
 
         // --- Read-only display refresh: runs regardless of the save/seed guard below. Tracks _lastDisplayedRnv,
@@ -144,9 +142,9 @@ internal sealed partial class ClientSession
             RoomNodeViewChanged?.Invoke(rnv, null);
         }
 
-        if (_currentInventoryRoom is not null)
+        if (_ctx.InventoryRoom is not null)
         {
-            uint? roomFlags = GameState.ReadCurrentRoomFlags(_mem, _currentInventoryRoom.Value);
+            uint? roomFlags = GameState.ReadCurrentRoomFlags(_mem, _ctx.InventoryRoom.Value);
             if (roomFlags is not null && roomFlags != _lastRoomFlags)
             {
                 _lastRoomFlags = roomFlags;
@@ -161,20 +159,20 @@ internal sealed partial class ClientSession
             PassengerClassChanged?.Invoke(passengerClass.Value);
         }
 
-        if (_tickCount % InventoryIntervalTicks == 0)
+        if (_ctx.TickCount % InventoryIntervalTicks == 0)
         {
             RefreshProjectAddresses(gameManager.Value);
         }
-        if (_tickCount % MailIntervalTicks == 0)
+        if (_ctx.TickCount % MailIntervalTicks == 0)
         {
             UpdateMail();
         }
 
         // --- Save/seed guard gate: everything below reads and writes the save on the AP server's behalf
         // (item syncing, location checks, mail delivery, class upgrades).
-        EvaluateSaveSeedGuard(gameManager.Value);
+        _saveSeedGuard.Evaluate(gameManager.Value);
         Ticked?.Invoke();
-        if (Options.EnforceSaveSeedGuard && _saveSeedGuardState != SaveSeedGuardState.Ok)
+        if (Options.EnforceSaveSeedGuard && _saveSeedGuard.State != SaveSeedGuardState.Ok)
             return;
 
         _apConnection.NotifyGameVerifiedForSeed();
@@ -221,7 +219,7 @@ internal sealed partial class ClientSession
 
         NotifyPendingChecksChanged();
 
-        if (_tickCount % InventoryIntervalTicks == 0)
+        if (_ctx.TickCount % InventoryIntervalTicks == 0)
         {
             ReconcileTrackedItems(gameManager.Value);
         }
@@ -244,9 +242,9 @@ internal sealed partial class ClientSession
                 }
                 else if (attemptedClass.Value == SpecialPassengerClassValues.BridgeAccessClassValue)
                 {
-                    if (_currentInventoryRoom is not null)
+                    if (_ctx.InventoryRoom is not null)
                     {
-                        bool applied = GameActions.SetPassengerClassFull(_mem, gameManager.Value, _currentInventoryRoom.Value, attemptedClass.Value);
+                        bool applied = GameActions.SetPassengerClassFull(_mem, gameManager.Value, _ctx.InventoryRoom.Value, attemptedClass.Value);
 
                         bool handedOff = _apConnection.SendLocationCheck(TitaniaRepairedLocation);
                         ReportAction(applied && handedOff, handedOff
@@ -261,9 +259,9 @@ internal sealed partial class ClientSession
                 }
                 else if (attemptedClass.Value == (int)PassengerClass.Third && Options.AllowInitialUpgrade)
                 {
-                    if (_currentInventoryRoom is not null)
+                    if (_ctx.InventoryRoom is not null)
                     {
-                        bool ok = GameActions.SetPassengerClassFull(_mem, gameManager.Value, _currentInventoryRoom.Value, attemptedClass.Value);
+                        bool ok = GameActions.SetPassengerClassFull(_mem, gameManager.Value, _ctx.InventoryRoom.Value, attemptedClass.Value);
                         ReportAction(ok, "Initial class upgrade (None -> Third) applied directly - no AP item for this yet");
                     }
                     else
