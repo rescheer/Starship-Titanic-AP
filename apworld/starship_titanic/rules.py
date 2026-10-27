@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from rule_builder.rules import CanReachRegion, Has, HasAll, Rule # type: ignore
 
+from .options import Goal
 from .regions import REGION_CONNECTIONS
 from .items import (
     item_name_groups,
@@ -167,8 +168,13 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # Titania's Room
     # ---------------------------------------------------------------- #
     world.set_rule(
-        # Event
         world.get_location("Titania's Room - Repair Titania"),
+        HasAll(*TITANIA_PARTS, "Titania's Auditory Center")
+        & CanReachRegion("Titania's Room")
+    )
+    world.set_rule(
+        # Event
+        world.get_location("Titania's Room - Repair Titania (Event)"),
         HasAll(*TITANIA_PARTS, "Titania's Auditory Center")
         & CanReachRegion("Titania's Room")
     )
@@ -274,10 +280,11 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # ---------------------------------------------------------------- #
     # Bridge
     # ---------------------------------------------------------------- #
-    world.set_rule(
-        world.get_location("Bridge - Visited"),
-        CanReachRegion("Bridge")
-    )
+    if world.options.goal != Goal.option_repair_titania:  # not created under this goal (regions.py)
+        world.set_rule(
+            world.get_location("Bridge - Visited"),
+            CanReachRegion("Bridge")
+        )
 
     world.set_rule(
         # Event
@@ -333,4 +340,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
 
 
 def set_completion_condition(world: StarshipTitanicWorld) -> None:
-    world.set_completion_rule(Has("Victory"))
+    if world.options.goal == Goal.option_repair_titania:
+        world.set_completion_rule(Has("Titania Repaired"))
+    else:
+        world.set_completion_rule(Has("Victory"))

@@ -14,7 +14,6 @@ from .items import (
     filler_item_names,
 )
 from .locations import (
-    location_table,
     location_name_to_id,
 )
 from .regions import create_regions as _create_regions
@@ -68,9 +67,8 @@ class StarshipTitanicWorld(World):
         _create_regions(self)
 
     def create_items(self) -> None:
-        non_event_locations = sum(
-            1 for data in location_table.values() if data.event_item is None
-        )
+        # Event locations are already filled; this also excludes locations the goal skipped (regions.py)
+        non_event_locations = len(self.multiworld.get_unfilled_locations(self.player))
 
         pool = []
         for name, data in item_table.items():
@@ -104,6 +102,7 @@ class StarshipTitanicWorld(World):
 
     def fill_slot_data(self) -> Dict[str, Any]:
         return {
+            "goal": self.options.goal.current_key,  # "return_home" or "repair_titania"
             "titania_parts": sorted(item_name_groups["Titania Parts"]),
             "progressive_class_upgrade_item": "Progressive Passenger Class Upgrade",
             "second_class_tier": 1,

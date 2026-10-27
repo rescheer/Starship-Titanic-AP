@@ -9,6 +9,10 @@ public static class LocationChecks
     /// </summary>
     public const string GoalLocationName = "The End - Return Home";
 
+    /// <summary>Slot data key for the player's Goal option ("return_home" or "repair_titania").</summary>
+    private const string GoalSlotDataKey = "goal";
+    private const string RepairTitaniaGoal = "repair_titania";
+
     // engine room name (RoomNames.cs) -> AP location name (locations.py)
     private static readonly Dictionary<string, string> RoomToLocationName = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -93,6 +97,12 @@ public static class LocationChecks
             .Where(name => name.Contains("Succ-U-Bus", StringComparison.OrdinalIgnoreCase))
             .Distinct()
             .ToArray();
+
+    /// <summary>Whether the slot's goal is completed by repairing Titania rather than by returning home.</summary>
+    public static bool IsRepairTitaniaGoal(IReadOnlyDictionary<string, object>? slotData) =>
+        slotData is not null
+        && slotData.TryGetValue(GoalSlotDataKey, out object? raw)
+        && string.Equals(raw as string, RepairTitaniaGoal, StringComparison.Ordinal);
 
     /// <summary>Human-readable display name for an engine room name, for UI purposes only.</summary>
     public static string GetReadableRoomName(string roomName)

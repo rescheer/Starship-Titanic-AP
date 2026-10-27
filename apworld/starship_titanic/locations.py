@@ -86,7 +86,10 @@ location_table: Dict[str, STLocationData] = {
     "Titania's Room - Visited": STLocationData("Titania's Room"),
     # Item
     # Puzzle
-    "Titania's Room - Repair Titania": STLocationData("Titania's Room", "Titania Repaired"),
+    "Titania's Room - Repair Titania": STLocationData("Titania's Room"),
+    # Event-only shadow of the check above, fired by the client alongside it - the Bridge entrance gates on
+    # Has("Titania Repaired"), and this keeps the real check above eligible for the multiworld's own item pool.
+    "Titania's Room - Repair Titania (Event)": STLocationData("Titania's Room", "Titania Repaired"),
     # Other
 
     # ---------------------------------------------------------------- #

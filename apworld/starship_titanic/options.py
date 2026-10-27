@@ -4,7 +4,20 @@ Starship Titanic - Player options.
 from dataclasses import dataclass
 from typing import Dict, List
 
-from Options import OptionGroup, PerGameCommonOptions, Toggle # pyright: ignore[reportMissingImports]
+from Options import Choice, OptionGroup, PerGameCommonOptions, Toggle # pyright: ignore[reportMissingImports]
+
+
+# --------------------------------------------------------------------------
+# Goal
+# --------------------------------------------------------------------------
+class Goal(Choice):
+    """What completes the game.
+    Return Home: fly the Starship Titanic back to Earth from the Bridge.
+    Repair Titania: restore all of Titania's parts."""
+    display_name = "Goal"
+    option_return_home = 0
+    option_repair_titania = 1
+    default = 0
 
 
 # --------------------------------------------------------------------------
@@ -114,6 +127,7 @@ class RequireAccessCard1stClassStaterooms(Toggle):
 
 @dataclass
 class StarshipTitanicOptions(PerGameCommonOptions):
+    goal: Goal
     require_access_cards_all_rooms: RequireAccessCardsAllRooms
     require_access_card_top_of_the_well: RequireAccessCardTopOfTheWell
     require_access_card_bottom_of_the_well: RequireAccessCardBottomOfTheWell
@@ -157,8 +171,13 @@ ACCESS_CARD_OPTIONS: Dict[str, str] = {
 def enabled_access_cards(options: StarshipTitanicOptions) -> List[str]:
     """The Access Cards this slot requires, in items.py order."""
     if options.require_access_cards_all_rooms:
-        return list(ACCESS_CARD_OPTIONS)
-    return [card for card, field in ACCESS_CARD_OPTIONS.items() if getattr(options, field)]
+        cards = list(ACCESS_CARD_OPTIONS)
+    else:
+        cards = [card for card, field in ACCESS_CARD_OPTIONS.items() if getattr(options, field)]
+    # The Repair Titania goal completes before the Bridge opens, so its card would be useless
+    if options.goal == Goal.option_repair_titania:
+        cards = [card for card in cards if card != "Bridge Access Card"]
+    return cards
 
 
 starship_titanic_option_groups = [

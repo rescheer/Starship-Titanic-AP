@@ -6,12 +6,17 @@ namespace StarshipTitanicAp;
 internal sealed class ClassSync
 {
     private const string TitaniaRepairedLocation = "Titania's Room - Repair Titania";
+    // Event-only shadow location sent alongside the real check above
+    private const string TitaniaRepairedEventLocation = "Titania's Room - Repair Titania (Event)";
 
     private readonly SessionContext _ctx;
 
     /// <summary>AP items received as of the last class/stateroom sync; -1 forces the next sync to run.</summary>
     private int _lastItemsReceivedCount = -1;
     private int _lastStateroomItemsReceivedCount = -1;
+
+    /// <summary>Whether the Repair Titania goal has been sent since the last resync.</summary>
+    private bool _repairTitaniaGoalSent;
 
     public ClassSync(SessionContext ctx)
     {
@@ -33,6 +38,7 @@ internal sealed class ClassSync
     {
         _lastItemsReceivedCount = -1;
         _lastStateroomItemsReceivedCount = -1;
+        _repairTitaniaGoalSent = false;
     }
 
     /// <summary>Applies the class and stateroom assignments implied by the received AP items. Runs before anything
@@ -41,6 +47,26 @@ internal sealed class ClassSync
     {
         SyncPassengerClassFromItems(gameManager);
         SyncStateroomFromItems(gameManager);
+        SyncRepairTitaniaGoal();
+    }
+
+    /// <summary>Under the Repair Titania goal, reports the goal once Titania's repair has been checked or queued -
+    /// including a repair made while offline, which only gets here once slot data is back.</summary>
+    private void SyncRepairTitaniaGoal()
+    {
+        if (_repairTitaniaGoalSent)
+            return;
+        if (!LocationChecks.IsRepairTitaniaGoal(_ctx.Ap.SlotData))
+            return;
+        if (!_ctx.Ap.IsLocationCheckedOrQueued(TitaniaRepairedLocation))
+            return;
+
+        _repairTitaniaGoalSent = true;
+        // GoalLocationName is routed to SetGoalAchieved, and queued like any other check while offline.
+        bool handedOff = _ctx.Ap.SendLocationCheck(LocationChecks.GoalLocationName);
+        _ctx.Report.ReportAction(handedOff, handedOff
+            ? "Goal complete: Titania repaired"
+            : "Goal complete: Titania repaired (queued offline)");
     }
 
     /// <summary>Undoes any spoof that doesn't apply at the player's new RNV.</summary>
@@ -85,6 +111,7 @@ internal sealed class ClassSync
                 bool applied = GameActions.SetPassengerClassFull(_ctx.Mem, gameManager, _ctx.InventoryRoom.Value, attemptedClass.Value);
 
                 bool handedOff = _ctx.Ap.SendLocationCheck(TitaniaRepairedLocation);
+                _ctx.Ap.SendLocationCheck(TitaniaRepairedEventLocation);
                 _ctx.Report.ReportAction(applied && handedOff, handedOff
                     ? $"Bridge access granted -> {TitaniaRepairedLocation}"
                     : $"Bridge access granted -> {TitaniaRepairedLocation} (queued offline or class-apply failed)");
