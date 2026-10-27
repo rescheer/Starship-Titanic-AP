@@ -48,5 +48,11 @@ Items include:
 - Progressive Staterooms
 - (Optional) Access Cards for all ship areas that must be acquired from the multiworld
 
-## AI Disclosure
-- Generative AI was consulted and used in client development, especially to assist in all of the memory hacking used to make the client function. This is a learning project for me, so I'm writing more and more of my own client code as the project progresses, as well as rewriting some of the machine-authored foundational code.
+## Generative AI Use Disclosure
+### Client
+- GenAI was used moderately in the development of the client, especially for reverse engineering, finding memory offsets, and building hooks to manipulate game logic. Generated code was reviewed and tested by hand.
+- For general client logic, GenAI was used minimally. Small parts of this code are AI authored, but it was mostly was written by hand.
+- GenAI has been consulted for hunting down bugs and looking for edge cases I may have missed.
+
+### apworld
+- GenAI was not used in the creation or maintenance of the apworld side of this implementation. The design and features of the randomizer were made without creative input from AI. Code was written and tested by hand.
