@@ -131,8 +131,8 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         Attach();
     }
 
-    /// <summary>Handles a line typed in the client's chat box: runs it if it's a "!" command (see
-    /// <see cref="ClientCommands"/>), otherwise sends it to the AP server as chat. False if it couldn't be sent.</summary>
+    /// <summary>Handles a line typed in the client's chat box: runs it if it's a client command (see
+    /// <see cref="ClientCommands"/>), otherwise sends it to the AP server unchanged. False if it couldn't be sent.</summary>
     internal bool SubmitChat(string text)
     {
         if (_commands.Find(text) is { } runCommand)
