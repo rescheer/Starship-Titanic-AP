@@ -70,7 +70,7 @@ public sealed partial class MainForm : Form
     {
         _isDebug = isDebug;
         Text = AppInfo.TitleBarText;
-        Width = 750;   // 500 * 1.5
+        Width = 900;   // 500 * 1.5 * 1.20
         Height = 660;  // 600 * 1.10
         StartPosition = FormStartPosition.CenterScreen;
 
@@ -127,6 +127,8 @@ public sealed partial class MainForm : Form
         _btnUninstallGetLiftEye2GateHook.Click += (_, _) => DoUninstallGetLiftEye2GateHook();
         _btnInstallRoomAssignHook.Click += (_, _) => DoInstallRoomAssignHook();
         _btnUninstallRoomAssignHook.Click += (_, _) => DoUninstallRoomAssignHook();
+        _btnInstallRoomGateHook.Click += (_, _) => DoInstallRoomGateHook();
+        _btnUninstallRoomGateHook.Click += (_, _) => DoUninstallRoomGateHook();
         _btnDisplayMessageText.Click += (_, _) => DoDisplayMessageText();
         _btnSetDestToCurrentRoom.Click += (_, _) => DoSetMailDestToCurrentRoom();
         _btnCopyInventoryAddress.Click += (_, _) => DoCopyInventoryAddress();
@@ -309,6 +311,10 @@ public sealed partial class MainForm : Form
         if (GetLiftEye2GateHook.IsInstalled)
         {
             GetLiftEye2GateHook.Uninstall(_mem);
+        }
+        if (RoomGateHook.IsInstalled)
+        {
+            RoomGateHook.Uninstall(_mem);
         }
         if (SaveLoadHook.IsInstalled)
         {

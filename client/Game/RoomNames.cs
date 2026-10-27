@@ -53,4 +53,35 @@ public static class RoomNames
 
     /// <summary>Returns true if the given string is one of the known room names.</summary>
     public static bool IsKnownRoomName(string name) => Names.ContainsValue(name);
+
+    // Rooms that are two states of one location - the game itself gives each pair one location ID
+    // (CRoomItem::getSoundId) and moves the player between them by script (CreatorsChamber's lever cutscene,
+    // the Arboretum's season change, the Bilge succubus's sneeze).
+    private static readonly int[][] Variants =
+    {
+        new[] { 2, 5 },   // EmbLobby, MoonEmbLobby
+        new[] { 39, 42 }, // CreatorsChamber, CreatorsChamberOn
+        new[] { 48, 52 }, // Arboretum, FrozenArboretum
+        new[] { 45, 47 }, // BilgeRoom, BilgeRoomWith
+    };
+
+    /// <summary>Returns every state of the room's location, including the room itself.</summary>
+    public static IReadOnlyList<int> GetVariants(int roomId) =>
+        Array.Find(Variants, group => group.Contains(roomId)) ?? new[] { roomId };
+
+    /// <summary>Looks up a room ID by its name (case-insensitive).</summary>
+    public static bool TryGetRoomId(string name, out int roomId)
+    {
+        foreach ((int id, string roomName) in Names)
+        {
+            if (string.Equals(roomName, name, StringComparison.OrdinalIgnoreCase))
+            {
+                roomId = id;
+                return true;
+            }
+        }
+
+        roomId = 0;
+        return false;
+    }
 }

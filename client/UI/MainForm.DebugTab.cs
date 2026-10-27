@@ -21,6 +21,10 @@ public sealed partial class MainForm
     private readonly Button _btnInstallRoomAssignHook = new() { Text = "Install Room Assign Lock", Width = 220 };
     private readonly Button _btnUninstallRoomAssignHook = new() { Text = "Uninstall Lock", Width = 220, Enabled = false };
     private readonly Label _lblRoomAssignHookStatus = new() { Text = "Lock not installed", AutoSize = true };
+    private readonly Button _btnInstallRoomGateHook = new() { Text = "Install Room Gate", Width = 220 };
+    private readonly Button _btnUninstallRoomGateHook = new() { Text = "Uninstall Gate", Width = 220, Enabled = false };
+    private readonly Label _lblRoomGateHookStatus = new() { Text = "Gate not installed", AutoSize = true };
+    private readonly TextBox _txtDebugLockedRooms = new() { Width = 300, PlaceholderText = "extra locked rooms, e.g. Bar, 12, PromenadeDeck" };
     private readonly CheckBox _chkAllowInitialUpgrade = new()
     {
         Text = "Allow initial upgrade (None -> Third) - no AP item for this yet",
@@ -327,6 +331,42 @@ public sealed partial class MainForm
             _btnUninstallGetLiftEye2GateHook.Enabled = false;
         }
         ShowActionResult(ok, "Uninstall broken-elevator Eye gate");
+    }
+
+    private void DoInstallRoomGateHook()
+    {
+        if (!_mem.IsAttached)
+        {
+            ShowActionResult(false, "Not attached");
+            return;
+        }
+
+        bool ok = RoomGateHook.Install(_mem);
+        if (ok)
+        {
+            _lblRoomGateHookStatus.Text = "Installed";
+            _btnInstallRoomGateHook.Enabled = false;
+            _btnUninstallRoomGateHook.Enabled = true;
+        }
+        ShowActionResult(ok, "Install room key gate");
+    }
+
+    private void DoUninstallRoomGateHook()
+    {
+        if (!_mem.IsAttached)
+        {
+            ShowActionResult(false, "Not attached");
+            return;
+        }
+
+        bool ok = RoomGateHook.Uninstall(_mem);
+        if (ok)
+        {
+            _lblRoomGateHookStatus.Text = "Gate not installed";
+            _btnInstallRoomGateHook.Enabled = true;
+            _btnUninstallRoomGateHook.Enabled = false;
+        }
+        ShowActionResult(ok, "Uninstall room key gate");
     }
 
     private void DoInstallRoomAssignHook()

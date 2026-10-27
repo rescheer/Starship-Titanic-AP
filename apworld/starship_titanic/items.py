@@ -82,6 +82,52 @@ _progressive_quantities: Dict[str, int] = {
 }
 
 # --------------------------------------------------------------------------
+# Access Cards - each unlocks entry to its region(s). The client locks the matching engine rooms (RoomKeys.cs)
+# until the card is received.
+# --------------------------------------------------------------------------
+_access_card_items: Dict[str, int] = {
+    "Top of the Well Access Card": 30,
+    "Bottom of the Well Access Card": 31,
+    "Parrot Lobby Access Card": 32,
+    "Bilge Room Access Card": 33,
+    "Titania's Room Access Card": 34,
+    "Creator's Chamber Access Card": 35,
+    "Sculpture Chamber Access Card": 36,
+    "Promenade Deck Access Card": 37,
+    "Arboretum Access Card": 38,
+    "Bar Access Card": 39,
+    "Music Room Access Card": 40,
+    "1st Class Restaurant Access Card": 41,
+    "Bridge Access Card": 42,
+    "SGT Class Staterooms Access Card": 43,
+    "2nd Class Staterooms Access Card": 44,
+    "1st Class Staterooms Access Card": 45,
+}
+
+# region (regions.py) -> the Access Card needed to enter it. Each class's Lobby and Stateroom share one card.
+REGION_ACCESS_CARDS: Dict[str, str] = {
+    "Top of the Well": "Top of the Well Access Card",
+    "Bottom of the Well": "Bottom of the Well Access Card",
+    "Parrot Lobby": "Parrot Lobby Access Card",
+    "Bilge Room": "Bilge Room Access Card",
+    "Titania's Room": "Titania's Room Access Card",
+    "Creator's Chamber": "Creator's Chamber Access Card",
+    "Sculpture Chamber": "Sculpture Chamber Access Card",
+    "Promenade Deck": "Promenade Deck Access Card",
+    "Arboretum": "Arboretum Access Card",
+    "Bar": "Bar Access Card",
+    "Music Room": "Music Room Access Card",
+    "1st Class Restaurant": "1st Class Restaurant Access Card",
+    "Bridge": "Bridge Access Card",
+    "SGT Class Lobby": "SGT Class Staterooms Access Card",
+    "SGT Class Stateroom": "SGT Class Staterooms Access Card",
+    "2nd Class Lobby": "2nd Class Staterooms Access Card",
+    "2nd Class Stateroom": "2nd Class Staterooms Access Card",
+    "1st Class Lobby": "1st Class Staterooms Access Card",
+    "1st Class Stateroom": "1st Class Staterooms Access Card",
+}
+
+# --------------------------------------------------------------------------
 # Useful
 # --------------------------------------------------------------------------
 _useful_items: Dict[str, int] = {}
@@ -141,6 +187,9 @@ for name, offset in _progressive_room_items.items():
 for name, offset in _titania_parts.items():
     item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, "Titania Part")
 
+for name, offset in _access_card_items.items():
+    item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, "Access Card")
+
 for name, offset in _useful_items.items():
     item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.useful)
 
@@ -159,6 +208,7 @@ item_name_to_id: Dict[str, int] = {
 
 item_name_groups: Dict[str, Set[str]] = {
     "Titania Parts": set(_titania_parts.keys()),
+    "Access Cards": set(_access_card_items.keys()),
     "Fuses": {"Blue Fuse", "Green Fuse", "Red Fuse", "Yellow Fuse"},
     "Filler": set(_filler_items.keys()),
     "Traps": set(_trap_items.keys()),

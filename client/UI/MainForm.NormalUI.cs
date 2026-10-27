@@ -47,6 +47,18 @@ public sealed partial class MainForm
     private readonly Label _lblFooterAp = new() { Text = "✖ Not connected to an Archipelago server", AutoSize = true, Anchor = AnchorStyles.Right, ForeColor = Color.Red };
     private readonly Label _lblFooterAttach = new() { Text = "✖ Not attached to a game instance", AutoSize = true, Anchor = AnchorStyles.Right, ForeColor = Color.Red };
 
+    // Access Cards panel - one label per card, in RoomKeys order
+    private readonly FlowLayoutPanel _accessCardsPanel = new()
+    {
+        Dock = DockStyle.Right,
+        Width = 280,
+        FlowDirection = FlowDirection.TopDown,
+        WrapContents = false,
+        AutoScroll = true,
+        Padding = new Padding(8, 6, 8, 6),
+    };
+    private readonly Dictionary<string, Label> _accessCardLabels = new();
+
     private bool _readyToPlayLogged;
 
     private void BuildNormalLayout()
@@ -101,10 +113,27 @@ public sealed partial class MainForm
         _infoPanel.Controls.Add(_lblInfoChecks, 0, 1);
         _infoPanel.Controls.Add(_lblInfoStations, 1, 1);
 
+        _accessCardsPanel.Controls.Add(new Label
+        {
+            Text = "Access Cards",
+            AutoSize = true,
+            Font = new Font(InfoFont, FontStyle.Bold),
+            Margin = new Padding(0, 0, 0, 6),
+        });
+        foreach (string card in RoomKeys.AllCards)
+        {
+            var label = new Label { Text = AccessCardDisplayName(card), AutoSize = true, Font = InfoFont, Margin = new Padding(0, 0, 0, 4) };
+            _accessCardLabels[card] = label;
+            _accessCardsPanel.Controls.Add(label);
+        }
+
+        // Docking runs from the last-added control inward: footer, seed warning and info area across the full width,
+        // then the cards panel down the right side, leaving the chat row and log to share what remains on the left
         Controls.Add(_txtServerLog);
+        Controls.Add(chatRow);
+        Controls.Add(_accessCardsPanel);
         Controls.Add(_infoPanel);
         Controls.Add(_lblInfoSaveSeedMismatch);
-        Controls.Add(chatRow);
         Controls.Add(footerPanel);
     }
 
@@ -136,6 +165,8 @@ public sealed partial class MainForm
             e.SuppressKeyPress = true;
             DoSendChatMessage();
         };
+
+        _apConnection.ItemReceived += _ => BeginInvoke(new Action(UpdateAccessCards));
 
         _apConnection.CheckQueued += name =>
         {
@@ -263,6 +294,42 @@ public sealed partial class MainForm
             _lblInfoStations.Text = $"Visited Succ-U-Bus Stations ({stations.Checked}/{stations.Total})";
         else
             _lblInfoStations.Text = "Visited Succ-U-Bus Stations (-/-)";
+    }
+
+    /// <summary>Marks each Access Card in the right-hand panel: a red ✖ for cards the seed requires that haven't been
+    /// received, a green ✔ for cards received or not required. Plain names while not connected.</summary>
+    private void UpdateAccessCards()
+    {
+        bool connected = _apConnection.State == ApConnectionState.Connected;
+        HashSet<string> requiredCards = RoomKeys.GetRequiredCards(_apConnection.SlotData);
+        string[] receivedItems = _apConnection.GetReceivedItemNames();
+
+        foreach ((string card, Label label) in _accessCardLabels)
+        {
+            string name = AccessCardDisplayName(card);
+            if (!connected)
+            {
+                label.Text = name;
+                label.ForeColor = SystemColors.ControlText;
+            }
+            else if (requiredCards.Contains(card) && !receivedItems.Contains(card, StringComparer.OrdinalIgnoreCase))
+            {
+                label.Text = $"✖ {name}";
+                label.ForeColor = Color.Red;
+            }
+            else
+            {
+                label.Text = $"✔ {name}";
+                label.ForeColor = Color.Green;
+            }
+        }
+    }
+
+    /// <summary>The card's item name without the " Access Card" suffix - redundant under the panel's heading.</summary>
+    private static string AccessCardDisplayName(string card)
+    {
+        const string suffix = " Access Card";
+        return card.EndsWith(suffix, StringComparison.Ordinal) ? card[..^suffix.Length] : card;
     }
 
     /// <summary>Swaps the info area between the normal room/mail/checks/stations labels and a single centered

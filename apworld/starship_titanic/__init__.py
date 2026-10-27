@@ -1,7 +1,7 @@
 """
 Starship Titanic - Archipelago World.
 """
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from BaseClasses import Item, ItemClassification, Tutorial # pyright: ignore[reportMissingImports]
 from worlds.AutoWorld import World, WebWorld # pyright: ignore[reportMissingImports]
@@ -19,7 +19,7 @@ from .locations import (
 )
 from .regions import create_regions as _create_regions
 from .rules import set_rules as _set_rules
-from .options import StarshipTitanicOptions
+from .options import StarshipTitanicOptions, enabled_access_cards, starship_titanic_option_groups
 
 
 class StarshipTitanicWeb(WebWorld):
@@ -34,6 +34,7 @@ class StarshipTitanicWeb(WebWorld):
             ["coulomb"],
         )
     ]
+    option_groups = starship_titanic_option_groups
 
 
 class StarshipTitanicWorld(World):
@@ -47,6 +48,7 @@ class StarshipTitanicWorld(World):
     web = StarshipTitanicWeb()
     options_dataclass = StarshipTitanicOptions
     options: StarshipTitanicOptions
+    access_cards: List[str]  # the Access Cards this slot requires (options.py)
 
     item_name_to_id = item_name_to_id
     location_name_to_id = location_name_to_id
@@ -59,6 +61,9 @@ class StarshipTitanicWorld(World):
     def create_event(self, name: str) -> Item:
         return StarshipTitanicItem(name, ItemClassification.progression, None, self.player)
 
+    def generate_early(self) -> None:
+        self.access_cards = enabled_access_cards(self.options)
+
     def create_regions(self) -> None:
         _create_regions(self)
 
@@ -70,6 +75,8 @@ class StarshipTitanicWorld(World):
         pool = []
         for name, data in item_table.items():
             if data.code is None:
+                continue
+            if data.group == "Access Card" and name not in self.access_cards:
                 continue
             pool.extend(self.create_item(name) for _ in range(data.quantity))
 
@@ -105,4 +112,5 @@ class StarshipTitanicWorld(World):
             "sgt_stateroom_tier": 1,
             "second_stateroom_tier": 2,
             "first_stateroom_tier": 3,
+            "room_access_cards": self.access_cards,  # the client only locks the rooms of these cards
         }

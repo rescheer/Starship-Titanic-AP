@@ -7,8 +7,10 @@ from typing import TYPE_CHECKING
 
 from rule_builder.rules import CanReachRegion, Has, HasAll, Rule # type: ignore
 
+from .regions import REGION_CONNECTIONS
 from .items import (
     item_name_groups,
+    REGION_ACCESS_CARDS,
     PROGRESSIVE_CLASS_UPGRADE,
     SECOND_CLASS_TIER,
     FIRST_CLASS_TIER,
@@ -42,6 +44,14 @@ def set_rules(world: StarshipTitanicWorld) -> None:
 
 
 def set_all_entrance_rules(world: StarshipTitanicWorld) -> None:
+    # Collected per entrance first, since set_rule replaces rather than adds: an entrance can need both a
+    # passenger class and an Access Card.
+    entrance_rules: dict[str, Rule] = {}
+
+    def add_rule(entrance_name: str, rule: Rule) -> None:
+        existing = entrance_rules.get(entrance_name)
+        entrance_rules[entrance_name] = rule if existing is None else existing & rule
+
     # First Class
     first_class_entrances = (
         "Top of the Well -> Arboretum",
@@ -50,9 +60,9 @@ def set_all_entrance_rules(world: StarshipTitanicWorld) -> None:
         "1st Class Lobby -> 1st Class Stateroom",
     )
     for entrance_name in first_class_entrances:
-        world.set_rule(world.get_entrance(entrance_name), HAS_FIRST_CLASS)
+        add_rule(entrance_name, HAS_FIRST_CLASS)
 
-# Second Class
+    # Second Class
     second_class_entrances = (
         "Top of the Well -> Creator's Chamber",
         "Top of the Well -> Bar",
@@ -63,10 +73,19 @@ def set_all_entrance_rules(world: StarshipTitanicWorld) -> None:
         "2nd Class Lobby -> 2nd Class Stateroom",
     )
     for entrance_name in second_class_entrances:
-        world.set_rule(world.get_entrance(entrance_name), HAS_SECOND_CLASS)
+        add_rule(entrance_name, HAS_SECOND_CLASS)
 
     # The Bridge only unlocks once Titania has been repaired
-    world.set_rule(world.get_entrance("Titania's Room -> Bridge"), Has("Titania Repaired"))
+    add_rule("Titania's Room -> Bridge", Has("Titania Repaired"))
+
+    # Access Cards - every entrance into a card-locked region needs its card
+    for from_region, to_region in REGION_CONNECTIONS:
+        card = REGION_ACCESS_CARDS.get(to_region)
+        if card in world.access_cards:
+            add_rule(f"{from_region} -> {to_region}", Has(card))
+
+    for entrance_name, rule in entrance_rules.items():
+        world.set_rule(world.get_entrance(entrance_name), rule)
 
 
 def set_all_location_rules(world: StarshipTitanicWorld) -> None:
@@ -98,6 +117,9 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # ---------------------------------------------------------------- #
     # Bottom of the Well / Broken ELevator
     # ---------------------------------------------------------------- #
+    # The broken elevator (4) can only be called from the floor it's stuck on - a 2nd Class floor, shown on the
+    # TV's channel 5 - so it's boarded from the 2nd Class Lobby, after riding elevator 3 there from the Top or
+    # Bottom of the Well.
     world.set_rule(
         world.get_location("Broken Elevator - Titania's Eye (Elevator)"),
         Has("LiftBot Head")
@@ -182,6 +204,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # Arboretum
     # ---------------------------------------------------------------- #
     world.set_rule(
+        # Green Fuse not needed - Arboretum starts with lemon available
         world.get_location("Arboretum - Lemon"),
         Has("Long Stick")
         & CanReachRegion("Arboretum")
@@ -209,6 +232,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         HasAll("Lemon", "Crushed TV", "Bar Glass", "Blue Fuse", "Yellow Fuse")
         & CanReachRegion("Bar")
         & CanReachRegion("Promenade Deck")
+        & CanReachRegion("Titania's Room")  # the fuses go in the Fuse Box
     )
 
     # ---------------------------------------------------------------- #
@@ -244,6 +268,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         world.get_location("1st Class Restaurant - Titania's Auditory Center"),
         HasAll("Maitre'D Bot's Right Arm", "Maitre'D Bot's Left Arm")
         & CanReachRegion("1st Class Restaurant")
+        & CanReachRegion("Music Room")  # the Phonograph puzzle releases it
     )
 
     # ---------------------------------------------------------------- #

@@ -21,6 +21,7 @@ public sealed partial class MainForm
         _sgtGlyphAddr = null; // the glyph lived inside the old CPetControl
         _sgtGlyphOriginalMode = null;
         _eatenMagazineAddr = null; // flagged against the old tree
+        _movers = null; // scanned from the old tree
         _conversationsAddrShown = false;
         _saveSeedGuardState = SaveSeedGuardState.Unverified;
         _saveSeedGuardBeamBridgeMisses = 0;
@@ -203,6 +204,8 @@ public sealed partial class MainForm
                 TrySendRoomVisitCheck(roomName);
             }
 
+            // Runs before TrySendPointOfInterestCheck so a first visit's own check doesn't count as already checked.
+            TryShowWaitingMailReminder(rnv.Value);
             TrySendPointOfInterestCheck(rnv.Value);
             TryShowItemNeededReminder(rnv.Value);
 
@@ -218,6 +221,7 @@ public sealed partial class MainForm
         }
 
         SyncTableAccessFromItems();
+        SyncRoomGate();
         KeepTelevisionChannel4GlyphOn();
         KeepLiftEyeDestObjectNonNull();
 
@@ -294,6 +298,14 @@ public sealed partial class MainForm
             if (GetLiftEye2GateHook.PollBlockedAttempt(_mem))
             {
                 HandleBlockedLiftEyeDrag();
+            }
+        }
+
+        if (RoomGateHook.IsInstalled)
+        {
+            if (RoomGateHook.PollBlockedMove(_mem) is { } blocked)
+            {
+                HandleBlockedRoomMove(blocked.FromRoom, blocked.ToRoom);
             }
         }
     }
