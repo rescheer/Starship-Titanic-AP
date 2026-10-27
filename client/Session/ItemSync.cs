@@ -8,9 +8,13 @@ internal sealed class ItemSync
     private const int DirtyReassertDelayTicks = 4; // 4 * 50ms = 200ms
     private const int UnrestoreCheckDelayTicks = ClientSession.InventoryIntervalTicks + 4; // let ReconcileTrackedItems run at least once, plus buffer
 
-    /// <summary>The (Room, Node, View) shown during the bellbot's Titania's Eye (Light) dialogue/hand-off
-    /// cutscene.</summary>
-    private static readonly RoomNodeView Eye1HandoffCutsceneRnv = new(7, 11, 1);
+    /// <summary>Items whose delayed unrestore decision is deferred while the player is still at the given RNV, because
+    /// that RNV is reached mid-pickup rather than by walking away.</summary>
+    private static readonly Dictionary<string, RoomNodeView> DeferUnrestoreAtRnv = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Eye1"] = new(7, 11, 1),       // the bellbot's Titania's Eye (Light) dialogue/hand-off cutscene
+        ["CrushedTV"] = new(38, 12, 1), // CCrushedTV::MouseDragStartMsg changes view here while the TV is still being dragged
+    };
 
     private readonly SessionContext _ctx;
 
@@ -573,8 +577,8 @@ internal sealed class ItemSync
                 continue;
             }
 
-            // Defers Eye1's decision while the player is still at the bellbot hand-off cutscene RNV.
-            if (string.Equals(name, "Eye1", StringComparison.OrdinalIgnoreCase) && currentRnv == Eye1HandoffCutsceneRnv)
+            // Defers the decision while the player is still at an RNV the pickup itself leads to (see DeferUnrestoreAtRnv).
+            if (DeferUnrestoreAtRnv.TryGetValue(name, out RoomNodeView deferRnv) && currentRnv == deferRnv)
             {
                 _pendingUnrestoreChecks[i] = (name, itemAddress, _ctx.TickCount + UnrestoreCheckDelayTicks);
                 continue;
