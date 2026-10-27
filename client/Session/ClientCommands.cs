@@ -1,7 +1,8 @@
 namespace StarshipTitanicAp;
 
-/// <summary>"!" commands the client handles itself instead of sending to the AP server, whether typed in game (via
-/// the PET, see <see cref="TextCommandHook"/>) or in the client's chat box. Anything else goes to the server.</summary>
+/// <summary>"!" commands typed in game (via the PET, see <see cref="TextCommandHook"/>) or in the client's chat box.
+/// Every "!" line is handled here; server commands go through !ap (e.g. "!ap !hint X"), and an unknown command is
+/// rejected rather than forwarded. Lines without a "!" are plain chat, which the caller sends to the server.</summary>
 internal sealed class ClientCommands
 {
     private readonly SessionContext _ctx;
@@ -21,8 +22,8 @@ internal sealed class ClientCommands
         };
     }
 
-    /// <summary>The client command that <paramref name="text"/> invokes, ready to run, or null if it isn't one and
-    /// should go to the server instead.</summary>
+    /// <summary>The command that <paramref name="text"/> invokes, ready to run (for an unknown command, one that reports
+    /// it as unknown), or null if <paramref name="text"/> isn't a "!" command at all.</summary>
     public Action? Find(string text)
     {
         text = text.Trim();
@@ -31,10 +32,18 @@ internal sealed class ClientCommands
 
         string[] parts = text[1..].Split(' ', 2, StringSplitOptions.TrimEntries);
         if (!_commands.TryGetValue(parts[0], out Action<string>? handler))
-            return null;
+            return () => ReportUnknown(text);
 
         string args = parts.Length > 1 ? parts[1] : "";
         return () => handler(args);
+    }
+
+    private void ReportUnknown(string text)
+    {
+        string message = $"Unknown command \"{text}\" - to send it to the AP server, use !ap {text}";
+        _ctx.Report.ReportAction(false, message);
+        _ctx.Report.AppendServerLog($"CLIENT: {message}");
+        _ctx.ShowPetMessage($"AP: {message}");
     }
 
     /// <summary>!ap &lt;text&gt;: sends the rest of the line to the AP server as-is, e.g. "!ap !hint X" sends "!hint X".</summary>
