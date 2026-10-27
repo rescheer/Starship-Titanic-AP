@@ -116,7 +116,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # (no location rules)
 
     # ---------------------------------------------------------------- #
-    # Bottom of the Well / Broken ELevator
+    # Broken ELevator
     # ---------------------------------------------------------------- #
     # The broken elevator (4) can only be called from the floor it's stuck on - a 2nd Class floor, shown on the
     # TV's channel 5 - so it's boarded from the 2nd Class Lobby, after riding elevator 3 there from the Top or
@@ -125,6 +125,15 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         world.get_location("Broken Elevator - Titania's Eye (Elevator)"),
         Has("LiftBot Head")
         & (CanReachRegion("Top of the Well") | CanReachRegion("Bottom of the Well"))
+    )
+    
+    # ---------------------------------------------------------------- #
+    # Bottom of the Well
+    # ---------------------------------------------------------------- #
+    world.set_rule(
+        world.get_location("Bottom of the Well - Crushed Television"),
+        CanReachRegion("Parrot Lobby")
+        & CanReachRegion("Bottom of the Well")
     )
 
     # ---------------------------------------------------------------- #
