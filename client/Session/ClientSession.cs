@@ -16,6 +16,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     private readonly SaveSeedGuard _saveSeedGuard;
     private readonly ClassSync _classSync;
     private readonly ItemSync _itemSync;
+    private readonly ClientCommands _commands;
 
     private readonly SynchronizationContext _uiContext;
     private readonly int _uiThreadId;
@@ -50,6 +51,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         _saveSeedGuard = new SaveSeedGuard(_ctx);
         _classSync = new ClassSync(_ctx);
         _itemSync = new ItemSync(_ctx);
+        _commands = new ClientCommands(_ctx, _saveSeedGuard);
 
         _timer.Tick += (_, _) => OnTick();
         _apConnection.StateChanged += (state, message) => RunOnUiThread(() => OnApStateChanged(state, message));
@@ -129,10 +131,32 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         Attach();
     }
 
-    /// <summary>Handles the "!force_seed" command (typed in game or in the client's chat box).</summary>
-    internal void HandleForceSeedCommand() => _saveSeedGuard.HandleForceSeedCommand();
+    /// <summary>Handles a line typed in the client's chat box: runs it if it's a client command (see
+    /// <see cref="ClientCommands"/>), otherwise sends it to the AP server. False if it couldn't be sent.</summary>
+    internal bool SubmitChat(string text)
+    {
+        if (_commands.Find(text) is { } runCommand)
+        {
+            runCommand();
+            return true;
+        }
+        return _apConnection.SendCommand(text);
+    }
 
-    internal void ForceTagSaveSeed() => _saveSeedGuard.ForceTag();
+    /// <summary>The debug UI's force-tag button: the same override as !force_seed, reported to the debug log only.</summary>
+    internal void ForceTagSaveSeed()
+    {
+        ForceTagResult result = _saveSeedGuard.ForceTag();
+        ReportAction(result == ForceTagResult.Tagged, result switch
+        {
+            ForceTagResult.NotAttached => "Not attached",
+            ForceTagResult.GameNotResolved => "gameManager not resolved yet (menu / loading?)",
+            ForceTagResult.NotConnected => "Not connected to an AP server - no seed to tag with",
+            ForceTagResult.ProjectNotResolved => "Project not resolved yet",
+            ForceTagResult.BeamBridgeNotFound => "Could not locate BeamBridge to tag",
+            _ => "Force-tagged save with current AP seed",
+        });
+    }
 
     internal void Connect(string server, string slot, string password)
     {

@@ -220,14 +220,7 @@ public sealed class MainForm : Form
         if (text.Length == 0)
             return;
 
-        if (string.Equals(text, "!force_seed", StringComparison.OrdinalIgnoreCase))
-        {
-            _txtChatInput.Clear();
-            _session.HandleForceSeedCommand();
-            return;
-        }
-
-        bool ok = _session.Ap.SendCommand(text);
+        bool ok = _session.SubmitChat(text);
         if (ok)
             _txtChatInput.Clear();
         else

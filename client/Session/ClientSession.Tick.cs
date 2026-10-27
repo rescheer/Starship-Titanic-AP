@@ -86,10 +86,10 @@ internal sealed partial class ClientSession
 
             if (command is not null)
             {
-                if (string.Equals(command.Trim(), "force_seed", StringComparison.OrdinalIgnoreCase))
+                if (_commands.Find(command) is { } runCommand)
                 {
                     ReportCapturedCommand($"{command} (handled locally - not sent to server)");
-                    HandleForceSeedCommand();
+                    runCommand();
                 }
                 else if (_apConnection.IsConnected)
                 {

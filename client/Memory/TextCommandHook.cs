@@ -110,7 +110,7 @@ public static class TextCommandHook
             mem.WriteInt64(_mailboxAddr + ConversationsAddrMailboxOffset, 0);
     }
 
-    /// <summary>Checks the mailbox for a newly submitted '!' command.</summary>
+    /// <summary>Checks the mailbox for a newly submitted '!' command, returned as typed (including the '!').</summary>
     public static string? PollCommand(MemoryReader mem)
     {
         if (!_installed)
@@ -137,7 +137,7 @@ public static class TextCommandHook
         int length = nullIdx >= 0 ? nullIdx : textBytes.Length;
         string text = System.Text.Encoding.ASCII.GetString(textBytes, 0, length);
 
-        return text.StartsWith("!") ? text[1..] : text;
+        return text;
     }
 
     public static long StubAddress => _stubAddr;

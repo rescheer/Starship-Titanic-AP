@@ -46,4 +46,16 @@ internal sealed class SessionContext
 
     /// <summary>The engine name (see <see cref="RoomNames"/>) of the room the player is in.</summary>
     public string? CurrentRoomName { get; set; }
+
+    /// <summary>Shows a PET message, best-effort: looks the PET control up if it isn't resolved yet, and does nothing
+    /// if it can't be found (e.g. before attaching).</summary>
+    public void ShowPetMessage(string text)
+    {
+        long? inventoryRoom = InventoryRoom;
+        if (inventoryRoom is null && Project is { } project)
+            inventoryRoom = GameState.FindInventoryRoom(Mem, project);
+
+        if (inventoryRoom is not null)
+            GameActions.DisplayMessageSmart(Mem, inventoryRoom.Value, text);
+    }
 }
