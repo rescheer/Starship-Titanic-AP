@@ -41,6 +41,7 @@ class RequireAccessCardBilgeRoom(Toggle):
 
 
 class RequireAccessCardTitaniasRoom(Toggle):
+    # Currently disabled due to possible softlock
     """Require Access Card item from the multiworld to access Titania's Room. If "Require Access Cards for All Rooms"
     is true, this setting is ignored."""
     display_name = "Require Access Card for Titania's Room"
@@ -119,7 +120,7 @@ class StarshipTitanicOptions(PerGameCommonOptions):
     require_access_card_bottom_of_the_well: RequireAccessCardBottomOfTheWell
     require_access_card_parrot_lobby: RequireAccessCardParrotLobby
     require_access_card_bilge_room: RequireAccessCardBilgeRoom
-    require_access_card_titanias_room: RequireAccessCardTitaniasRoom
+#   require_access_card_titanias_room: RequireAccessCardTitaniasRoom
     require_access_card_creators_chamber: RequireAccessCardCreatorsChamber
     require_access_card_sculpture_chamber: RequireAccessCardSculptureChamber
     require_access_card_promenade_deck: RequireAccessCardPromenadeDeck
@@ -139,7 +140,7 @@ ACCESS_CARD_OPTIONS: Dict[str, str] = {
     "Bottom of the Well Access Card": "require_access_card_bottom_of_the_well",
     "Parrot Lobby Access Card": "require_access_card_parrot_lobby",
     "Bilge Room Access Card": "require_access_card_bilge_room",
-    "Titania's Room Access Card": "require_access_card_titanias_room",
+#   "Titania's Room Access Card": "require_access_card_titanias_room",
     "Creator's Chamber Access Card": "require_access_card_creators_chamber",
     "Sculpture Chamber Access Card": "require_access_card_sculpture_chamber",
     "Promenade Deck Access Card": "require_access_card_promenade_deck",
@@ -168,7 +169,7 @@ starship_titanic_option_groups = [
         RequireAccessCardBottomOfTheWell,
         RequireAccessCardParrotLobby,
         RequireAccessCardBilgeRoom,
-        RequireAccessCardTitaniasRoom,
+#       RequireAccessCardTitaniasRoom,
         RequireAccessCardCreatorsChamber,
         RequireAccessCardSculptureChamber,
         RequireAccessCardPromenadeDeck,
