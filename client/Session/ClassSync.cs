@@ -5,7 +5,7 @@ namespace StarshipTitanicAp;
 /// stateroom puzzles) would otherwise be unreachable under item-gated progression.</summary>
 internal sealed class ClassSync
 {
-    private const string TitaniaRepairedLocation = "Titania's Room - Repair Titania";
+    internal const string TitaniaRepairedLocation ="Titania's Room - Repair Titania";
     // Event-only shadow location sent alongside the real check above
     private const string TitaniaRepairedEventLocation = "Titania's Room - Repair Titania (Event)";
 

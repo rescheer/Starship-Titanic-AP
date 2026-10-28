@@ -52,6 +52,18 @@ public sealed class ArchipelagoConnection : IDisposable
         return (session.Locations.AllLocationsChecked.Count, session.Locations.AllLocations.Count);
     }
 
+    /// <summary>The name of every location in this slot, checked or not.</summary>
+    public string[] GetAllLocationNames()
+    {
+        if (_session is not { } session)
+            return Array.Empty<string>();
+
+        return session.Locations.AllLocations
+            .Select(id => session.Locations.GetLocationNameFromId(id, GameName))
+            .Where(name => name is not null)
+            .ToArray()!;
+    }
+
     /// <summary>Checked/total location counts for this slot, scoped to the given location names.</summary>
     public (int Checked, int Total)? GetLocationCheckSummary(IReadOnlyCollection<string> locationNames)
     {

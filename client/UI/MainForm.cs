@@ -49,8 +49,55 @@ public sealed class MainForm : Form
     private readonly Label _lblFooterAp = new() { Text = "✖ Not connected to an Archipelago server", AutoSize = true, Anchor = AnchorStyles.Right, ForeColor = Color.Red };
     private readonly Label _lblFooterAttach = new() { Text = "✖ Not attached to a game instance", AutoSize = true, Anchor = AnchorStyles.Right, ForeColor = Color.Red };
 
-    // Access Cards panel - one label per card, in RoomKeys order
-    private readonly FlowLayoutPanel _accessCardsPanel = new()
+    // Room Access panel - one heading per entry requirement (rules.py's entrance rules), each followed by the
+    // Access Cards of the rooms behind it
+    private enum RoomRequirement { SgtClass, SecondClass, FirstClass, TitaniaRepaired }
+
+    private static readonly (RoomRequirement Requirement, string Heading, string[] Cards)[] RoomAccessGroups =
+    {
+        (RoomRequirement.SgtClass, "SGT Class", new[]
+        {
+            "Top of the Well Access Card",
+            "Bottom of the Well Access Card",
+            "Parrot Lobby Access Card",
+            "Bilge Room Access Card",
+            "Titania's Room Access Card",
+            "SGT Class Staterooms Access Card",
+        }),
+        (RoomRequirement.SecondClass, "2nd Class", new[]
+        {
+            "Creator's Chamber Access Card",
+            "Sculpture Chamber Access Card",
+            "Promenade Deck Access Card",
+            "Bar Access Card",
+            "Music Room Access Card",
+            "2nd Class Staterooms Access Card",
+        }),
+        (RoomRequirement.FirstClass, "1st Class", new[]
+        {
+            "Arboretum Access Card",
+            "1st Class Restaurant Access Card",
+            "1st Class Staterooms Access Card",
+        }),
+        (RoomRequirement.TitaniaRepaired, "Titania Repaired", new[]
+        {
+            "Bridge Access Card",
+        }),
+    };
+
+    // Location-name prefixes ("<prefix> - ...") counted toward each card's "(x/y)", for cards whose rooms aren't
+    // just the card's display name. Follows locations.py's regions: the Bomb Room's Succ-U-Bus is in Titania's Room,
+    // and the Broken Elevator is boarded from the 2nd Class Lobby.
+    private static readonly Dictionary<string, string[]> RoomLocationPrefixes = new()
+    {
+        ["Titania's Room Access Card"] = new[] { "Titania's Room", "Bomb Room" },
+        ["SGT Class Staterooms Access Card"] = new[] { "SGT Class Lobby", "SGT Class Stateroom" },
+        ["2nd Class Staterooms Access Card"] = new[] { "2nd Class Lobby", "2nd Class Stateroom", "Broken Elevator" },
+        ["1st Class Staterooms Access Card"] = new[] { "1st Class Lobby", "1st Class Stateroom" },
+    };
+
+    private static readonly Font RoomAccessFont =new(Control.DefaultFont.FontFamily, 10f);
+    private readonly FlowLayoutPanel _roomAccessPanel = new()
     {
         Dock = DockStyle.Right,
         Width = 280,
@@ -59,7 +106,12 @@ public sealed class MainForm : Form
         AutoScroll = true,
         Padding = new Padding(8, 6, 8, 6),
     };
-    private readonly Dictionary<string, Label> _accessCardLabels = new();
+    private readonly Dictionary<RoomRequirement, Label> _roomRequirementLabels = new();
+    private readonly Dictionary<string, (Label Mark, Label Name)> _roomAccessLabels = new();
+    // card -> the slot's location names in its rooms, rebuilt on each connection state change
+    private readonly Dictionary<string, string[]> _roomLocationNames = new();
+    // Lists each room's uncompleted checks on hover
+    private readonly ToolTip _roomAccessToolTip = new() { AutoPopDelay = 30000, InitialDelay = 300 };
 
     public MainForm()
     {
@@ -83,11 +135,13 @@ public sealed class MainForm : Form
         _session.ApStateChanged += (_, _) =>
         {
             UpdateFooterApStatus();
-            UpdateAccessCards();
+            RebuildRoomLocationNames();
+            UpdateRoomAccess();
             UpdateApToggleButton();
             UpdateInfoChecks();
         };
-        _session.ItemReceived += UpdateAccessCards;
+        _session.ItemReceived += UpdateRoomAccess;
+        _session.PendingChecksChanged += UpdateRoomAccess; // picks up the Titania repair check
         _session.MailChanged += items =>
         {
             if (items is not null)
@@ -176,25 +230,37 @@ public sealed class MainForm : Form
         _infoPanel.Controls.Add(_lblInfoChecks, 0, 1);
         _infoPanel.Controls.Add(_lblInfoStations, 1, 1);
 
-        _accessCardsPanel.Controls.Add(new Label
+        foreach ((RoomRequirement requirement, string heading, string[] cards) in RoomAccessGroups)
         {
-            Text = "Access Cards",
-            AutoSize = true,
-            Font = new Font(InfoFont, FontStyle.Bold),
-            Margin = new Padding(0, 0, 0, 6),
-        });
-        foreach (string card in RoomKeys.AllCards)
-        {
-            var label = new Label { Text = AccessCardDisplayName(card), AutoSize = true, Font = InfoFont, Margin = new Padding(0, 0, 0, 4) };
-            _accessCardLabels[card] = label;
-            _accessCardsPanel.Controls.Add(label);
+            var headingLabel = new Label { Text = heading, AutoSize = true, Font = new Font(RoomAccessFont, FontStyle.Bold), Margin = new Padding(0, 6, 0, 4) };
+            _roomRequirementLabels[requirement] = headingLabel;
+            _roomAccessPanel.Controls.Add(headingLabel);
+
+            // Each room is a ✔/✖ mark and a name in separate labels, so the two can be colored differently
+            foreach (string card in cards)
+            {
+                var row = new FlowLayoutPanel
+                {
+                    FlowDirection = FlowDirection.LeftToRight,
+                    WrapContents = false,
+                    AutoSize = true,
+                    Margin = new Padding(14, 0, 0, 4),
+                    Padding = new Padding(0),
+                };
+                var mark = new Label { AutoSize = true, Font = RoomAccessFont, Margin = new Padding(0, 0, 2, 0) };
+                var name = new Label { Text = AccessCardDisplayName(card), AutoSize = true, Font = RoomAccessFont, Margin = new Padding(0) };
+                row.Controls.Add(mark);
+                row.Controls.Add(name);
+                _roomAccessLabels[card] = (mark, name);
+                _roomAccessPanel.Controls.Add(row);
+            }
         }
 
         // Docking runs from the last-added control inward: footer, seed warning and info area across the full width,
-        // then the cards panel down the right side, leaving the chat row and log to share what remains on the left
+        // then the room access panel down the right side, leaving the chat row and log to share what remains on the left
         Controls.Add(_txtServerLog);
         Controls.Add(chatRow);
-        Controls.Add(_accessCardsPanel);
+        Controls.Add(_roomAccessPanel);
         Controls.Add(_infoPanel);
         Controls.Add(_lblInfoSaveSeedMismatch);
         Controls.Add(footerPanel);
@@ -307,33 +373,93 @@ public sealed class MainForm : Form
             _lblInfoStations.Text = "Visited Succ-U-Bus Stations (-/-)";
     }
 
-    /// <summary>Marks each Access Card in the right-hand panel: a red ✖ for cards the seed requires that haven't been
-    /// received, a green ✔ for cards received or not required. Plain names while not connected.</summary>
-    private void UpdateAccessCards()
+    /// <summary>Marks the right-hand Room Access panel. Each requirement heading gets a green ✔ once met (passenger
+    /// class from received upgrades, or Titania repaired) and a red ✖ until then. Each room is green once all its
+    /// checks are done, whether or not it's accessible; otherwise a red ✖ while its required Access Card hasn't been
+    /// received, a yellow ✔ when the card is in hand (or not required) but its heading isn't met yet, and a plain ✔
+    /// when both are. Plain names while not connected.</summary>
+    private void UpdateRoomAccess()
     {
         bool connected = _session.Ap.State == ApConnectionState.Connected;
-        HashSet<string> requiredCards = RoomKeys.GetRequiredCards(_session.Ap.SlotData);
+        IReadOnlyDictionary<string, object>? slotData = _session.Ap.SlotData;
+        HashSet<string> requiredCards = RoomKeys.GetRequiredCards(slotData);
         string[] receivedItems = _session.Ap.GetReceivedItemNames();
+        int? passengerClass = slotData is null ? null : ClassUpgradeTracker.ComputeClass(receivedItems, slotData);
 
-        foreach ((string card, Label label) in _accessCardLabels)
+        foreach ((RoomRequirement requirement, string heading, string[] cards) in RoomAccessGroups)
         {
-            string name = AccessCardDisplayName(card);
+            bool met = requirement switch
+            {
+                RoomRequirement.SecondClass => passengerClass is (int)PassengerClass.Second or (int)PassengerClass.First,
+                RoomRequirement.FirstClass => passengerClass is (int)PassengerClass.First,
+                RoomRequirement.TitaniaRepaired => _session.Ap.IsLocationCheckedOrQueued(ClassSync.TitaniaRepairedLocation),
+                _ => true,
+            };
+
             if (!connected)
-            {
-                label.Text = name;
-                label.ForeColor = SystemColors.ControlText;
-            }
-            else if (requiredCards.Contains(card) && !receivedItems.Contains(card, StringComparer.OrdinalIgnoreCase))
-            {
-                label.Text = $"✖ {name}";
-                label.ForeColor = Color.Red;
-            }
+                SetStatusLabel(_roomRequirementLabels[requirement], heading, SystemColors.ControlText);
             else
+                SetStatusLabel(_roomRequirementLabels[requirement], $"{(met ? "✔" : "✖")} {heading}", met ? Color.Green : Color.Red);
+
+            foreach (string card in cards)
             {
-                label.Text = $"✔ {name}";
-                label.ForeColor = Color.Green;
+                (Label markLabel, Label nameLabel) = _roomAccessLabels[card];
+                string name = AccessCardDisplayName(card);
+                bool allChecked = false;
+                string toolTip = "";
+                if (_roomLocationNames.TryGetValue(card, out string[]? locations)
+                    && _session.Ap.GetLocationCheckSummary(locations) is { Total: > 0 } summary)
+                {
+                    name += $" ({summary.Checked}/{summary.Total})";
+                    allChecked = summary.Checked == summary.Total;
+                    toolTip = string.Join(Environment.NewLine, locations.Where(location => !_session.Ap.IsLocationChecked(location)));
+                }
+                foreach (Label label in new[] { markLabel, nameLabel })
+                {
+                    if (_roomAccessToolTip.GetToolTip(label) != toolTip)
+                        _roomAccessToolTip.SetToolTip(label, toolTip);
+                }
+
+                bool hasCard = !requiredCards.Contains(card) || receivedItems.Contains(card, StringComparer.OrdinalIgnoreCase);
+                (string mark, Color markColor, Color nameColor) = true switch
+                {
+                    _ when !connected => ("", SystemColors.ControlText, SystemColors.ControlText),
+                    _ when allChecked => (hasCard ? "✔" : "✖", Color.Green, Color.Green),
+                    _ when !hasCard => ("✖", Color.Red, Color.Red),
+                    _ when !met => ("✔", Color.Goldenrod, Color.Red),
+                    _ => ("✔", SystemColors.ControlText, SystemColors.ControlText),
+                };
+                SetStatusLabel(markLabel, mark, markColor);
+                SetStatusLabel(nameLabel, name, nameColor);
             }
         }
+    }
+
+    /// <summary>Sorts the slot's location names under the Access Card of the room each is in, by name prefix.
+    /// Empty while not connected.</summary>
+    private void RebuildRoomLocationNames()
+    {
+        _roomLocationNames.Clear();
+        string[] allLocations = _session.Ap.GetAllLocationNames();
+        if (allLocations.Length == 0)
+            return;
+
+        foreach (string card in _roomAccessLabels.Keys)
+        {
+            string[] prefixes = RoomLocationPrefixes.TryGetValue(card, out string[]? custom) ? custom : new[] { AccessCardDisplayName(card) };
+            _roomLocationNames[card] = allLocations
+                .Where(location => prefixes.Any(prefix => location.StartsWith(prefix + " - ", StringComparison.Ordinal)))
+                .ToArray();
+        }
+    }
+
+    /// <summary>Sets a label's text and color, skipping unchanged values - UpdateRoomAccess runs every tick.</summary>
+    private static void SetStatusLabel(Label label, string text, Color color)
+    {
+        if (label.Text != text)
+            label.Text = text;
+        if (label.ForeColor != color)
+            label.ForeColor = color;
     }
 
     /// <summary>The card's item name without the " Access Card" suffix - redundant under the panel's heading.</summary>
