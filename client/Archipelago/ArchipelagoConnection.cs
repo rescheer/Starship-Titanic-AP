@@ -116,6 +116,9 @@ public sealed class ArchipelagoConnection : IDisposable
     /// <summary>The server's seed_name, captured once login succeeds.</summary>
     public string? SeedName { get; private set; }
 
+    /// <summary>The server's canonical name for the logged-in slot, captured alongside <see cref="SeedName"/>.</summary>
+    public string? SlotName { get; private set; }
+
     /// <summary>The seed_name of the most recent successful login, kept across disconnects so checks made offline
     /// are still tagged (and flushed) for the seed the save was verified against.</summary>
     private string? _lastSeedName;
@@ -185,6 +188,7 @@ public sealed class ArchipelagoConnection : IDisposable
                 _session = null;
                 SlotData = null;
                 SeedName = null;
+                SlotName = null;
                 _pendingChecksFlushedThisSession = false;
                 RaiseState(ApConnectionState.Disconnected, $"Disconnected: {reason}");
             }
@@ -225,6 +229,7 @@ public sealed class ArchipelagoConnection : IDisposable
             _session = session;
             SlotData = success.SlotData;
             SeedName = session.RoomState.Seed;
+            SlotName = session.Players.GetPlayerName(success.Slot) ?? slot;
             _lastSeedName = SeedName;
             session.MessageLog.OnMessageReceived += message => MessageReceived?.Invoke(message);
 
@@ -365,6 +370,7 @@ public sealed class ArchipelagoConnection : IDisposable
         _session = null;
         SlotData = null;
         SeedName = null;
+        SlotName = null;
         _pendingChecksFlushedThisSession = false;
         RaiseState(ApConnectionState.Disconnected, message);
 
@@ -388,6 +394,7 @@ public sealed class ArchipelagoConnection : IDisposable
             _session = null;
             SlotData = null;
             SeedName = null;
+            SlotName = null;
             _pendingChecksFlushedThisSession = false;
 
 #pragma warning disable CS4014

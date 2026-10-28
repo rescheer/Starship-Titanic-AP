@@ -6,12 +6,13 @@ public static class SaveSeedTag
 {
     private const string BeamBridgeItemName = "BeamBridge";
 
-    /// <summary>Deterministic positive tag for a seed_name: an FNV-1a hash reduced to [1, 16,000,000], an integer
-    /// a 32-bit float represents exactly. 0 means "untagged".</summary>
-    public static long ComputeSeedTag(string seedName)
+    /// <summary>Deterministic positive tag for a seed_name + slot name pair (so two Starship Titanic slots in the same
+    /// seed get different tags): an FNV-1a hash reduced to [1, 16,000,000], an integer a 32-bit float represents
+    /// exactly. 0 means "untagged".</summary>
+    public static long ComputeSeedTag(string seedName, string slotName)
     {
         ulong hash = 14695981039346656037UL;
-        foreach (char c in seedName)
+        foreach (char c in $"{seedName}\0{slotName}")
         {
             hash ^= c;
             hash *= 1099511628211UL;

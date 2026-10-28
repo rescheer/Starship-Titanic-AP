@@ -55,7 +55,7 @@ internal sealed class SaveSeedGuard
         if (State != SaveSeedGuardState.Unverified
             && _ctx.TickCount % RecheckIntervalTicks != 0)
             return;
-        if (_ctx.Ap.SeedName is not { } seedName)
+        if (_ctx.Ap.SeedName is not { } seedName || _ctx.Ap.SlotName is not { } slotName)
             return;
         if (_ctx.Project is not { } project)
             return;
@@ -72,7 +72,7 @@ internal sealed class SaveSeedGuard
         }
         _beamBridgeMisses = 0;
 
-        long tag = SaveSeedTag.ComputeSeedTag(seedName);
+        long tag = SaveSeedTag.ComputeSeedTag(seedName, slotName);
         long? stored = SaveSeedTag.ReadStoredSeedTag(_ctx.Mem, beamBridgeAddr.Value);
 
         if (stored is null)
@@ -130,7 +130,7 @@ internal sealed class SaveSeedGuard
             return ForceTagResult.NotAttached;
         if (_ctx.GameManager is null)
             return ForceTagResult.GameNotResolved;
-        if (_ctx.Ap.SeedName is not { } seedName)
+        if (_ctx.Ap.SeedName is not { } seedName || _ctx.Ap.SlotName is not { } slotName)
             return ForceTagResult.NotConnected;
         if (_ctx.Project is not { } project)
             return ForceTagResult.ProjectNotResolved;
@@ -139,7 +139,7 @@ internal sealed class SaveSeedGuard
         if (beamBridgeAddr is null)
             return ForceTagResult.BeamBridgeNotFound;
 
-        long tag = SaveSeedTag.ComputeSeedTag(seedName);
+        long tag = SaveSeedTag.ComputeSeedTag(seedName, slotName);
         if (!SaveSeedTag.WriteSeedTag(_ctx.Mem, beamBridgeAddr.Value, tag))
             return ForceTagResult.WriteFailed;
 
