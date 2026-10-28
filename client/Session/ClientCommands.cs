@@ -9,8 +9,12 @@ internal sealed class ClientCommands
     private readonly SaveSeedGuard _saveSeedGuard;
     private readonly ItemSync _itemSync;
 
-    /// <summary>Command name (without the "/") to handler, which receives the rest of the line as its arguments.</summary>
-    private readonly Dictionary<string, Action<string>> _commands;
+    /// <summary>A client command: its handler, which receives the rest of the line as its arguments, plus the
+    /// usage line and description /help shows for it.</summary>
+    private sealed record Command(string Usage, string Description, Action<string> Handler);
+
+    /// <summary>Command name (without the "/") to command, in the order /help lists them.</summary>
+    private readonly Dictionary<string, Command> _commands;
 
     public ClientCommands(SessionContext ctx, SaveSeedGuard saveSeedGuard, ItemSync itemSync)
     {
@@ -19,11 +23,15 @@ internal sealed class ClientCommands
         _itemSync = itemSync;
         _commands = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["force_seed"] = _ => ForceSeed(),
-            ["ap"] = SendToServer,
-            ["hint"] = args => SendToServer(args.Length == 0 ? "!hint" : $"!hint {args}"),
-            ["return"] = ReturnItem,
-            ["getmail"] = _ => GetMail(),
+            ["help"] = new("/help", "list the client's commands", _ => PrintHelp()),
+            ["ap"] = new("/ap <text>", "send a message or !command to the AP server", SendToServer),
+            ["hint"] = new("/hint [item]", "same as /ap !hint [item]",
+                args => SendToServer(args.Length == 0 ? "!hint" : $"!hint {args}")),
+            ["return"] = new("/return <item>", "move a received item back into your inventory", ReturnItem),
+            ["getmail"] = new("/getmail", "move all AP items waiting in the mail into your inventory", _ => GetMail()),
+            ["loc"] = new("/loc", "show your current room/node/view", _ => PrintLocation()),
+            ["force_seed"] = new("/force_seed", "bypass the save/seed guard by tagging this save with the current seed",
+                _ => ForceSeed()),
         };
     }
 
@@ -35,11 +43,11 @@ internal sealed class ClientCommands
             return null;
 
         string[] parts = text[1..].Split(' ', 2, StringSplitOptions.TrimEntries);
-        if (!_commands.TryGetValue(parts[0], out Action<string>? handler))
+        if (!_commands.TryGetValue(parts[0], out Command? command))
             return null;
 
         string args = parts.Length > 1 ? parts[1] : "";
-        return () => handler(args);
+        return () => command.Handler(args);
     }
 
     /// <summary>Tells the player that <paramref name="text"/>, typed in game, isn't a client command, and how to send
@@ -51,6 +59,17 @@ internal sealed class ClientCommands
         _ctx.Report.ReportAction(false, message);
         _ctx.Report.AppendServerLog($"CLIENT: {message}");
         _ctx.ShowPetMessage($"AP: {message}");
+    }
+
+    /// <summary>/help: lists every client command with its description in the server log, and just their names in
+    /// the PET, which has no room for the descriptions.</summary>
+    private void PrintHelp()
+    {
+        _ctx.Report.AppendServerLog("CLIENT: Client commands (anything else typed here goes to the AP server):");
+        foreach (Command command in _commands.Values)
+            _ctx.Report.AppendServerLog($"CLIENT:   {command.Usage} - {command.Description}");
+        _ctx.ShowPetMessage($"AP: Commands: {string.Join(", ", _commands.Keys.Select(name => "/" + name))}"
+            + " - see the client's server log for details.");
     }
 
     /// <summary>/ap &lt;text&gt;: sends the rest of the line to the AP server as-is, e.g. "/ap !hint X" sends "!hint X".</summary>
@@ -136,6 +155,20 @@ internal sealed class ClientCommands
             ReportReturn(false, moved.Count == 0
                 ? $"/getMail failed: couldn't move {string.Join(", ", failed)} to your inventory."
                 : $"/getMail: moved {string.Join(", ", moved)} to your inventory, but couldn't move {string.Join(", ", failed)}.");
+    }
+
+    /// <summary>/loc: prints the player's current room/node/view, in the [room, node, view] form the docs use.</summary>
+    private void PrintLocation()
+    {
+        RoomNodeView? rnv = _ctx.GameManager is long gm ? GameState.ReadRoomNodeView(_ctx.Mem, gm) : null;
+        if (rnv is not { } r)
+        {
+            ReportReturn(false, "/loc failed: not in game yet.");
+            return;
+        }
+
+        string room = _ctx.CurrentRoomName is { } name ? $" ({name})" : "";
+        ReportReturn(true, $"/loc: RNV [{r.Room}, {r.Node}, {r.View}]{room}");
     }
 
     private void ReportReturn(bool success, string message)
