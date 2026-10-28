@@ -40,13 +40,13 @@ Requires [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/
   - Despite the randomization, all of the puzzles in the game work the same as they do in a vanilla game. Walkthroughs are really useful for this game, especially if you've never played it
 
 ## Locations and Items
-Locations in this apworld include:
+[Locations](https://github.com/rescheer/Starship-Titanic-AP/wiki/Locations) in this apworld include:
 - Picking up inventory items
 - Solving puzzles
 - Visiting rooms for the first time
 - Visiting every Succ-U-Bus terminal on the ship
 
-Items include:
+[Items](https://github.com/rescheer/Starship-Titanic-AP/wiki/Items) include:
 - Most carryable inventory items
 - Progressive Class Upgrades
 - Progressive Staterooms
