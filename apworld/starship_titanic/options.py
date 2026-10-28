@@ -36,6 +36,16 @@ class StateroomAssignment(Choice):
     option_vanilla = 1
     default = 0
 
+
+class ItemDeliveryMethod(Choice):
+    """Succubus: Incoming carryable items must be picked up at any Succ-U-Bus on the ship.
+    Direct To Inventory: Incoming carryable items are inserted directly into your inventory upon being received."""
+    display_name = "Item Delivery Method"
+    option_succubus = 0
+    option_direct_to_inventory = 1
+    default = 0
+
+
 class RoomAccessCardsMode(Choice):
     """Enabled: Requires a matching Access Card item from the multiworld to access any room.
     Random: Chooses a random set of Access Cards to enable at generation (minimum 1).
@@ -160,6 +170,7 @@ class StarshipTitanicOptions(PerGameCommonOptions):
     goal: Goal
     passenger_class_upgrades: PassengerClassUpgrades
     stateroom_assignment: StateroomAssignment
+    item_delivery_method: ItemDeliveryMethod
     room_access_cards_mode: RoomAccessCardsMode
     require_access_cards_all_rooms: RequireAccessCardsAllRooms
     require_access_card_top_of_the_well: RequireAccessCardTopOfTheWell

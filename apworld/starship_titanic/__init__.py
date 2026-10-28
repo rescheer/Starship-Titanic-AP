@@ -133,4 +133,5 @@ class StarshipTitanicWorld(World):
             "second_stateroom_tier": 2,
             "first_stateroom_tier": 3,
             "room_access_cards": self.access_cards,  # the client only locks the rooms of these cards
+            "item_delivery_method": self.options.item_delivery_method.current_key,  # "succubus" or "direct_to_inventory"
         }

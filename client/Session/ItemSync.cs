@@ -15,7 +15,7 @@ internal enum ReturnItemResult
 }
 
 /// <summary>Keeps the physical carry items in the game in line with AP: sends pickup checks, hides items picked up
-/// before they're granted, delivers granted items by mail, and temporarily restores granted-but-unfound items to
+/// before they're granted, delivers granted items (by mail, or straight into the inventory), and temporarily restores granted-but-unfound items to
 /// their home spot (reverting them if the player leaves without picking them up).</summary>
 internal sealed class ItemSync
 {
@@ -70,7 +70,6 @@ internal sealed class ItemSync
 
         List<CarryItemLocation> items = GameState.FindAllCarryItems(_ctx.Mem, project);
         string[] receivedItems = _ctx.Ap.GetReceivedItemNames();
-        bool anyMailChange = false;
 
         SyncLiftEyeGate(items, receivedItems);
         TryHideOrDeliverFeather(items, receivedItems, gameManager);
@@ -129,14 +128,7 @@ internal sealed class ItemSync
                 if (itemGranted)
                 {
                     if (serverGrantedInHidden && !IsInstalledInFuseBox(project, item.Name))
-                    {
-                        bool delivered = DeliverToMail(item, gameManager);
-                        if (delivered)
-                        {
-                            anyMailChange = true;
-                            _ctx.Report.NotifyItemsChanged();
-                        }
-                    }
+                        DeliverGrantedItem(item, mailState: null, gameManager);
                     continue;
                 }
 
@@ -242,15 +234,7 @@ internal sealed class ItemSync
             if (inHiddenRoom)
             {
                 if (persisted.Stage == ItemStage.Hidden && granted && !IsInstalledInFuseBox(project, item.Name))
-                {
-                    bool ok = DeliverToMail(item, gameManager);
-                    if (ok)
-                    {
-                        GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None));
-                        anyMailChange = true;
-                        _ctx.Report.NotifyItemsChanged();
-                    }
-                }
+                    DeliverGrantedItem(item, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None), gameManager);
                 continue;
             }
 
@@ -265,21 +249,10 @@ internal sealed class ItemSync
                 continue;
             }
 
-            // Granted but never found: deliver via mail. One-directional items are excluded.
+            // Granted but never found: deliver it. One-directional items are excluded.
             if (persisted.Stage == ItemStage.None && granted && !ItemTracking.IsOneDirectionalItem(item.Name))
-            {
-                bool ok = DeliverToMail(item, gameManager);
-                if (ok)
-                {
-                    GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolDelivered: true));
-                    anyMailChange = true;
-                    _ctx.Report.NotifyItemsChanged();
-                }
-            }
+                DeliverGrantedItem(item, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolDelivered: true), gameManager);
         }
-
-        if (anyMailChange)
-            _ctx.Report.NotifyMailChanged();
 
         // After the loop above, so it never acts on the Magazine's stale pre-return parent this pass.
         TryReturnEatenMagazine(items, gameManager);
@@ -374,16 +347,8 @@ internal sealed class ItemSync
 
         if (persisted.Stage == ItemStage.Hidden)
         {
-            if (!granted)
-                return;
-
-            bool delivered = DeliverToMail(feather, gameManager);
-            if (delivered)
-            {
-                GameActions.WriteItemPersistedState(_ctx.Mem, feather.Address, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None, ToolDelivered: true));
-                _ctx.Report.NotifyMailChanged();
-                _ctx.Report.NotifyItemsChanged();
-            }
+            if (granted)
+                DeliverGrantedItem(feather, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None, ToolDelivered: true), gameManager);
             return;
         }
 
@@ -392,13 +357,7 @@ internal sealed class ItemSync
 
         if (granted)
         {
-            bool delivered = DeliverToMail(feather, gameManager);
-            if (delivered)
-            {
-                GameActions.WriteItemPersistedState(_ctx.Mem, feather.Address, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolDelivered: true));
-                _ctx.Report.NotifyMailChanged();
-                _ctx.Report.NotifyItemsChanged();
-            }
+            DeliverGrantedItem(feather, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolDelivered: true), gameManager);
             return;
         }
 
@@ -846,6 +805,44 @@ internal sealed class ItemSync
                 new ItemPersistedState(ItemStage.Mail, persisted.CheckFired, ItemPulledFrom.None, ToolDelivered: true));
         }
         return moved;
+    }
+
+    /// <summary>Whether the seed's Item Delivery Method puts granted items straight into the inventory instead of the
+    /// mail. False for seeds without the slot data key.</summary>
+    private bool DeliversToInventory =>
+        _ctx.Ap.KnownSlotData is { } slotData
+        && slotData.TryGetValue("item_delivery_method", out object? method)
+        && string.Equals(method as string, "direct_to_inventory", StringComparison.Ordinal);
+
+    /// <summary>Delivers a granted item the way the seed's Item Delivery Method asks. <paramref name="mailState"/> is
+    /// recorded when it goes by mail (null for server-granted items, which don't use the persisted state); straight
+    /// into the inventory, MoveIntoInventory records it as being in inventory instead.</summary>
+    private bool DeliverGrantedItem(CarryItemLocation item, ItemPersistedState? mailState, long gameManager)
+    {
+        bool ok;
+        if (DeliversToInventory)
+        {
+            ok = _ctx.InventoryRoom is { } inventoryRoom && MoveIntoInventory(item, inventoryRoom, gameManager);
+            if (ok)
+                ScheduleDirtyReassert();
+            _ctx.Report.ReportAction(ok, ok
+                ? $"Delivered AP grant for {item.Name} to inventory"
+                : $"Failed to deliver AP grant for {item.Name}");
+        }
+        else
+        {
+            ok = DeliverToMail(item, gameManager);
+            if (ok)
+            {
+                if (mailState is { } state)
+                    GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, state);
+                _ctx.Report.NotifyMailChanged();
+            }
+        }
+
+        if (ok)
+            _ctx.Report.NotifyItemsChanged();
+        return ok;
     }
 
     /// <summary>Delivers a tracked item to the player via the mail system.</summary>

@@ -17,8 +17,9 @@ Requires [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/
 8. Click connect and play
 
 ## Playing the AP
-- Receiving items: When you are sent an item from the multiworld, **it does not immediately end up in your inventory.** You need to go to any Succ-U-Bus and press the Receive button in your PET's Control tab (middle icon). The Succ-U-Bus will dispense your item into the tray. Don't forget to pick it up!
+- Receiving items: By default (Item Delivery Method: Succubus), when you are sent an item from the multiworld, **it does not immediately end up in your inventory.** You need to go to any Succ-U-Bus and press the Receive button in your PET's Control tab (middle icon). The Succ-U-Bus will dispense your item into the tray. Don't forget to pick it up!
    - If you have multiple items queued for delivery, simply press Receive again. Don't forget to take your item out of the tray after each arrives
+   - With Item Delivery Method set to Direct To Inventory, received items go straight into your inventory instead
 - All Archipelago server messages including location checks and granted items will be routed to your PET on the Conversation tab
 - Client commands - Usable in-game or in the client window:
   - **/help** - list all client commands
@@ -33,7 +34,7 @@ Requires [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/
 - Why only the Steam version of the game? What about GOG? Can I use my original discs?
   - Simply put, the Steam version is the one that I own. I plan to eventually pick up the GOG version and test it, because there's a good chance it's the same ScummVM version of the game and might work out of the box. The original discs will never be supported. This implementation depends on the rebuilt engine used in the ScummVM release
 - I was granted an item, but it's not in my inventory
-  - Granted items are placed into the Succ-U-Bus mail delivery system. There is a Succ-U-Bus terminal in just about every room in the ship. Approach one and use the Receive button in the UI to receive an item. Repeat for any additional items
+  - When the Item Delivery Method YAML option is set to Succ-U-Bus (default), granted items are placed into the Succ-U-Bus mail delivery system. There is a Succ-U-Bus terminal in just about every room in the ship. Approach one and use the Receive button in the UI to receive an item. Repeat for any additional items
 - The Deskbot said she upgraded my class and/or assigned me a stateroom, but nothing happened
   - Class upgrades and Stateroom assignments are now multiworld items. Completing the processes to get class upgrades from the Deskbot are still location checks, though
 - What do I do next?
