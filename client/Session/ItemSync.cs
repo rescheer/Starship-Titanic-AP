@@ -810,8 +810,11 @@ internal sealed class ItemSync
 
     /// <summary>Whether the seed's Item Delivery Method puts granted items straight into the inventory instead of the
     /// mail. False for seeds without the slot data key.</summary>
-    private bool DeliversToInventory =>
-        _ctx.Ap.KnownSlotData is { } slotData
+    private bool DeliversToInventory => IsDirectToInventory(_ctx.Ap.KnownSlotData);
+
+    /// <summary>Whether slotData's Item Delivery Method is Direct To Inventory. False for null or seeds without the key.</summary>
+    public static bool IsDirectToInventory(IReadOnlyDictionary<string, object>? slotData) =>
+        slotData is not null
         && slotData.TryGetValue("item_delivery_method", out object? method)
         && string.Equals(method as string, "direct_to_inventory", StringComparison.Ordinal);
 

@@ -27,7 +27,8 @@ public sealed class MainForm : Form
 
     private static readonly Font InfoFont = new(Control.DefaultFont.FontFamily, 11f);
     private readonly Label _lblInfoRoom = new() { Text = "Room: -", AutoSize = true, Font = InfoFont };
-    private readonly Label _lblInfoMail = new() { Text = "Succ-U-Bus has 0 AP items ready for delivery.", AutoSize = true, Font = InfoFont };
+    private readonly Label _lblInfoMail = new() { Text = "Succ-U-Bus has 0 AP items ready for delivery", AutoSize = true, Font = InfoFont };
+    private int _lastMailCount;
     private readonly Label _lblInfoChecks = new() { Text = "Checks: -/-", AutoSize = true, Font = InfoFont };
     private readonly Label _lblInfoStations = new() { Text = "Visited Succ-U-Bus Stations (-/-)", AutoSize = true, Font = InfoFont };
     private readonly TableLayoutPanel _infoPanel = new()
@@ -143,6 +144,7 @@ public sealed class MainForm : Form
             UpdateRoomAccess();
             UpdateApToggleButton();
             UpdateInfoChecks();
+            UpdateInfoMailCount(_lastMailCount);
         };
         _session.ItemReceived += UpdateRoomAccess;
         _session.PendingChecksChanged += UpdateRoomAccess; // picks up the Titania repair check
@@ -395,10 +397,14 @@ public sealed class MainForm : Form
         _lblInfoRoom.Text = $"Room: {LocationChecks.GetReadableRoomName(roomName)}";
     }
 
-    /// <summary>Sets the information area's mail line to the current count of tool-placed AP items sitting in the mail system.</summary>
+    /// <summary>Sets the information area's mail line to the current count of tool-placed AP items sitting in the mail
+    /// system, or to a fixed notice when the seed delivers items straight to the inventory.</summary>
     private void UpdateInfoMailCount(int count)
     {
-        _lblInfoMail.Text = $"Succ-U-Bus has {count} AP item{(count == 1 ? "" : "s")} ready for delivery.";
+        _lastMailCount = count;
+        _lblInfoMail.Text = ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData)
+            ? "Direct to Inventory item mode enabled"
+            : $"Succ-U-Bus has {count} AP item{(count == 1 ? "" : "s")} ready for delivery";
     }
 
     /// <summary>Sets the information area's "Checks: x/y" and "Visited Succ-U-Bus Stations (x/y)" lines.</summary>
