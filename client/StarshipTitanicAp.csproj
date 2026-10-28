@@ -11,7 +11,7 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Platforms>x64</Platforms>
     <!-- Bump for each release -->
-    <Version>0.3.2</Version>
+    <Version>0.4.0</Version>
     <Product>Starship Titanic AP Client</Product>
   </PropertyGroup>
 
