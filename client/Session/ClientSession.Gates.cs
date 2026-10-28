@@ -31,6 +31,20 @@ internal sealed partial class ClientSession
         ReportAction(ok, "Table Access granted -> Maitre'D's table unlocked");
     }
 
+    /// <summary>Under the Easy Music Room Puzzle option, sets the Music Room panel to the solution. Called on entering
+    /// the Music Room (which includes loading a save there), so controls the player changes stay changed until then.</summary>
+    private void TrySolveMusicRoomControls()
+    {
+        if (!MusicRoomControls.IsEnabled(_apConnection.KnownSlotData) || _ctx.Project is not { } project)
+            return;
+
+        (int written, int failed) = MusicRoomControls.Solve(_mem, project);
+        if (failed == 0)
+            AppendLog($"Easy Music Room Puzzle: set {written} panel controls to the solution");
+        else
+            ReportAction(false, $"Easy Music Room Puzzle: set {written} panel controls, {failed} missing or unexpected");
+    }
+
     /// <summary>Keeps CTelevision::_channel4Glyph pinned to true, so taking Eye1 never takes channel 4's picture
     /// off the television. Only writes when the game has cleared it.</summary>
     private void KeepTelevisionChannel4GlyphOn()

@@ -46,6 +46,11 @@ class ItemDeliveryMethod(Choice):
     default = 0
 
 
+class EasyMusicRoomPuzzle(Toggle):
+    """Sets the Music Room panel's controls to the correct settings upon entering the room."""
+    display_name = "Easy Music Room Puzzle"
+
+
 class RoomAccessCardsMode(Choice):
     """Enabled: Requires a matching Access Card item from the multiworld to access any room.
     Randomized: Chooses a random set of Access Cards to enable at generation (minimum 1).
@@ -171,6 +176,7 @@ class StarshipTitanicOptions(PerGameCommonOptions):
     passenger_class_upgrades: PassengerClassUpgrades
     stateroom_assignment: StateroomAssignment
     item_delivery_method: ItemDeliveryMethod
+    easy_music_room_puzzle: EasyMusicRoomPuzzle
     room_access_cards_mode: RoomAccessCardsMode
     require_access_cards_all_rooms: RequireAccessCardsAllRooms
     require_access_card_top_of_the_well: RequireAccessCardTopOfTheWell
@@ -224,7 +230,7 @@ def enabled_access_cards(options: StarshipTitanicOptions, random: Random) -> Lis
         mode = RoomAccessCardsMode.option_enabled
     if mode == RoomAccessCardsMode.option_enabled:
         return candidates
-    if mode == RoomAccessCardsMode.option_random:
+    if mode == RoomAccessCardsMode.option_randomized:
         cards = [card for card in candidates if random.random() < 0.5]
         # Always require at least one card
         if not cards:

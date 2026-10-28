@@ -528,6 +528,42 @@ public static class GameState
         return null;
     }
 
+    /// <summary>Like FindDescendantByName, but finds several names in one walk of rootAddr's subtree. Returns the
+    /// first match for each name found, keyed by the requested name.</summary>
+    public static Dictionary<string, long> FindDescendantsByName(MemoryReader mem, long rootAddr, IEnumerable<string> names)
+    {
+        var wanted = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
+        var results = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        long? firstChild = mem.ReadInt64(rootAddr + GameOffsets.FirstChild);
+        if (firstChild is null || !LooksLikeHeapPointer(firstChild.Value))
+            return results;
+
+        var visited = new HashSet<long>();
+        var stack = new Stack<long>();
+        stack.Push(firstChild.Value);
+        int nodeCount = 0;
+
+        while (stack.Count > 0 && nodeCount < MaxDescendantSearchNodes && results.Count < wanted.Count)
+        {
+            long addr = stack.Pop();
+            if (addr == 0 || !visited.Add(addr))
+                continue;
+            nodeCount++;
+
+            if (TryReadName(mem, addr) is { } name && wanted.TryGetValue(name, out string? key))
+                results.TryAdd(key, addr);
+
+            long? childFirstChild = mem.ReadInt64(addr + GameOffsets.FirstChild);
+            long? nextSibling = mem.ReadInt64(addr + GameOffsets.NextSibling);
+            if (childFirstChild is not null && LooksLikeHeapPointer(childFirstChild.Value))
+                stack.Push(childFirstChild.Value);
+            if (nextSibling is not null && LooksLikeHeapPointer(nextSibling.Value))
+                stack.Push(nextSibling.Value);
+        }
+
+        return results;
+    }
+
     /// <summary>Finds the "Scraliontis Table" (CScraliontisTable) instance in the 1st Class Restaurant, live.</summary>
     public static long? FindScraliontisTable(MemoryReader mem, long project)
     {

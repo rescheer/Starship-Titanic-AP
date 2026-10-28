@@ -181,6 +181,8 @@ internal sealed partial class ClientSession
             {
                 DeliverQueuedMailAtStation(roomName);
                 TrySendRoomVisitCheck(roomName);
+                if (roomName == MusicRoomControls.RoomName)
+                    TrySolveMusicRoomControls();
             }
 
             // Runs before TrySendPointOfInterestCheck so a first visit's own check doesn't count as already checked.
