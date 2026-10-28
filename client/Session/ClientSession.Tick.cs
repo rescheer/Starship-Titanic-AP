@@ -219,7 +219,7 @@ internal sealed partial class ClientSession
             int? attemptedClass = RoomAssignHook.PollAttemptedClass(_mem);
             if (attemptedClass is not null && StateroomAssignTracker.IsVanilla(_apConnection.KnownSlotData))
             {
-                ApplyBlockedRoomAssignment(gameManager.Value, attemptedClass.Value);
+                _pendingVanillaRoomAssignmentClass = attemptedClass;
                 SyncRoomAssignHook();
             }
             else if (attemptedClass is not null)
@@ -227,6 +227,7 @@ internal sealed partial class ClientSession
                 AppendLog($"RoomAssignHook: blocked petReassignRoom({PassengerClassNames.GetName(attemptedClass.Value)}) from taking effect - room assignment stays item-gated");
             }
         }
+        TryApplyPendingRoomAssignment();
 
         if (GetLiftEye2GateHook.IsInstalled)
         {

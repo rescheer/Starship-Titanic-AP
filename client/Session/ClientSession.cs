@@ -40,6 +40,10 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
 
     private bool _conversationsAddrShown;
 
+    /// <summary>A room assignment RoomAssignHook blocked before the seed was known to have vanilla staterooms, held
+    /// until the PET is resolved so it can be applied.</summary>
+    private int? _pendingVanillaRoomAssignmentClass;
+
     private bool _readyToPlayLogged;
 
     /// <summary>Must be created on the UI thread, after the first control exists (so a WinForms

@@ -91,22 +91,29 @@ internal sealed partial class ClientSession
         }
         else if (vanilla && RoomAssignHook.IsInstalled)
         {
-            // Uninstalling frees the mailbox, so first apply any assignment blocked before the option was known.
-            // Without the PET resolved yet, the hook stays until OnTick applies the next attempt and re-runs this.
-            if (_ctx.GameManager is not { } gameManager || _ctx.InventoryRoom is null)
-                return;
+            // Uninstalling frees the mailbox, so first take any assignment blocked before the option was known.
+            // Uninstalls right away even without the PET resolved: left installed, the DeskBot's check-in would be
+            // blocked too, and the room it then reads back for its dialogue would be unassigned.
             if (RoomAssignHook.PollAttemptedClass(_mem) is { } attemptedClass)
-                ApplyBlockedRoomAssignment(gameManager, attemptedClass);
+                _pendingVanillaRoomAssignmentClass = attemptedClass;
 
             ReportAction(RoomAssignHook.Uninstall(_mem), "Uninstall room assignment lock (vanilla staterooms)");
         }
+
+        TryApplyPendingRoomAssignment();
     }
 
-    /// <summary>Performs a room assignment RoomAssignHook blocked, for seeds with vanilla stateroom assignment.</summary>
-    private void ApplyBlockedRoomAssignment(long gameManager, int attemptedClass)
+    /// <summary>Performs a room assignment RoomAssignHook blocked, for seeds with vanilla stateroom assignment, once
+    /// the PET is resolved.</summary>
+    private void TryApplyPendingRoomAssignment()
     {
-        bool ok = _ctx.InventoryRoom is { } petControlAddr
-            && GameActions.AssignNextRoom(_mem, gameManager, petControlAddr, attemptedClass);
+        if (_pendingVanillaRoomAssignmentClass is not { } attemptedClass)
+            return;
+        if (_ctx.GameManager is not { } gameManager || _ctx.InventoryRoom is not { } petControlAddr)
+            return;
+
+        _pendingVanillaRoomAssignmentClass = null;
+        bool ok = GameActions.AssignNextRoom(_mem, gameManager, petControlAddr, attemptedClass);
         ReportAction(ok, $"Stateroom assignment ({PassengerClassNames.GetName(attemptedClass)}) applied (vanilla staterooms)");
     }
 
@@ -155,6 +162,7 @@ internal sealed partial class ClientSession
         _ctx.CurrentRoomName = null;
         _movers = null;
         _conversationsAddrShown = false;
+        _pendingVanillaRoomAssignmentClass = null;
         _saveSeedGuard.Reset();
         GameActions.ClearHiddenRoomAddressCache();
         GameState.ClearClassNameCache();
