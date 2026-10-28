@@ -1,6 +1,7 @@
 using System.Linq;
 using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.Enums;
+using Archipelago.MultiClient.Net.MessageLog.Messages;
 using Archipelago.MultiClient.Net.Models;
 using Archipelago.MultiClient.Net.Packets;
 
@@ -135,8 +136,8 @@ public sealed class ArchipelagoConnection : IDisposable
 
     public event Action<ApConnectionState, string>? StateChanged;
 
-    /// <summary>Fires for every server log-line the AP client library surfaces, formatted as plain text.</summary>
-    public event Action<string>? MessageReceived;
+    /// <summary>Fires for every server log-line the AP client library surfaces, with its colored parts.</summary>
+    public event Action<LogMessage>? MessageReceived;
 
     /// <summary>Fires once per item as it's received.</summary>
     public event Action<string>? ItemReceived;
@@ -225,7 +226,7 @@ public sealed class ArchipelagoConnection : IDisposable
             SlotData = success.SlotData;
             SeedName = session.RoomState.Seed;
             _lastSeedName = SeedName;
-            session.MessageLog.OnMessageReceived += message => MessageReceived?.Invoke(message.ToString());
+            session.MessageLog.OnMessageReceived += message => MessageReceived?.Invoke(message);
 
             RaiseState(ApConnectionState.Connected, $"Connected as {slot}");
         }

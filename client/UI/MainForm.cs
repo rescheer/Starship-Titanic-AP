@@ -1,3 +1,6 @@
+using Archipelago.MultiClient.Net.Colors;
+using Archipelago.MultiClient.Net.MessageLog.Parts;
+
 namespace StarshipTitanicAp;
 
 /// <summary>Main application window: the player-facing view of a <see cref="ClientSession"/>.</summary>
@@ -15,7 +18,7 @@ public sealed class MainForm : Form
         ReadOnly = true,
         Dock = DockStyle.Fill,
         ScrollBars = RichTextBoxScrollBars.Vertical,
-        Font = new Font(FontFamily.GenericMonospace, 12),
+        Font = new Font(Control.DefaultFont.FontFamily, 11f),
         WordWrap = true,
     };
 
@@ -127,6 +130,7 @@ public sealed class MainForm : Form
         UpdateApToggleButton();
 
         _session.ServerLog += AppendServerLog;
+        _session.ServerLogMessage += AppendServerLogMessage;
         _session.AttachChanged += () =>
         {
             UpdateFooterAttachStatus();
@@ -296,21 +300,59 @@ public sealed class MainForm : Form
     /// <summary>Appends a line to the normal UI's server-only log.</summary>
     private void AppendServerLog(string line, bool bold)
     {
+        AppendServerLogParts(new[] { (line, SystemColors.WindowText) }, bold);
+    }
+
+    /// <summary>Appends an AP server message to the server-only log, each part in its AP palette color.</summary>
+    private void AppendServerLogMessage(MessagePart[] parts)
+    {
+        AppendServerLogParts(parts.Select(part => (part.Text, LogColor(part))), bold: false);
+    }
+
+    /// <summary>Appends one line built from differently colored pieces, trimming the oldest lines past the cap.</summary>
+    private void AppendServerLogParts(IEnumerable<(string Text, Color Color)> parts, bool bold)
+    {
         _txtServerLog.SelectionStart = _txtServerLog.TextLength;
         _txtServerLog.SelectionLength = 0;
         _txtServerLog.SelectionFont = bold ? new Font(_txtServerLog.Font, FontStyle.Bold) : _txtServerLog.Font;
-        _txtServerLog.AppendText(line + Environment.NewLine);
-
-        const int maxLines = 2000;
-        string[] lines = _txtServerLog.Lines;
-        if (lines.Length > maxLines)
+        foreach ((string text, Color color) in parts)
         {
-            _txtServerLog.Lines = lines[(lines.Length - maxLines / 2)..];
+            _txtServerLog.SelectionColor = color;
+            _txtServerLog.AppendText(text);
+        }
+        _txtServerLog.SelectionColor = SystemColors.WindowText;
+        _txtServerLog.AppendText(Environment.NewLine);
+
+        // Cut the oldest lines in place rather than reassigning Lines, which would drop every line's colors
+        const int maxLines = 2000;
+        if (_txtServerLog.Lines.Length > maxLines)
+        {
+            _txtServerLog.ReadOnly = false; // a read-only RichTextBox ignores SelectedText edits
+            _txtServerLog.Select(0, _txtServerLog.GetFirstCharIndexFromLine(maxLines / 2));
+            _txtServerLog.SelectedText = "";
+            _txtServerLog.ReadOnly = true;
             _txtServerLog.SelectionStart = _txtServerLog.TextLength;
         }
 
         _txtServerLog.ScrollToCaret();
     }
+
+    /// <summary>A message part's color, from AP's palette but darkened where the dark-background original would be
+    /// hard to read on the log's white background. Plain text stays the normal text color.</summary>
+    private static Color LogColor(MessagePart part) => part.IsBackgroundColor ? SystemColors.WindowText : part.PaletteColor switch
+    {
+        PaletteColor.Black => Color.Black,
+        PaletteColor.Red => Color.Firebrick,
+        PaletteColor.Green => Color.Green,
+        PaletteColor.Blue => Color.Blue,
+        PaletteColor.Cyan => Color.DarkCyan,
+        PaletteColor.Magenta => Color.DarkMagenta,
+        PaletteColor.Yellow => Color.DarkGoldenrod,
+        PaletteColor.SlateBlue => Color.SlateBlue,
+        PaletteColor.Salmon => Color.IndianRed,
+        PaletteColor.Plum => Color.DarkOrchid,
+        _ => SystemColors.WindowText, // White or unspecified - plain text
+    };
 
     private void UpdateFooterAttachStatus()
     {

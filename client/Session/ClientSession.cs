@@ -1,3 +1,6 @@
+using Archipelago.MultiClient.Net.MessageLog.Messages;
+using Archipelago.MultiClient.Net.MessageLog.Parts;
+
 namespace StarshipTitanicAp;
 
 /// <summary>The client engine: attaches to the game, polls it every tick, and keeps it in sync with the AP server.
@@ -55,7 +58,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
 
         _timer.Tick += (_, _) => OnTick();
         _apConnection.StateChanged += (state, message) => RunOnUiThread(() => OnApStateChanged(state, message));
-        _apConnection.MessageReceived += text => RunOnUiThread(() => OnApMessageReceived(text));
+        _apConnection.MessageReceived += message => RunOnUiThread(() => OnApMessageReceived(message));
         _apConnection.ItemReceived += _ => RunOnUiThread(() => ItemReceived?.Invoke());
         _apConnection.CheckQueued += name =>
         {
@@ -96,6 +99,9 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
 
     /// <summary>A line for the player-facing server log: (text, bold).</summary>
     internal event Action<string, bool>? ServerLog;
+
+    /// <summary>An AP server message for the player-facing server log, split into its colored parts.</summary>
+    internal event Action<MessagePart[]>? ServerLogMessage;
 
     /// <summary>A tracked game address was resolved or cleared: (label, address or null).</summary>
     internal event Action<string, long?>? AddressChanged;
@@ -211,10 +217,11 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     }
 
     /// <summary>Handles ArchipelagoConnection.MessageReceived.</summary>
-    private void OnApMessageReceived(string text)
+    private void OnApMessageReceived(LogMessage message)
     {
+        string text = message.ToString();
         AppendLog($"AP: {text}");
-        AppendServerLog(text);
+        ServerLogMessage?.Invoke(message.Parts);
 
         if (!_mem.IsAttached)
             return;
