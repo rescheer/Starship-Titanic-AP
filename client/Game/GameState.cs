@@ -243,16 +243,20 @@ public static class GameState
         return results;
     }
 
-    private static readonly Dictionary<long, string> ClassNameCache = new();
+    // ClassDef (titanic/core/saveable_object.h): vptr, then _className and _parent.
+    private const long ClassDefNameOffset = 0x08;
+    private const long ClassDefParentOffset = 0x10;
 
-    /// <summary>Resolves an object's C++ class name via a virtual call through its vtable.</summary>
-    public static string? TryGetClassName(MemoryReader mem, long objAddr)
+    private static readonly Dictionary<long, long> ClassDefCache = new();
+
+    /// <summary>Resolves an object's ClassDef via a virtual getType() call through its vtable.</summary>
+    private static long? TryGetClassDef(MemoryReader mem, long objAddr)
     {
         long? vtable = mem.ReadInt64(objAddr);
         if (vtable is null or 0)
             return null;
 
-        if (ClassNameCache.TryGetValue(vtable.Value, out string? cached))
+        if (ClassDefCache.TryGetValue(vtable.Value, out long cached))
             return cached;
 
         long? funcPtr = mem.ReadInt64(vtable.Value);
@@ -263,20 +267,40 @@ public static class GameState
         if (descriptorAddr is null or 0)
             return null;
 
-        long? namePtr = mem.ReadInt64(descriptorAddr.Value + 0x08);
+        ClassDefCache[vtable.Value] = descriptorAddr.Value;
+        return descriptorAddr;
+    }
+
+    private static string? ReadClassDefName(MemoryReader mem, long classDef)
+    {
+        long? namePtr = mem.ReadInt64(classDef + ClassDefNameOffset);
         if (namePtr is null or 0)
             return null;
 
         string? name = mem.ReadShortAsciiString(namePtr.Value, 32);
-        if (string.IsNullOrEmpty(name))
-            return null;
+        return string.IsNullOrEmpty(name) ? null : name;
+    }
 
-        ClassNameCache[vtable.Value] = name;
-        return name;
+    /// <summary>Resolves an object's C++ class name via a virtual call through its vtable.</summary>
+    public static string? TryGetClassName(MemoryReader mem, long objAddr) =>
+        TryGetClassDef(mem, objAddr) is { } classDef ? ReadClassDefName(mem, classDef) : null;
+
+    /// <summary>Whether an object's class is <paramref name="className"/> or derives from it, walking its ClassDef's
+    /// _parent chain the way CTreeItem::isInstanceOf does.</summary>
+    public static bool IsInstanceOf(MemoryReader mem, long objAddr, string className)
+    {
+        long? classDef = TryGetClassDef(mem, objAddr);
+        for (int depth = 0; depth < 16 && classDef is { } def && def != 0; depth++)
+        {
+            if (ReadClassDefName(mem, def) == className)
+                return true;
+            classDef = mem.ReadInt64(def + ClassDefParentOffset);
+        }
+        return false;
     }
 
     /// <summary>Clears TryGetClassName's cache.</summary>
-    public static void ClearClassNameCache() => ClassNameCache.Clear();
+    public static void ClearClassNameCache() => ClassDefCache.Clear();
 
     private const int MaxRoomSearchNodes = 5000;
 

@@ -164,6 +164,12 @@ public static class GameOffsets
     // CGameObject::petMoveToHiddenRoom() - stashes an item under the hidden room
     public const long PetMoveToHiddenRoomFunc = 0x23A31D0;
 
+    // CGameObject::petAddToInventory() - asserts the object is a CCarry (a failed assert aborts the game), then tail-calls
+    // CPetControl::addToInventory() (0x242A8C0): reparents the item under the PET, rebuilds the inventory glyphs,
+    // switches the PET to the Inventory area and sends the item CPETGainedObjectMsg. A natural pickup and a Succ-U-Bus
+    // tray hand-off both end in this call.
+    public const long PetAddToInventoryFunc = 0x23A2E40;
+
     // CShipSetting (titanic/game/ship_setting.h) - a Fuse Box socket (room 37/node 12/view 1). _itemName holds the
     // installed CBridgePiece's name (e.g. "BeamBridge"), or "NULL" when empty. EnterRoomMsg picks the socket's
     // displayed frame purely off this field.

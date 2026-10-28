@@ -401,7 +401,7 @@ internal sealed class ItemSync
     /// was, so one that hasn't fired yet is still restored to its home spot for a real pickup later.</summary>
     public ReturnItemResult ReturnToInventory(string apItemName)
     {
-        if (_ctx.Project is not { } project || _ctx.GameManager is not { } gameManager
+        if (_ctx.Project is not { } project || _ctx.GameManager is null
             || _ctx.InventoryRoom is not { } inventoryRoom)
             return ReturnItemResult.NotInGame;
         if (!EngineNameByApItemName.TryGetValue(apItemName, out string? name))
@@ -422,7 +422,7 @@ internal sealed class ItemSync
             && GameActions.ReadItemPersistedState(_ctx.Mem, item.Address).Stage == ItemStage.Restored)
             return ReturnItemResult.Restored;
 
-        if (!MoveIntoInventory(item, inventoryRoom, gameManager))
+        if (!MoveIntoInventory(item))
             return ReturnItemResult.MoveFailed;
 
         ScheduleDirtyReassert();
@@ -435,8 +435,8 @@ internal sealed class ItemSync
     /// move, or null when not in game yet.</summary>
     public (List<string> Moved, List<string> Failed)? CollectToolPlacedMail()
     {
-        if (_ctx.Project is not { } project || _ctx.GameManager is not { } gameManager
-            || _ctx.InventoryRoom is not { } inventoryRoom || _ctx.MailManRoom is not { } mailManRoom)
+        if (_ctx.Project is not { } project || _ctx.GameManager is null
+            || _ctx.InventoryRoom is null || _ctx.MailManRoom is not { } mailManRoom)
             return null;
 
         var moved = new List<string>();
@@ -445,7 +445,7 @@ internal sealed class ItemSync
         {
             if (item.ParentAddress != mailManRoom || !GameActions.IsItemToolPlaced(_ctx.Mem, item.Address))
                 continue;
-            (MoveIntoInventory(item, inventoryRoom, gameManager) ? moved : failed).Add(item.Name);
+            (MoveIntoInventory(item) ? moved : failed).Add(item.Name);
         }
 
         if (moved.Count > 0)
@@ -456,13 +456,14 @@ internal sealed class ItemSync
         return (moved, failed);
     }
 
-    /// <summary>Moves <paramref name="item"/> into the player's inventory and makes it usable there: visible,
-    /// takeable, no longer marked as mail, and (for tracked items) persisted as being in inventory.</summary>
-    private bool MoveIntoInventory(CarryItemLocation item, long inventoryRoom, long gameManager)
+    /// <summary>Moves <paramref name="item"/> into the player's inventory the way a natural pickup does (so its
+    /// CPETGainedObjectMsg side effects run, e.g. a Maitre d' arm releasing what it holds) and makes it usable there:
+    /// visible, takeable, no longer marked as mail, and (for tracked items) persisted as being in inventory.</summary>
+    private bool MoveIntoInventory(CarryItemLocation item)
     {
         string name = item.Name;
         bool fromMail = item.ParentAddress == _ctx.MailManRoom;
-        if (!GameActions.MoveItemSmart(_ctx.Mem, item.Address, inventoryRoom, inventoryRoom, gameManager))
+        if (!GameActions.AddItemToInventory(_ctx.Mem, item.Address))
             return false;
 
         CancelPendingUnrestoreChecks(new[] { name });
@@ -822,7 +823,7 @@ internal sealed class ItemSync
         bool ok;
         if (DeliversToInventory)
         {
-            ok = _ctx.InventoryRoom is { } inventoryRoom && MoveIntoInventory(item, inventoryRoom, gameManager);
+            ok = _ctx.InventoryRoom is not null && MoveIntoInventory(item);
             if (ok)
                 ScheduleDirtyReassert();
             _ctx.Report.ReportAction(ok, ok

@@ -66,6 +66,18 @@ public static class GameActions
         return ok;
     }
 
+    /// <summary>Adds an item to the PET inventory via CGameObject::petAddToInventory(), the same call a natural pickup
+    /// ends in, so the item gets its CPETGainedObjectMsg side effects. Refuses anything that isn't a CCarry, which
+    /// would fail the engine's own assert and abort the game.</summary>
+    public static bool AddItemToInventory(MemoryReader mem, long itemAddr)
+    {
+        if (!GameState.IsInstanceOf(mem, itemAddr, "CCarry"))
+            return false;
+
+        long funcAddr = mem.ModuleBase + GameOffsets.PetAddToInventoryFunc;
+        return RemoteCaller.Call(mem, funcAddr, rcx: itemAddr);
+    }
+
     /// <summary>Moves an item to the hidden room and refreshes the source PET's display.</summary>
     public static bool MoveItemToHiddenRoomFull(MemoryReader mem, long itemAddr, long petControlAddr, long gameManager)
     {
