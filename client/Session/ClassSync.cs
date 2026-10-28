@@ -345,7 +345,9 @@ internal sealed class ClassSync
         if (rnv == DeskBotRnv && notCheckedIn)
             return;
 
-        bool magazineHandOffPending = rnv == DeskBotRnv && secondClassPending && !vanillaClass
+        // Not gated on !vanillaClass: the real class is already Third there, but this branch must still win over the
+        // no-room None spoof below, which would eat the Magazine without paying out.
+        bool magazineHandOffPending = rnv == DeskBotRnv && secondClassPending
             && GameState.FindAllCarryItems(_ctx.Mem, project).Any(item =>
                 string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
                 && item.ParentAddress == _ctx.InventoryRoom.Value);
