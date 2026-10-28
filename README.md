@@ -20,10 +20,14 @@ Requires [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/
 - Receiving items: When you are sent an item from the multiworld, **it does not immediately end up in your inventory.** You need to go to any Succ-U-Bus and press the Receive button in your PET's Control tab (middle icon). The Succ-U-Bus will dispense your item into the tray. Don't forget to pick it up!
    - If you have multiple items queued for delivery, simply press Receive again. Don't forget to take your item out of the tray after each arrives
 - All Archipelago server messages including location checks and granted items will be routed to your PET on the Conversation tab
-- Any message starting with an exclamation point (!) in the Conversation text box will be sent to the Archipelago server. Examples:
-  - ```!Hey everyone``` Send a chat message
-  - ```!!hint``` Sends ```!hint``` to the Archipelago server, returning your current hint points.
-  - ```!!help``` Sends ```!help``` to the Archipelago server, listing all the commands available
+- Client commands - Usable in-game or in the client window:
+  - **/help** - list all client commands
+  - **/ap <text>** - sends <text> to the AP server from in game
+  - **/hint** - alias for /ap !hint. Used the same way as AP's !hint command
+  - **/force_seed** - Forces the client to accept the current save as the correct save for the connected slot
+  - **/return <item>** - [experimental] Returns an item to your inventory. Only works with items already received from the multiworld. Recommended only as a bug recovery tool
+  - **/getmail** - [experimental] Moves all the pending granted AP items from the mail system straight into your inventory. Skip listening to the Succ-U-Bus vomiting sounds! (after 170 hours of testing, I am overjoyed)
+  - **/loc** - prints your current location data
  
 ## FAQ
 - Why only the Steam version of the game? What about GOG? Can I use my original discs?
