@@ -22,8 +22,10 @@ from .regions import create_regions as _create_regions
 from .rules import set_rules as _set_rules
 from .options import (
     StarshipTitanicOptions,
+    Goal,
     PassengerClassUpgrades,
     StateroomAssignment,
+    ItemDeliveryMethod,
     enabled_access_cards,
     starship_titanic_option_groups,
 )
@@ -56,6 +58,7 @@ class StarshipTitanicWorld(World):
     options_dataclass = StarshipTitanicOptions
     options: StarshipTitanicOptions
     access_cards: List[str]  # the Access Cards this slot requires (options.py)
+    ut_can_gen_without_yaml = True  # Universal Tracker: options are restored from slot data (apply_slot_data)
 
     item_name_to_id = item_name_to_id
     location_name_to_id = location_name_to_id
@@ -69,12 +72,26 @@ class StarshipTitanicWorld(World):
         return StarshipTitanicItem(name, ItemClassification.progression, None, self.player)
 
     def generate_early(self) -> None:
-        # Universal Tracker regenerates locally; reuse the seed's cards instead of re-rolling Randomized mode
         re_gen_passthrough = getattr(self.multiworld, "re_gen_passthrough", {})
         if self.game in re_gen_passthrough:
-            self.access_cards = list(re_gen_passthrough[self.game]["room_access_cards"])
+            self.apply_slot_data(re_gen_passthrough[self.game])
         else:
             self.access_cards = enabled_access_cards(self.options, self.random)
+
+    def apply_slot_data(self, slot_data: Dict[str, Any]) -> None:
+        """Universal Tracker regenerates locally, possibly without a YAML; restore the seed's options from
+        slot data instead (and reuse its cards rather than re-rolling Randomized mode)."""
+        options = self.options
+        options.goal.value = Goal.options[slot_data["goal"]]
+        options.passenger_class_upgrades.value = (PassengerClassUpgrades.option_vanilla
+            if slot_data["vanilla_passenger_class"] else PassengerClassUpgrades.option_multiworld)
+        options.stateroom_assignment.value = (StateroomAssignment.option_vanilla
+            if slot_data["vanilla_staterooms"] else StateroomAssignment.option_multiworld)
+        # Keys added after the first release; older seeds fall back to the defaults
+        if "item_delivery_method" in slot_data:
+            options.item_delivery_method.value = ItemDeliveryMethod.options[slot_data["item_delivery_method"]]
+        options.easy_music_room_puzzle.value = int(slot_data.get("easy_music_room_puzzle", False))
+        self.access_cards = list(slot_data.get("room_access_cards", []))
 
     @staticmethod
     def interpret_slot_data(slot_data: Dict[str, Any]) -> Dict[str, Any]:
