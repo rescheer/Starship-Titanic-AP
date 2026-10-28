@@ -48,12 +48,12 @@ class ItemDeliveryMethod(Choice):
 
 class RoomAccessCardsMode(Choice):
     """Enabled: Requires a matching Access Card item from the multiworld to access any room.
-    Random: Chooses a random set of Access Cards to enable at generation (minimum 1).
+    Randomized: Chooses a random set of Access Cards to enable at generation (minimum 1).
     Selection: Enables only the Access Cards selected below.
     Disabled: Room Access Cards are disabled. (Vanilla behavior)"""
     display_name = "Room Access Cards Mode"
     option_enabled = 0
-    option_random = 1
+    option_randomized = 1
     option_selection = 2
     option_disabled = 3
     default = 3
