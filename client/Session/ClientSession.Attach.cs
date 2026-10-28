@@ -68,13 +68,46 @@ internal sealed partial class ClientSession
         ReportAction(ClassUpgradeHook.Install(_mem), "Install class upgrade lock");
         ReportAction(MaitreDHook.Install(_mem), "Install Maitre'D table lock");
         ReportAction(GetLiftEye2GateHook.Install(_mem), "Install broken-elevator Eye gate");
-        ReportAction(RoomAssignHook.Install(_mem), "Install room assignment lock");
+        SyncRoomAssignHook();
         ReportAction(RoomGateHook.Install(_mem), "Install room key gate");
 
         bool saveLoadHookOk = SaveLoadHook.Install(_mem);
         ReportAction(saveLoadHookOk, "Install save-load detection hook");
         if (!saveLoadHookOk)
             AppendLog("SaveLoadHook: install failed (unexpected scummvm.exe build?) - loading a save while attached won't refresh cached addresses; detach and reattach after loading");
+    }
+
+    /// <summary>Installs the room assignment lock unless the seed leaves staterooms vanilla. Re-run once slot data
+    /// arrives, since the game can be attached before connecting - and so before the client knows the option.</summary>
+    private void SyncRoomAssignHook()
+    {
+        if (!_mem.IsAttached)
+            return;
+
+        bool vanilla = StateroomAssignTracker.IsVanilla(_apConnection.KnownSlotData);
+        if (!vanilla && !RoomAssignHook.IsInstalled)
+        {
+            ReportAction(RoomAssignHook.Install(_mem), "Install room assignment lock");
+        }
+        else if (vanilla && RoomAssignHook.IsInstalled)
+        {
+            // Uninstalling frees the mailbox, so first apply any assignment blocked before the option was known.
+            // Without the PET resolved yet, the hook stays until OnTick applies the next attempt and re-runs this.
+            if (_ctx.GameManager is not { } gameManager || _ctx.InventoryRoom is null)
+                return;
+            if (RoomAssignHook.PollAttemptedClass(_mem) is { } attemptedClass)
+                ApplyBlockedRoomAssignment(gameManager, attemptedClass);
+
+            ReportAction(RoomAssignHook.Uninstall(_mem), "Uninstall room assignment lock (vanilla staterooms)");
+        }
+    }
+
+    /// <summary>Performs a room assignment RoomAssignHook blocked, for seeds with vanilla stateroom assignment.</summary>
+    private void ApplyBlockedRoomAssignment(long gameManager, int attemptedClass)
+    {
+        bool ok = _ctx.InventoryRoom is { } petControlAddr
+            && GameActions.AssignNextRoom(_mem, gameManager, petControlAddr, attemptedClass);
+        ReportAction(ok, $"Stateroom assignment ({PassengerClassNames.GetName(attemptedClass)}) applied (vanilla staterooms)");
     }
 
     private void UninstallHooks()

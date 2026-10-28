@@ -211,10 +211,16 @@ internal sealed partial class ClientSession
 
         _classSync.PollClassUpgradeHook(gameManager.Value);
 
-        if (RoomAssignHook.IsInstalled)
+        // Waits for the PET, which a blocked assignment under vanilla staterooms is applied to.
+        if (RoomAssignHook.IsInstalled && _ctx.InventoryRoom is not null)
         {
             int? attemptedClass = RoomAssignHook.PollAttemptedClass(_mem);
-            if (attemptedClass is not null)
+            if (attemptedClass is not null && StateroomAssignTracker.IsVanilla(_apConnection.KnownSlotData))
+            {
+                ApplyBlockedRoomAssignment(gameManager.Value, attemptedClass.Value);
+                SyncRoomAssignHook();
+            }
+            else if (attemptedClass is not null)
             {
                 AppendLog($"RoomAssignHook: blocked petReassignRoom({PassengerClassNames.GetName(attemptedClass.Value)}) from taking effect - room assignment stays item-gated");
             }

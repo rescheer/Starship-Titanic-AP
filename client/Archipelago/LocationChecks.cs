@@ -90,6 +90,7 @@ public static class LocationChecks
     private static readonly Dictionary<int, string> ClassUpgradeEventLocationName = new()
     {
         [2] = "DeskBot - 2nd Class Upgrade (Event)",
+        [1] = "DeskBot - 1st Class Upgrade (Event)",
     };
 
     public static readonly IReadOnlyCollection<string> SuccUBusStationLocationNames =

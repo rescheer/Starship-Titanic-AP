@@ -5,6 +5,11 @@ namespace StarshipTitanicAp;
 /// <summary>Interprets received "Progressive Passenger Class Upgrade" items into the engine's PassengerClass value.</summary>
 public static class ClassUpgradeTracker
 {
+    /// <summary>Whether the seed leaves class upgrades to the DeskBot, as in the vanilla game (no class items).
+    /// False for seeds without the slot data key.</summary>
+    public static bool IsVanilla(IReadOnlyDictionary<string, object>? slotData) =>
+        slotData is not null && TryGetBool(slotData, "vanilla_passenger_class", out bool vanilla) && vanilla;
+
     /// <summary>Computes the PassengerClass value implied by the items received so far, or null if it can't be determined.</summary>
     public static int? ComputeClass(IReadOnlyCollection<string> receivedItemNames, IReadOnlyDictionary<string, object> slotData)
     {
@@ -44,6 +49,24 @@ public static class ClassUpgradeTracker
             try
             {
                 value = Convert.ToInt32(raw);
+                return true;
+            }
+            catch
+            {
+                // fall through - malformed slot data, treat as missing
+            }
+        }
+        return false;
+    }
+
+    private static bool TryGetBool(IReadOnlyDictionary<string, object> data, string key, out bool value)
+    {
+        value = false;
+        if (data.TryGetValue(key, out object? raw))
+        {
+            try
+            {
+                value = Convert.ToBoolean(raw);
                 return true;
             }
             catch

@@ -16,6 +16,9 @@ public static class GameOffsets
     // --- Passenger class, relative to CGameManager ---
     // 1=First, 2=Second, 3=Third, 4=None
     public const long PassengerClass = 0xE770;
+    // CGameState::_priorClass - setPassengerClass() saves the old class here; the PET keeps its 1st Class look
+    // after Titania's repair (class 4) only while this is 1
+    public const long PriorClass = 0xE774;
 
     // --- PET active flag, relative to CGameManager ---
     public const long PetActive = 0xE780;

@@ -3,6 +3,7 @@ namespace StarshipTitanicAp;
 /// <summary>Intercepts CGameObject::petReassignRoom() (via its name-lookup wrapper, GameOffsets.PetReassignRoomFunc)
 /// so it records the attempted class instead of assigning a room. Blocks every class, including Third/SGT; room
 /// assignment comes from "Progressive Stateroom" items via StateroomAssignTracker + GameActions.AssignNextRoom.
+/// Not installed for seeds with vanilla stateroom assignment (ClientSession.SyncRoomAssignHook).
 ///
 /// The wrapper's prologue:
 ///   push r12                          ; 41 54

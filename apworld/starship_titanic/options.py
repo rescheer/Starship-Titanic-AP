@@ -8,7 +8,7 @@ from Options import Choice, OptionGroup, PerGameCommonOptions, Toggle # pyright:
 
 
 # --------------------------------------------------------------------------
-# Goal
+# Game Options (default group)
 # --------------------------------------------------------------------------
 class Goal(Choice):
     """What completes the game.
@@ -17,6 +17,25 @@ class Goal(Choice):
     display_name = "Goal"
     option_return_home = 0
     option_repair_titania = 1
+    default = 0
+
+class PassengerClassUpgrades(Choice):
+    """How your passenger class is upgraded.
+    Multiworld: Receive Progressive Passenger Class Upgrade items from the multiworld (adds 2 items).
+    Vanilla: Upgrade through the DeskBot as in the vanilla game."""
+    display_name = "Passenger Class Upgrades"
+    option_multiworld = 0
+    option_vanilla = 1
+    default = 0
+
+
+class StateroomAssignment(Choice):
+    """How your staterooms are assigned.
+    Multiworld: Receive Progressive Stateroom items from the multiworld (adds 3 items).
+    Vanilla: The DeskBot assigns them as in the vanilla game."""
+    display_name = "Stateroom Assignment"
+    option_multiworld = 0
+    option_vanilla = 1
     default = 0
 
 
@@ -129,6 +148,8 @@ class RequireAccessCard1stClassStaterooms(Toggle):
 @dataclass
 class StarshipTitanicOptions(PerGameCommonOptions):
     goal: Goal
+    passenger_class_upgrades: PassengerClassUpgrades
+    stateroom_assignment: StateroomAssignment
     require_access_cards_all_rooms: RequireAccessCardsAllRooms
     require_access_card_top_of_the_well: RequireAccessCardTopOfTheWell
     require_access_card_bottom_of_the_well: RequireAccessCardBottomOfTheWell

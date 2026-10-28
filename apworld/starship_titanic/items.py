@@ -157,6 +157,7 @@ _trap_items: Dict[str, int] = {
 # --------------------------------------------------------------------------
 _event_items: Set[str] = {
     "2nd Class Upgrade",
+    "1st Class Upgrade",
     "Titania's Auditory Center",
     "Titania Repaired",
     "Victory",
@@ -221,6 +222,10 @@ trap_item_names = list(_trap_items.keys())
 PROGRESSIVE_CLASS_UPGRADE = "Progressive Passenger Class Upgrade"
 SECOND_CLASS_TIER = 1
 FIRST_CLASS_TIER = 2
+
+# Events fired by the DeskBot's own upgrades (locations.py), which grant the class under the vanilla option
+SECOND_CLASS_UPGRADE_EVENT = "2nd Class Upgrade"
+FIRST_CLASS_UPGRADE_EVENT = "1st Class Upgrade"
 
 PROGRESSIVE_STATEROOM = "Progressive Stateroom"
 SGT_STATEROOM_TIER = 1

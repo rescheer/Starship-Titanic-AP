@@ -244,6 +244,13 @@ location_table: Dict[str, STLocationData] = {
     # Puzzle
     "The End - Return Home": STLocationData("Bridge", "Victory"),
     # Other
+
+    # ---------------------------------------------------------------- #
+    # Late additions appended so earlier location IDs stay stable
+    # ---------------------------------------------------------------- #
+    # Event-only shadow of "DeskBot - 1st Class Upgrade", fired by the client alongside it. grants 1st Class (and
+    # the 1st Class Stateroom) under the vanilla class/stateroom options.
+    "DeskBot - 1st Class Upgrade (Event)": STLocationData("Embarkation Lobby", "1st Class Upgrade"),
 }
 
 location_name_to_id: Dict[str, int] = {

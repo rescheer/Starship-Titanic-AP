@@ -7,6 +7,10 @@ public static class GameActions
     public static bool SetPassengerClass(MemoryReader mem, long gameManager, int newClass) =>
         mem.WriteInt32(gameManager + GameOffsets.PassengerClass, newClass);
 
+    /// <summary>Directly writes _priorClass, the class setPassengerClass() would have saved before a real change.</summary>
+    public static bool SetPriorClass(MemoryReader mem, long gameManager, int priorClass) =>
+        mem.WriteInt32(gameManager + GameOffsets.PriorClass, priorClass);
+
     /// <summary>Writes PassengerClass and refreshes the PET so its display updates immediately.</summary>
     public static bool SetPassengerClassFull(MemoryReader mem, long gameManager, long petControlAddr, int newClass)
     {

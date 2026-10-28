@@ -415,6 +415,18 @@ public sealed class MainForm : Form
             _lblInfoStations.Text = "Visited Succ-U-Bus Stations (-/-)";
     }
 
+    /// <summary>The class reached through the DeskBot's own upgrades, for seeds with vanilla class upgrades.</summary>
+    private int? ClassFromUpgradeChecks()
+    {
+        foreach (PassengerClass passengerClass in new[] { PassengerClass.First, PassengerClass.Second })
+        {
+            if (LocationChecks.TryGetClassUpgradeLocationName((int)passengerClass, out string locationName)
+                && _session.Ap.IsLocationCheckedOrQueued(locationName))
+                return (int)passengerClass;
+        }
+        return null;
+    }
+
     /// <summary>Marks the right-hand Room Access panel. Each requirement heading gets a green ✔ once met (passenger
     /// class from received upgrades, or Titania repaired) and a red ✖ until then. Each room is green once all its
     /// checks are done, whether or not it's accessible; otherwise a red ✖ while its required Access Card hasn't been
@@ -426,7 +438,9 @@ public sealed class MainForm : Form
         IReadOnlyDictionary<string, object>? slotData = _session.Ap.SlotData;
         HashSet<string> requiredCards = RoomKeys.GetRequiredCards(slotData);
         string[] receivedItems = _session.Ap.GetReceivedItemNames();
-        int? passengerClass = slotData is null ? null : ClassUpgradeTracker.ComputeClass(receivedItems, slotData);
+        int? passengerClass = slotData is null ? null
+            : ClassUpgradeTracker.IsVanilla(slotData) ? ClassFromUpgradeChecks()
+            : ClassUpgradeTracker.ComputeClass(receivedItems, slotData);
 
         foreach ((RoomRequirement requirement, string heading, string[] cards) in RoomAccessGroups)
         {

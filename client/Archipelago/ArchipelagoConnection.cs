@@ -113,6 +113,12 @@ public sealed class ArchipelagoConnection : IDisposable
     /// <summary>The slot data the server sent back on login.</summary>
     public IReadOnlyDictionary<string, object>? SlotData { get; private set; }
 
+    /// <summary><see cref="SlotData"/>, or while disconnected the slot data of the most recent login - for the slot
+    /// options the client must keep honouring offline.</summary>
+    public IReadOnlyDictionary<string, object>? KnownSlotData => SlotData ?? _lastSlotData;
+
+    private IReadOnlyDictionary<string, object>? _lastSlotData;
+
     /// <summary>The server's seed_name, captured once login succeeds.</summary>
     public string? SeedName { get; private set; }
 
@@ -231,6 +237,7 @@ public sealed class ArchipelagoConnection : IDisposable
             SeedName = session.RoomState.Seed;
             SlotName = session.Players.GetPlayerName(success.Slot) ?? slot;
             _lastSeedName = SeedName;
+            _lastSlotData = SlotData;
             session.MessageLog.OnMessageReceived += message => MessageReceived?.Invoke(message);
 
             RaiseState(ApConnectionState.Connected, $"Connected as {slot}");

@@ -12,13 +12,21 @@ from .items import (
     item_name_to_id,
     item_name_groups,
     filler_item_names,
+    PROGRESSIVE_CLASS_UPGRADE,
+    PROGRESSIVE_STATEROOM,
 )
 from .locations import (
     location_name_to_id,
 )
 from .regions import create_regions as _create_regions
 from .rules import set_rules as _set_rules
-from .options import StarshipTitanicOptions, enabled_access_cards, starship_titanic_option_groups
+from .options import (
+    StarshipTitanicOptions,
+    PassengerClassUpgrades,
+    StateroomAssignment,
+    enabled_access_cards,
+    starship_titanic_option_groups,
+)
 
 
 class StarshipTitanicWeb(WebWorld):
@@ -66,6 +74,12 @@ class StarshipTitanicWorld(World):
     def create_regions(self) -> None:
         _create_regions(self)
 
+    def is_vanilla_class(self) -> bool:
+        return self.options.passenger_class_upgrades == PassengerClassUpgrades.option_vanilla
+
+    def is_vanilla_staterooms(self) -> bool:
+        return self.options.stateroom_assignment == StateroomAssignment.option_vanilla
+
     def create_items(self) -> None:
         # Event locations are already filled; this also excludes locations the goal skipped (regions.py)
         non_event_locations = len(self.multiworld.get_unfilled_locations(self.player))
@@ -75,6 +89,11 @@ class StarshipTitanicWorld(World):
             if data.code is None:
                 continue
             if data.group == "Access Card" and name not in self.access_cards:
+                continue
+            # The vanilla options leave these to the DeskBot
+            if name == PROGRESSIVE_CLASS_UPGRADE and self.is_vanilla_class():
+                continue
+            if name == PROGRESSIVE_STATEROOM and self.is_vanilla_staterooms():
                 continue
             pool.extend(self.create_item(name) for _ in range(data.quantity))
 
@@ -104,6 +123,8 @@ class StarshipTitanicWorld(World):
         return {
             "goal": self.options.goal.current_key,  # "return_home" or "repair_titania"
             "titania_parts": sorted(item_name_groups["Titania Parts"]),
+            "vanilla_passenger_class": self.is_vanilla_class(),
+            "vanilla_staterooms": self.is_vanilla_staterooms(),
             "progressive_class_upgrade_item": "Progressive Passenger Class Upgrade",
             "second_class_tier": 1,
             "first_class_tier": 2,

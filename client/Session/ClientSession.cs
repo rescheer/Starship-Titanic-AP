@@ -194,6 +194,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
                 _sentPointOfInterestChecks.Clear();
                 _saveSeedGuard.Reset();
                 _classSync.ResyncFromItems();
+                SyncRoomAssignHook();
                 _lastTableAccessItemsCount = -1;
                 if (_ctx.CurrentRoomName is not null)
                     TrySendRoomVisitCheck(_ctx.CurrentRoomName);

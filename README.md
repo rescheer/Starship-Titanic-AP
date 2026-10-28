@@ -48,9 +48,9 @@ Locations in this apworld include:
 
 Items include:
 - Most carryable inventory items
-- Progressive Class Upgrades
-- Progressive Staterooms
-- (Optional) Access Cards for all ship areas that must be acquired from the multiworld
+- Progressive Class Upgrades (Optional, default on)
+- Progressive Staterooms (Optional, default on)
+- Access Cards for all ship areas that must be acquired from the multiworld (Optional, default off)
 
 ## Generative AI Use Disclosure
 ### Client

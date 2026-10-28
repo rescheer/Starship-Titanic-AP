@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from rule_builder.rules import CanReachRegion, Has, HasAll, Rule # type: ignore
+from rule_builder.rules import CanReachRegion, Has, HasAll, Rule, True_ # type: ignore
 
 from .options import Goal
 from .regions import REGION_CONNECTIONS
@@ -15,6 +15,8 @@ from .items import (
     PROGRESSIVE_CLASS_UPGRADE,
     SECOND_CLASS_TIER,
     FIRST_CLASS_TIER,
+    SECOND_CLASS_UPGRADE_EVENT,
+    FIRST_CLASS_UPGRADE_EVENT,
     PROGRESSIVE_STATEROOM,
     SGT_STATEROOM_TIER,
     SECOND_STATEROOM_TIER,
@@ -26,12 +28,37 @@ if TYPE_CHECKING:
 
 TITANIA_PARTS = item_name_groups["Titania Parts"]
 
-HAS_SECOND_CLASS = Has(PROGRESSIVE_CLASS_UPGRADE, count=SECOND_CLASS_TIER)
-HAS_FIRST_CLASS = Has(PROGRESSIVE_CLASS_UPGRADE, count=FIRST_CLASS_TIER)
 
-HAS_SGT_ROOM = Has(PROGRESSIVE_STATEROOM, count=SGT_STATEROOM_TIER)
-HAS_SECOND_ROOM = Has(PROGRESSIVE_STATEROOM, count=SECOND_STATEROOM_TIER)
-HAS_FIRST_ROOM = Has(PROGRESSIVE_STATEROOM, count=FIRST_STATEROOM_TIER)
+
+def has_second_class(world: StarshipTitanicWorld) -> Rule:
+    if world.is_vanilla_class():
+        return Has(SECOND_CLASS_UPGRADE_EVENT)
+    return Has(PROGRESSIVE_CLASS_UPGRADE, count=SECOND_CLASS_TIER)
+
+
+def has_first_class(world: StarshipTitanicWorld) -> Rule:
+    if world.is_vanilla_class():
+        return Has(FIRST_CLASS_UPGRADE_EVENT)
+    return Has(PROGRESSIVE_CLASS_UPGRADE, count=FIRST_CLASS_TIER)
+
+
+# Vanilla staterooms: the DeskBot assigns the SGT room at check-in and each class's room along with its upgrade
+def has_sgt_room(world: StarshipTitanicWorld) -> Rule:
+    if world.is_vanilla_staterooms():
+        return True_()
+    return Has(PROGRESSIVE_STATEROOM, count=SGT_STATEROOM_TIER)
+
+
+def has_second_room(world: StarshipTitanicWorld) -> Rule:
+    if world.is_vanilla_staterooms():
+        return Has(SECOND_CLASS_UPGRADE_EVENT)
+    return Has(PROGRESSIVE_STATEROOM, count=SECOND_STATEROOM_TIER)
+
+
+def has_first_room(world: StarshipTitanicWorld) -> Rule:
+    if world.is_vanilla_staterooms():
+        return Has(FIRST_CLASS_UPGRADE_EVENT)
+    return Has(PROGRESSIVE_STATEROOM, count=FIRST_STATEROOM_TIER)
 
 
 def set_rules(world: StarshipTitanicWorld) -> None:
@@ -61,7 +88,7 @@ def set_all_entrance_rules(world: StarshipTitanicWorld) -> None:
         "1st Class Lobby -> 1st Class Stateroom",
     )
     for entrance_name in first_class_entrances:
-        add_rule(entrance_name, HAS_FIRST_CLASS)
+        add_rule(entrance_name, has_first_class(world))
 
     # Second Class
     second_class_entrances = (
@@ -74,7 +101,7 @@ def set_all_entrance_rules(world: StarshipTitanicWorld) -> None:
         "2nd Class Lobby -> 2nd Class Stateroom",
     )
     for entrance_name in second_class_entrances:
-        add_rule(entrance_name, HAS_SECOND_CLASS)
+        add_rule(entrance_name, has_second_class(world))
 
     # The Bridge only unlocks once Titania has been repaired
     add_rule("Titania's Room -> Bridge", Has("Titania Repaired"))
@@ -105,7 +132,13 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     )
     world.set_rule(
         world.get_location("DeskBot - 1st Class Upgrade"),
-        Has("2nd Class Upgrade")
+        Has(SECOND_CLASS_UPGRADE_EVENT)
+        & CanReachRegion("Sculpture Chamber")
+        & CanReachRegion("Embarkation Lobby")
+    )
+    world.set_rule(
+        world.get_location("DeskBot - 1st Class Upgrade (Event)"),
+        Has(SECOND_CLASS_UPGRADE_EVENT)
         & CanReachRegion("Sculpture Chamber")
         & CanReachRegion("Embarkation Lobby")
     )
@@ -210,7 +243,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     """ world.set_rule(
         world.get_location("Promenade Deck - Pureed Starlings"),
         HasAll("Blue Fuse", "Bar Glass")
-        & HAS_SECOND_CLASS
+        & has_second_class(world)
         & CanReachRegion("Promenade Deck")
         & CanReachRegion("Titania's Room")
     ) """
@@ -306,7 +339,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # ---------------------------------------------------------------- #
     world.set_rule(
         world.get_location("SGT Class Lobby - Magazine"),
-        HAS_SGT_ROOM
+        has_sgt_room(world)
         & CanReachRegion("SGT Class Stateroom")
         )
 
@@ -337,7 +370,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     world.set_rule(
         world.get_location("2nd Class Stateroom - Titania's Ear (Pistachio Bowl)"),
         Has("Magazine")
-        & HAS_SECOND_ROOM
+        & has_second_room(world)
         & CanReachRegion("Parrot Lobby")
         & CanReachRegion("2nd Class Stateroom")
     )

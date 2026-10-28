@@ -83,8 +83,9 @@ internal sealed class ClassSync
         TryApplySgtGlyphSpoof(rnv);
     }
 
-    /// <summary>Handles a class upgrade that ClassUpgradeHook blocked: sends the matching AP check, or applies the
-    /// upgrade directly for Bridge access (and for the initial None -> Third, if allowed).</summary>
+    /// <summary>Handles a class upgrade that ClassUpgradeHook blocked: sends the matching AP check (applying the
+    /// upgrade too under vanilla class upgrades), or applies the upgrade directly for Bridge access (and for the
+    /// initial None -> Third, if allowed).</summary>
     public void PollClassUpgradeHook(long gameManager)
     {
         if (!ClassUpgradeHook.IsInstalled)
@@ -95,7 +96,10 @@ internal sealed class ClassSync
 
         if (LocationChecks.TryGetClassUpgradeLocationName(attemptedClass.Value, out string locationName))
         {
-            _ctx.Report.AppendLog($"ClassUpgradeHook: blocked setPassengerClass({PassengerClassNames.GetName(attemptedClass.Value)}) from taking effect - real class stays item-gated");
+            if (ClassUpgradeTracker.IsVanilla(_ctx.Ap.KnownSlotData))
+                ApplyVanillaClassUpgrade(attemptedClass.Value, gameManager);
+            else
+                _ctx.Report.AppendLog($"ClassUpgradeHook: blocked setPassengerClass({PassengerClassNames.GetName(attemptedClass.Value)}) from taking effect - real class stays item-gated");
 
             bool handedOff = _ctx.Ap.SendLocationCheck(locationName);
             if (LocationChecks.TryGetClassUpgradeEventLocationName(attemptedClass.Value, out string eventLocationName))
@@ -108,6 +112,7 @@ internal sealed class ClassSync
         {
             if (_ctx.InventoryRoom is not null)
             {
+                RecordPriorClass(gameManager);
                 bool applied = GameActions.SetPassengerClassFull(_ctx.Mem, gameManager, _ctx.InventoryRoom.Value, attemptedClass.Value);
 
                 bool handedOff = _ctx.Ap.SendLocationCheck(TitaniaRepairedLocation);
@@ -126,6 +131,9 @@ internal sealed class ClassSync
         {
             if (_ctx.InventoryRoom is not null)
             {
+                // During the no-room spoof this re-runs check-in, and the spoof's revert restores the real class.
+                if (_classUpgradeSpoofOriginalClass is null)
+                    RecordPriorClass(gameManager);
                 bool ok = GameActions.SetPassengerClassFull(_ctx.Mem, gameManager, _ctx.InventoryRoom.Value, attemptedClass.Value);
                 _ctx.Report.ReportAction(ok, "Initial class upgrade (None -> Third) applied directly - no AP item for this yet");
             }
@@ -140,6 +148,34 @@ internal sealed class ClassSync
         }
     }
 
+    /// <summary>Lets a DeskBot upgrade the hook caught take effect, for seeds with vanilla class upgrades. During a
+    /// class spoof it replaces the backed-up class, so <see cref="TryRevertClassUpgradeSpoof"/> keeps it.</summary>
+    private void ApplyVanillaClassUpgrade(int newClass, long gameManager)
+    {
+        RecordPriorClass(gameManager);
+
+        if (_classUpgradeSpoofOriginalClass is not null)
+        {
+            _classUpgradeSpoofOriginalClass = newClass;
+            _ctx.Report.ReportAction(true, $"DeskBot upgrade to {PassengerClassNames.GetName(newClass)} (vanilla class upgrades, applied once the class spoof ends)");
+            return;
+        }
+
+        bool ok = _ctx.InventoryRoom is { } petControlAddr
+            ? GameActions.SetPassengerClassFull(_ctx.Mem, gameManager, petControlAddr, newClass)
+            : GameActions.SetPassengerClass(_ctx.Mem, gameManager, newClass);
+        _ctx.Report.ReportAction(ok, $"DeskBot upgrade to {PassengerClassNames.GetName(newClass)} applied (vanilla class upgrades)");
+    }
+
+    /// <summary>Saves the real (unspoofed) class as _priorClass ahead of a real class change, as the game's
+    /// setPassengerClass() would - ClassUpgradeHook keeps that call from running.</summary>
+    private void RecordPriorClass(long gameManager)
+    {
+        int? realClass = _classUpgradeSpoofOriginalClass ?? GameState.ReadPassengerClass(_ctx.Mem, gameManager);
+        if (realClass is not null)
+            GameActions.SetPriorClass(_ctx.Mem, gameManager, realClass.Value);
+    }
+
     /// <summary>Applies the class upgrade implied by AP items received so far, if any. With no class items yet,
     /// clamps a First/Second class (only reachable via a spoof that was saved or never reverted) back to Third.
     /// While a class spoof is active, updates the spoof's backed-up original class instead of the live value, so
@@ -147,7 +183,7 @@ internal sealed class ClassSync
     private void SyncPassengerClassFromItems(long gameManager)
     {
         IReadOnlyDictionary<string, object>? slotData = _ctx.Ap.SlotData;
-        if (slotData is null)
+        if (slotData is null || ClassUpgradeTracker.IsVanilla(slotData))
             return;
         if (_ctx.InventoryRoom is null)
             return;
@@ -177,6 +213,8 @@ internal sealed class ClassSync
         if (currentClass == targetClass)
             return;
 
+        RecordPriorClass(gameManager);
+
         if (_classUpgradeSpoofOriginalClass is not null)
         {
             _classUpgradeSpoofOriginalClass = targetClass.Value;
@@ -194,7 +232,7 @@ internal sealed class ClassSync
     private void SyncStateroomFromItems(long gameManager)
     {
         IReadOnlyDictionary<string, object>? slotData = _ctx.Ap.SlotData;
-        if (slotData is null)
+        if (slotData is null || StateroomAssignTracker.IsVanilla(slotData))
             return;
         if (_ctx.InventoryRoom is not { } petControlAddr)
             return;
@@ -290,6 +328,8 @@ internal sealed class ClassSync
             return;
 
         int? spoofToClass = null;
+        // Under vanilla class upgrades the real class is already what the DeskBot's upgrades need.
+        bool vanillaClass = ClassUpgradeTracker.IsVanilla(_ctx.Ap.KnownSlotData);
         // Queued counts as checked, so a check made while offline still advances the spoof.
         bool secondClassPending = !_ctx.Ap.IsLocationCheckedOrQueued(secondLocationName);
         // Tracked separately from the 2nd Class check: a Magazine granted early can be handed to the DeskBot before
@@ -305,7 +345,7 @@ internal sealed class ClassSync
         if (rnv == DeskBotRnv && notCheckedIn)
             return;
 
-        bool magazineHandOffPending = rnv == DeskBotRnv && secondClassPending
+        bool magazineHandOffPending = rnv == DeskBotRnv && secondClassPending && !vanillaClass
             && GameState.FindAllCarryItems(_ctx.Mem, project).Any(item =>
                 string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
                 && item.ParentAddress == _ctx.InventoryRoom.Value);
@@ -322,7 +362,8 @@ internal sealed class ClassSync
             // exactly Third.
             spoofToClass = configuredSpoofClass;
         }
-        else if (rnv == DeskBotRnv && !secondClassPending && !_ctx.Ap.IsLocationCheckedOrQueued(firstLocationName))
+        else if (rnv == DeskBotRnv && !vanillaClass && !secondClassPending
+            && !_ctx.Ap.IsLocationCheckedOrQueued(firstLocationName))
         {
             // DeskbotScript's 1st Class upgrade pays out only at exactly Second.
             if (currentClass.Value != (int)PassengerClass.Second)

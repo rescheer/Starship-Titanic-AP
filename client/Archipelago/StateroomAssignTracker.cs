@@ -7,6 +7,11 @@ namespace StarshipTitanicAp;
 /// GameActions.GetAchievedStateroomClass, so MainForm.GameLogic.cs's sync loop can diff the two directly.</summary>
 public static class StateroomAssignTracker
 {
+    /// <summary>Whether the seed leaves stateroom assignment to the DeskBot, as in the vanilla game (no stateroom
+    /// items). False for seeds without the slot data key.</summary>
+    public static bool IsVanilla(IReadOnlyDictionary<string, object>? slotData) =>
+        slotData is not null && TryGetBool(slotData, "vanilla_staterooms", out bool vanilla) && vanilla;
+
     /// <summary>Computes the assigned-stateroom count implied by the items received so far, or null if it can't
     /// be determined (slot data not loaded yet, or missing the expected keys).</summary>
     public static int? ComputeTargetAssignedCount(IReadOnlyCollection<string> receivedItemNames, IReadOnlyDictionary<string, object> slotData)
@@ -61,6 +66,24 @@ public static class StateroomAssignTracker
             try
             {
                 value = Convert.ToInt32(raw);
+                return true;
+            }
+            catch
+            {
+                // fall through - malformed slot data, treat as missing
+            }
+        }
+        return false;
+    }
+
+    private static bool TryGetBool(IReadOnlyDictionary<string, object> data, string key, out bool value)
+    {
+        value = false;
+        if (data.TryGetValue(key, out object? raw))
+        {
+            try
+            {
+                value = Convert.ToBoolean(raw);
                 return true;
             }
             catch
