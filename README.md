@@ -25,7 +25,7 @@ Requires [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/
   - **/ap \<text\>** - sends \<text\> to the AP server from in game
   - **/hint** - alias for /ap !hint. Used the same way as AP's !hint command
   - **/force_seed** - Forces the client to accept the current save as the correct save for the connected slot
-  - **/return <item>** - [experimental] Returns an item to your inventory. Only works with items already received from the multiworld. Recommended only as a bug recovery tool
+  - **/return \<item\>** - [experimental] Returns an item to your inventory. Only works with items already received from the multiworld. Recommended only as a bug recovery tool
   - **/getmail** - [experimental] Moves all the pending granted AP items from the mail system straight into your inventory. Skip listening to the Succ-U-Bus vomiting sounds! (after 170 hours of testing, I am overjoyed)
   - **/loc** - prints your current location data
  
