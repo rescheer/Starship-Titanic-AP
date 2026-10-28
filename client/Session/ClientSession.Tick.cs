@@ -86,7 +86,7 @@ internal sealed partial class ClientSession
 
             if (command is not null)
             {
-                // In game, only client commands run; server commands must go through !ap.
+                // In game, only client commands run; server commands must go through /ap.
                 if (_commands.Find(command) is { } runCommand)
                 {
                     ReportCapturedCommand($"{command} (client command)");

@@ -66,7 +66,7 @@ internal sealed class SaveSeedGuard
             _beamBridgeMisses++;
             if (_beamBridgeMisses > BeamBridgeMissLimit)
             {
-                Block("Save/seed guard: could not locate the BeamBridge item to verify this save's AP seed tag - blocking AP actions defensively. Force with !force_seed in game or client.");
+                Block("Save/seed guard: could not locate the BeamBridge item to verify this save's AP seed tag - blocking AP actions defensively. Force with /force_seed in game or client.");
             }
             return;
         }
@@ -109,7 +109,7 @@ internal sealed class SaveSeedGuard
             }
             else
             {
-                Block("Save/seed guard: existing save has no AP seed/slot tag (played without the client?) - blocking AP actions. Force with !force_seed in game or client.");
+                Block("Save/seed guard: existing save has no AP seed/slot tag (played without the client?) - blocking AP actions. Force with /force_seed in game or client.");
             }
             return;
         }
@@ -119,7 +119,7 @@ internal sealed class SaveSeedGuard
         if (_tagMismatches < TagMismatchLimit)
             return;
 
-        Block("Save/seed guard: this save belongs to a different AP seed/slot - blocking AP actions to avoid corrupting it. Force with !force_seed in game or client.");
+        Block("Save/seed guard: this save belongs to a different AP seed/slot - blocking AP actions to avoid corrupting it. Force with /force_seed in game or client.");
     }
 
     /// <summary>Unconditionally overwrites BeamBridge's save/seed guard tag with the currently connected AP seed,
@@ -158,6 +158,6 @@ internal sealed class SaveSeedGuard
         _ctx.Report.ReportAction(false, reason);
         _ctx.Report.AppendServerLog($"CLIENT: {reason}", bold: true);
         _ctx.ShowPetMessage("AP: This save's seed/slot tag doesn't match the connected seed/slot, so item/check syncing is paused. " +
-            "If you're sure this save and seed really belong together, type !force_seed in game or in the client to bypass the guard.");
+            "If you're sure this save and seed really belong together, type /force_seed in game or in the client to bypass the guard.");
     }
 }

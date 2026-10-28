@@ -149,7 +149,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         return _apConnection.SendCommand(text);
     }
 
-    /// <summary>The debug UI's force-tag button: the same override as !force_seed, reported to the debug log only.</summary>
+    /// <summary>The debug UI's force-tag button: the same override as /force_seed, reported to the debug log only.</summary>
     internal void ForceTagSaveSeed()
     {
         ForceTagResult result = _saveSeedGuard.ForceTag();
