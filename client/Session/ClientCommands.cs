@@ -105,7 +105,7 @@ internal sealed class ClientCommands
             ReturnItemResult.NotFound => $"/return failed: couldn't find {itemName} in the game.",
             ReturnItemResult.AlreadyInInventory => $"/return: {itemName} is already in your inventory.",
             ReturnItemResult.InstalledInFuseBox => $"/return failed: {itemName} is installed in the Fuse Box.",
-            ReturnItemResult.Restored => "/return failed: Unable to return that item right now.",
+            ReturnItemResult.Restored => $"/return failed: {itemName} is standing in for a check right now.",
             ReturnItemResult.MoveFailed => $"/return failed: couldn't move {itemName} to your inventory.",
             _ => $"/return: {itemName} returned to your inventory.",
         });
