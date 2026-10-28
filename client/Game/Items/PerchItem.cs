@@ -9,5 +9,6 @@ internal static class PerchItem
         PickupLocationName = "Parrot Lobby - Perch",
         HomeRnvs = new[] { new RoomNodeView(9, 4, 4) },
         DefaultParent = new DefaultParent("PerchHolder", "CDropTarget"),
+        HomeParentIsDropTargetDisplay = true,
     };
 }

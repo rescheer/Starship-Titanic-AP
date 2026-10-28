@@ -9,5 +9,6 @@ internal static class MaitreDRightArmItem
         PickupLocationName = "1st Class Restaurant - Maitre'D Bot's Right Arm",
         HomeRnvs = new[] { new RoomNodeView(49, 3, 2) },
         DefaultParent = new DefaultParent("MaitreD Arm Holder", "CMaitreDArmHolder"),
+        HomeParentIsDropTargetDisplay = true,
     };
 }
