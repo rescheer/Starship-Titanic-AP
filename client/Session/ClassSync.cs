@@ -292,6 +292,9 @@ internal sealed class ClassSync
         int? spoofToClass = null;
         // Queued counts as checked, so a check made while offline still advances the spoof.
         bool secondClassPending = !_ctx.Ap.IsLocationCheckedOrQueued(secondLocationName);
+        // Tracked separately from the 2nd Class check: a Magazine granted early can be handed to the DeskBot before
+        // the SGT TV puzzle has been done.
+        bool magazineCheckPending = !_ctx.Ap.IsLocationCheckedOrQueued(MagazineItem.Definition.PickupLocationName!);
         // None before Titania's repair means the player hasn't checked in yet (after it, None is Bridge access).
         bool notCheckedIn = currentClass.Value == (int)PassengerClass.None
             && !_ctx.Ap.IsLocationCheckedOrQueued(TitaniaRepairedLocation);
@@ -313,8 +316,10 @@ internal sealed class ClassSync
             if (currentClass.Value != (int)PassengerClass.Third)
                 spoofToClass = (int)PassengerClass.Third;
         }
-        else if (rnv != DeskBotRnv && currentClass.Value < (int)PassengerClass.Third && secondClassPending)
+        else if (rnv != DeskBotRnv && currentClass.Value < (int)PassengerClass.Third && magazineCheckPending)
         {
+            // The SGT TV's Magazine payout and the stateroom's "you may have won an upgrade" line both require
+            // exactly Third.
             spoofToClass = configuredSpoofClass;
         }
         else if (rnv == DeskBotRnv && !secondClassPending && !_ctx.Ap.IsLocationCheckedOrQueued(firstLocationName))
