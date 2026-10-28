@@ -22,7 +22,7 @@ Requires [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/
 - All Archipelago server messages including location checks and granted items will be routed to your PET on the Conversation tab
 - Client commands - Usable in-game or in the client window:
   - **/help** - list all client commands
-  - **/ap <text>** - sends <text> to the AP server from in game
+  - **/ap \<text\>** - sends \<text\> to the AP server from in game
   - **/hint** - alias for /ap !hint. Used the same way as AP's !hint command
   - **/force_seed** - Forces the client to accept the current save as the correct save for the connected slot
   - **/return <item>** - [experimental] Returns an item to your inventory. Only works with items already received from the multiworld. Recommended only as a bug recovery tool
