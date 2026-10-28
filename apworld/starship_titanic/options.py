@@ -12,8 +12,8 @@ from Options import Choice, OptionGroup, PerGameCommonOptions, Toggle # pyright:
 # --------------------------------------------------------------------------
 class Goal(Choice):
     """What completes the game.
-    Return Home: fly the Starship Titanic back to Earth from the Bridge.
-    Repair Titania: restore all of Titania's parts."""
+    Return Home: Repair Titania and fly the Starship Titanic back to Earth from the Bridge.
+    Repair Titania: Acquire all of Titania's parts and put them back into their correct slots."""
     display_name = "Goal"
     option_return_home = 0
     option_repair_titania = 1
