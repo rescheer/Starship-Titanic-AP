@@ -46,6 +46,13 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
 
     private bool _readyToPlayLogged;
 
+    private const int HeldPetMessageAfterDeliveryTicks = 5;                     // 5 * 50ms = 250ms
+    private const int HeldPetMessageMaxTicks = 2 * InventoryIntervalTicks + 5;  // spans at least one ReconcileTrackedItems pass
+
+    /// <summary>AP "you received" messages whose PET display waits for the item's inventory delivery, which would
+    /// otherwise overwrite them with the item's name (see ReleaseHeldPetMessages).</summary>
+    private readonly List<(string Text, int HeldTick)> _heldPetMessages = new();
+
     /// <summary>Must be created on the UI thread, after the first control exists (so a WinForms
     /// SynchronizationContext is installed).</summary>
     public ClientSession()
@@ -231,10 +238,46 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         if (!_mem.IsAttached)
             return;
 
+        if (message is ItemSendLogMessage itemSend and not HintItemSendLogMessage
+            && itemSend.IsReceiverTheActivePlayer
+            && _itemSync.DeliversToInventoryOnGrant(itemSend.Item.ItemName))
+        {
+            _heldPetMessages.Add((text, _ctx.TickCount));
+            return;
+        }
+
+        DisplayApMessageInPet(text);
+    }
+
+    private void DisplayApMessageInPet(string text)
+    {
         bool ok = _ctx.InventoryRoom is not null && GameActions.DisplayMessageSmart(_mem, _ctx.InventoryRoom.Value, text);
 
         if (!ok)
             ReportAction(false, $"Failed to display AP message: \"{text}\"");
+    }
+
+    /// <summary>Shows held AP messages once the inventory delivery they announce has had time to put the item's name
+    /// in the PET, or once that delivery has had long enough to happen without it (e.g. the item was already
+    /// in the inventory).</summary>
+    private void ReleaseHeldPetMessages()
+    {
+        if (_heldPetMessages.Count == 0)
+            return;
+
+        int? lastDelivery = _itemSync.LastInventoryDeliveryTick;
+        while (_heldPetMessages.Count > 0)
+        {
+            (string text, int heldTick) = _heldPetMessages[0];
+            bool due = lastDelivery >= heldTick
+                ? _ctx.TickCount >= lastDelivery + HeldPetMessageAfterDeliveryTicks
+                : _ctx.TickCount >= heldTick + HeldPetMessageMaxTicks;
+            if (!due)
+                break;
+
+            _heldPetMessages.RemoveAt(0);
+            DisplayApMessageInPet(text);
+        }
     }
 
     /// <summary>Logs "Ready to Play!" to the server log the moment both the game attach and the AP connection are simultaneously up.</summary>

@@ -52,6 +52,7 @@ internal sealed partial class ClientSession
         _mem.Detach();
         AttachStatus = "Not attached";
         _readyToPlayLogged = false;
+        _heldPetMessages.Clear();
         ResetCachedState();
 
         foreach (string key in AddressLabels)

@@ -815,6 +815,14 @@ internal sealed class ItemSync
         && slotData.TryGetValue("item_delivery_method", out object? method)
         && string.Equals(method as string, "direct_to_inventory", StringComparison.Ordinal);
 
+    /// <summary>The tick the last granted item was delivered straight into the inventory, or null if none has been.</summary>
+    public int? LastInventoryDeliveryTick { get; private set; }
+
+    /// <summary>Whether a grant of <paramref name="apItemName"/> is delivered straight into the inventory, which
+    /// switches the PET to its Inventory tab and shows the item's name over any PET message.</summary>
+    public bool DeliversToInventoryOnGrant(string apItemName) =>
+        DeliversToInventory && EngineNameByApItemName.ContainsKey(apItemName);
+
     /// <summary>Delivers a granted item the way the seed's Item Delivery Method asks. <paramref name="mailState"/> is
     /// recorded when it goes by mail (null for server-granted items, which don't use the persisted state); straight
     /// into the inventory, MoveIntoInventory records it as being in inventory instead.</summary>
@@ -825,7 +833,10 @@ internal sealed class ItemSync
         {
             ok = _ctx.InventoryRoom is not null && MoveIntoInventory(item);
             if (ok)
+            {
                 ScheduleDirtyReassert();
+                LastInventoryDeliveryTick = _ctx.TickCount;
+            }
             _ctx.Report.ReportAction(ok, ok
                 ? $"Delivered AP grant for {item.Name} to inventory"
                 : $"Failed to deliver AP grant for {item.Name}");

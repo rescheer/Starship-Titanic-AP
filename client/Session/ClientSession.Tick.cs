@@ -156,6 +156,8 @@ internal sealed partial class ClientSession
             UpdateMail();
         }
 
+        ReleaseHeldPetMessages();
+
         // --- Save/seed guard gate: everything below reads and writes the save on the AP server's behalf
         // (item syncing, location checks, mail delivery, class upgrades).
         _saveSeedGuard.Evaluate(gameManager.Value);
