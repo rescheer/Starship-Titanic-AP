@@ -1,6 +1,6 @@
 namespace StarshipTitanicAp;
 
-public sealed partial class MainForm
+public sealed partial class DebugForm
 {
     // --- Archipelago tab ---
     private readonly TextBox _txtApServer = new() { Width = 220, PlaceholderText = "archipelago.gg:38281" };
@@ -62,23 +62,13 @@ public sealed partial class MainForm
 
     private void DoApConnect()
     {
-        string server = _txtApServer.Text.Trim();
-        string slot = _txtApSlot.Text.Trim();
-        string password = _txtApPassword.Text;
-
         SetApInputsEnabled(false);
-        _ = _apConnection.ConnectAsync(server, slot, password);
+        _session.Connect(_txtApServer.Text, _txtApSlot.Text, _txtApPassword.Text);
     }
 
-    /// <summary>Handles ArchipelagoConnection.StateChanged.</summary>
+    /// <summary>Handles ClientSession.ApStateChanged.</summary>
     private void OnApStateChanged(ApConnectionState state, string message)
     {
-        if (InvokeRequired)
-        {
-            BeginInvoke(new Action(() => OnApStateChanged(state, message)));
-            return;
-        }
-
         switch (state)
         {
             case ApConnectionState.Connecting:
@@ -90,48 +80,21 @@ public sealed partial class MainForm
                 _lblApStatus.ForeColor = Color.DarkGreen;
                 SetApInputsEnabled(false);
                 _btnApDisconnect.Enabled = true;
-                _sentRoomVisitChecks.Clear();
-                _sentPointOfInterestChecks.Clear();
-                _saveSeedGuardState = SaveSeedGuardState.Unverified;
-                _saveSeedGuardBeamBridgeMisses = 0;
-                _saveSeedGuardTagMismatches = 0;
-                _lastItemsReceivedCount = -1;
-                _lastTableAccessItemsCount = -1;
-                _lastStateroomItemsReceivedCount = -1;
-                if (_currentRoomName is not null)
-                    TrySendRoomVisitCheck(_currentRoomName);
-                if (_lastRoomNodeView is not null)
-                    TrySendPointOfInterestCheck(_lastRoomNodeView.Value);
-                UpdatePendingChecksLabel();
-                ConnectionSettings.Save(new ConnectionSettings.Data
-                {
-                    Server = _txtApServer.Text.Trim(),
-                    Slot = _txtApSlot.Text.Trim(),
-                    Password = _txtApPassword.Text,
-                });
-                AppendServerLog($"CLIENT: Connected to Archipelago ({message})");
-                CheckReadyToPlay();
                 break;
             case ApConnectionState.ConnectionFailed:
                 _lblApStatus.Text = $"\u25CF Connection failed: {message}";
                 _lblApStatus.ForeColor = Color.DarkRed;
                 SetApInputsEnabled(true);
-                AppendServerLog($"CLIENT: Failed to connect to Archipelago: {message}");
                 break;
             case ApConnectionState.Disconnected:
             default:
                 _lblApStatus.Text = $"\u25CF {message}";
                 _lblApStatus.ForeColor = Color.DimGray;
                 SetApInputsEnabled(true);
-                AppendServerLog($"CLIENT: Disconnected from Archipelago ({message})");
                 break;
         }
 
         UpdateApTopStatus();
-        UpdateFooterApStatus();
-        UpdateAccessCards();
-        UpdateApToggleButton();
-        UpdateInfoChecks();
         AppendLog(_lblApStatus.Text);
     }
 
@@ -139,41 +102,20 @@ public sealed partial class MainForm
     private void UpdateApTopStatus()
     {
         string detail = "";
-        if (_apConnection.State == ApConnectionState.Connected)
+        if (_session.Ap.State == ApConnectionState.Connected)
         {
-            string server = _txtApServer.Text.Trim();
-            string slot = _txtApSlot.Text.Trim();
+            string server = _session.Connection.Server;
+            string slot = _session.Connection.Slot;
             detail = $"  (Server: {(server.Length > 0 ? server : "-")}, Slot: {(slot.Length > 0 ? slot : "-")})";
         }
 
-        _lblApTopStatus.Text = $"AP: {_apConnection.StatusMessage}{detail}";
+        _lblApTopStatus.Text = $"AP: {_session.Ap.StatusMessage}{detail}";
         _lblApTopStatus.ForeColor = _lblApStatus.ForeColor;
-    }
-
-    /// <summary>Handles ArchipelagoConnection.MessageReceived.</summary>
-    private void OnApMessageReceived(string text)
-    {
-        if (InvokeRequired)
-        {
-            BeginInvoke(new Action(() => OnApMessageReceived(text)));
-            return;
-        }
-
-        AppendLog($"AP: {text}");
-        AppendServerLog(text);
-
-        if (!_mem.IsAttached)
-            return;
-
-        bool ok = _currentInventoryRoom is not null && GameActions.DisplayMessageSmart(_mem, _currentInventoryRoom.Value, text);
-
-        if (!ok)
-            ShowActionResult(false, $"Failed to display AP message: \"{text}\"");
     }
 
     private void UpdatePendingChecksLabel()
     {
-        string[] pending = _apConnection.GetPendingCheckNames();
+        string[] pending = _session.Ap.GetPendingCheckNames();
         int count = pending.Length;
         _lblPendingChecks.Text = count == 0
             ? ""
@@ -183,7 +125,7 @@ public sealed partial class MainForm
         _lbPendingChecks.Items.Clear();
         foreach (string name in pending.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
         {
-            long? id = _apConnection.ResolveLocationId(name);
+            long? id = _session.Ap.ResolveLocationId(name);
             _lbPendingChecks.Items.Add(id is not null ? $"{name} ({id})" : name);
         }
         _lbPendingChecks.EndUpdate();
@@ -191,8 +133,8 @@ public sealed partial class MainForm
 
     private void DoClearPendingChecks()
     {
-        int count = _apConnection.PendingCheckCount;
-        _apConnection.ClearPendingChecks();
+        int count = _session.Ap.PendingCheckCount;
+        _session.Ap.ClearPendingChecks();
         UpdatePendingChecksLabel();
         ShowActionResult(true, count == 0
             ? "No pending checks to clear"

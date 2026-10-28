@@ -6,6 +6,7 @@ from typing import Dict, List
 from BaseClasses import Region # pyright: ignore[reportMissingImports]
 
 from .locations import location_table, StarshipTitanicLocation
+from .options import Goal
 
 # (region_name, [location_names_in_this_region])
 _regions_and_locations: Dict[str, List[str]] = {}
@@ -71,11 +72,16 @@ def create_regions(world) -> None:
     multiworld = world.multiworld
     player = world.player
 
+    # The Repair Titania goal completes before the Bridge opens, so keep items out of it
+    skip_bridge_checks = world.options.goal == Goal.option_repair_titania
+
     regions: Dict[str, Region] = {}
     for region_name in ALL_REGIONS:
         region = Region(region_name, player, multiworld)
         for loc_name in _regions_and_locations.get(region_name, []):
             loc_data = location_table[loc_name]
+            if skip_bridge_checks and region_name == "Bridge" and not loc_data.event_item:
+                continue
             code = None if loc_data.event_item else world.location_name_to_id[loc_name]
             location = StarshipTitanicLocation(player, loc_name, code, region)
             if loc_data.event_item:

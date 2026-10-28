@@ -69,4 +69,9 @@ public sealed record ItemDefinition
     /// <summary>True if the generic restoration flow must NOT reorder this item to be its home parent's first
     /// child, preserving its authored draw order relative to its siblings.</summary>
     public bool SkipFirstChildReorderOnRestore { get; init; }
+
+    /// <summary>True if this item's home parent is a CDropTarget that draws the held item as its own frame. The
+    /// engine only picks that frame in EnterViewMsg, which has already run by the time the item is restored, so the
+    /// restoration flow sets it directly (see GameActions.ShowDropTargetHolding).</summary>
+    public bool HomeParentIsDropTargetDisplay { get; init; }
 }

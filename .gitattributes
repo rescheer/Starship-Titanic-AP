@@ -1,0 +1,12 @@
+# Normalize all text files to LF in the repo and in the working tree
+* text=auto eol=lf
+
+# Binary files
+*.apworld binary
+*.zip binary
+*.dll binary
+*.exe binary
+*.pdb binary
+*.png binary
+*.jpg binary
+*.ico binary

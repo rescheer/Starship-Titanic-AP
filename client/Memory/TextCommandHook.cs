@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace StarshipTitanicAp;
 
-/// <summary>Installs a persistent inline hook on CPetConversations::textLineEntered() to intercept '!' commands.</summary>
+/// <summary>Installs a persistent inline hook on CPetConversations::textLineEntered() to intercept '/' commands.</summary>
 public static class TextCommandHook
 {
     private const int OriginalBytesLength = 19; // 8 pushes (12 bytes) + sub rsp,0xE8 (7 bytes)
@@ -110,7 +110,7 @@ public static class TextCommandHook
             mem.WriteInt64(_mailboxAddr + ConversationsAddrMailboxOffset, 0);
     }
 
-    /// <summary>Checks the mailbox for a newly submitted '!' command.</summary>
+    /// <summary>Checks the mailbox for a newly submitted '/' command, returned as typed (including the '/').</summary>
     public static string? PollCommand(MemoryReader mem)
     {
         if (!_installed)
@@ -137,7 +137,7 @@ public static class TextCommandHook
         int length = nullIdx >= 0 ? nullIdx : textBytes.Length;
         string text = System.Text.Encoding.ASCII.GetString(textBytes, 0, length);
 
-        return text.StartsWith("!") ? text[1..] : text;
+        return text;
     }
 
     public static long StubAddress => _stubAddr;
@@ -167,7 +167,7 @@ public static class TextCommandHook
     {
         var b = new List<byte>();
         b.AddRange(new byte[] { 0x48, 0x8B, 0x42, 0x08 });       // mov rax, [rdx+8]
-        b.AddRange(new byte[] { 0x80, 0x38, 0x21 });             // cmp byte ptr [rax], 0x21 ('!')
+        b.AddRange(new byte[] { 0x80, 0x38, 0x2F });             // cmp byte ptr [rax], 0x2F ('/')
         b.AddRange(new byte[] { 0x0F, 0x85 });                   // jne rel32 ->
         b.AddRange(BitConverter.GetBytes(commandBlockLength));    //   skip over commandBlock to notCommandBlock
         return b.ToArray();

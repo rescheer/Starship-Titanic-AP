@@ -316,6 +316,22 @@ public static class GameActions
         return RemoteCaller.Call(mem, funcAddr, rcx: itemAddr, rdx: frameNumber);
     }
 
+    /// <summary>Puts a CDropTarget into its "holding an item" display, mirroring CDropTarget::EnterViewMsg's
+    /// no-clip branch: loadFrame(_dropFrame) and _cursorId = _dropCursorId. Returns false (and changes nothing) for
+    /// a target with a _clipName, which EnterViewMsg would play as a clip instead.</summary>
+    public static bool ShowDropTargetHolding(MemoryReader mem, long dropTargetAddr)
+    {
+        int? clipNameSize = mem.ReadInt32(dropTargetAddr + GameOffsets.DropTargetClipNameOffset + GameOffsets.CStringSizeOffset);
+        int? dropFrame = mem.ReadInt32(dropTargetAddr + GameOffsets.DropTargetDropFrameOffset);
+        int? dropCursorId = mem.ReadInt32(dropTargetAddr + GameOffsets.DropTargetDropCursorIdOffset);
+        if (clipNameSize is not 0 || dropFrame is null || dropCursorId is null)
+            return false;
+
+        bool frame = CallLoadFrame(mem, dropTargetAddr, dropFrame.Value);
+        bool cursor = SetItemCursorId(mem, dropTargetAddr, dropCursorId.Value);
+        return frame && cursor;
+    }
+
     /// <summary>Relinks an item to be the first child of its parent's sibling list.</summary>
     public static bool MoveToFirstChild(MemoryReader mem, long itemAddr, long parentAddr)
     {

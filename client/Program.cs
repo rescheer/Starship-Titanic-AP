@@ -7,6 +7,6 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
         bool debug = args.Any(a => string.Equals(a, "--debug", StringComparison.OrdinalIgnoreCase));
-        Application.Run(new MainForm(debug));
+        Application.Run(debug ? new DebugForm() : new MainForm());
     }
 }

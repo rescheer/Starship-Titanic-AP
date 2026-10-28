@@ -105,7 +105,7 @@ public static class GameOffsets
     //   0x120    0x1    _visible               bool, true
     //
     // _unused4 is this app's own per-item state storage (see ItemPersistedState.cs).
-    // _unused3 is used by SaveSeedGuard.cs, but only on the BeamBridge (Red Fuse) item.
+    // _unused3 is used by SaveSeedTag.cs, but only on the BeamBridge (Red Fuse) item.
     // _unused1 is this app's own tool-placed/game-placed mail marker (see ToolPlacedSentinel below).
     // _unused2 remains available, unused.
     public const long GameObjectUnused1Offset = 0x58;
@@ -171,6 +171,12 @@ public static class GameOffsets
     // named object directly.
     public const long ShipSettingFrameTargetOffset = 0x1E0; // CString: size (int32) @ +0, data ptr (int64) @ +8
     public const int CursorArrow = 1;
+
+    // CDropTarget (titanic/core/drop_target.h) - fields follow CGameObject from 0x124, same as CCarry's. A drop target
+    // shows its held item by its own frame (_dropFrame) rather than the item's, picked only in EnterViewMsg.
+    public const long DropTargetDropFrameOffset = 0x1BC;   // int
+    public const long DropTargetClipNameOffset = 0x1C8;    // CString: size (int32) @ +0, data ptr (int64) @ +8
+    public const long DropTargetDropCursorIdOffset = 0x1F4; // CursorId
 
     // --- PET talk input hook ---
     public const long TextLineEnteredFunc = 0x242D6A0; // CPetConversations::textLineEntered()

@@ -1,24 +1,18 @@
 namespace StarshipTitanicAp;
 
-public enum SaveSeedGuardState
-{
-    /// <summary>Not enough information yet - treated as "don't act" by callers, same as Blocked.</summary>
-    Unverified,
-    Ok,
-    Blocked,
-}
-
-/// <summary>Guards against attaching to a save file that belongs to a different Archipelago seed, or that was played without the client.</summary>
-public static class SaveSeedGuard
+/// <summary>The AP seed tag stored on a save's BeamBridge item, which <see cref="SaveSeedGuard"/> uses to tell
+/// whether a save belongs to the connected seed.</summary>
+public static class SaveSeedTag
 {
     private const string BeamBridgeItemName = "BeamBridge";
 
-    /// <summary>Deterministic positive tag for a seed_name: an FNV-1a hash reduced to [1, 16,000,000], an integer
-    /// a 32-bit float represents exactly. 0 means "untagged".</summary>
-    public static long ComputeSeedTag(string seedName)
+    /// <summary>Deterministic positive tag for a seed_name + slot name pair (so two Starship Titanic slots in the same
+    /// seed get different tags): an FNV-1a hash reduced to [1, 16,000,000], an integer a 32-bit float represents
+    /// exactly. 0 means "untagged".</summary>
+    public static long ComputeSeedTag(string seedName, string slotName)
     {
         ulong hash = 14695981039346656037UL;
-        foreach (char c in seedName)
+        foreach (char c in $"{seedName}\0{slotName}")
         {
             hash ^= c;
             hash *= 1099511628211UL;
