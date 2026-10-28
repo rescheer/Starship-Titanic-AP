@@ -73,7 +73,7 @@ public sealed partial class DebugForm
         _lblSaveSeedGuardStatus.Text = _session.SaveSeedGuardState switch
         {
             SaveSeedGuardState.Ok => "",
-            SaveSeedGuardState.Blocked => "AP syncing PAUSED: save belongs to a different AP seed (see Log)",
+            SaveSeedGuardState.Blocked => "AP syncing PAUSED: save belongs to a different AP seed/slot (see Log)",
             _ => "AP syncing paused: waiting on AP connection to verify this save",
         };
     }
