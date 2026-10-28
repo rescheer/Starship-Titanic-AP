@@ -97,10 +97,10 @@ internal sealed class SaveSeedGuard
                 if (SaveSeedTag.WriteSeedTag(_ctx.Mem, beamBridgeAddr.Value, tag))
                 {
                     State = SaveSeedGuardState.Ok;
-                    const string taggedMessage = "Save/seed guard: tagged fresh save with current AP seed";
+                    const string taggedMessage = "Save/seed guard: tagged fresh save with current AP seed/slot";
                     _ctx.Report.ReportAction(true, taggedMessage);
                     _ctx.Report.AppendServerLog($"CLIENT: {taggedMessage}", bold: true);
-                    _ctx.ShowPetMessage("AP: This fresh save has been tagged and linked to the connected AP seed.");
+                    _ctx.ShowPetMessage("AP: This fresh save has been tagged and linked to the connected AP seed/slot.");
                 }
                 else
                 {
@@ -109,7 +109,7 @@ internal sealed class SaveSeedGuard
             }
             else
             {
-                Block("Save/seed guard: existing save has no AP seed tag (played without the client?) - blocking AP actions. Force with !force_seed in game or client.");
+                Block("Save/seed guard: existing save has no AP seed/slot tag (played without the client?) - blocking AP actions. Force with !force_seed in game or client.");
             }
             return;
         }
@@ -119,7 +119,7 @@ internal sealed class SaveSeedGuard
         if (_tagMismatches < TagMismatchLimit)
             return;
 
-        Block("Save/seed guard: this save belongs to a different AP seed - blocking AP actions to avoid corrupting it. Force with !force_seed in game or client.");
+        Block("Save/seed guard: this save belongs to a different AP seed/slot - blocking AP actions to avoid corrupting it. Force with !force_seed in game or client.");
     }
 
     /// <summary>Unconditionally overwrites BeamBridge's save/seed guard tag with the currently connected AP seed,
@@ -157,7 +157,7 @@ internal sealed class SaveSeedGuard
 
         _ctx.Report.ReportAction(false, reason);
         _ctx.Report.AppendServerLog($"CLIENT: {reason}", bold: true);
-        _ctx.ShowPetMessage("AP: This save's seed tag doesn't match the connected seed, so item/check syncing is paused. " +
+        _ctx.ShowPetMessage("AP: This save's seed/slot tag doesn't match the connected seed/slot, so item/check syncing is paused. " +
             "If you're sure this save and seed really belong together, type !force_seed in game or in the client to bypass the guard.");
     }
 }

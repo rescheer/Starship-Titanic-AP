@@ -89,7 +89,7 @@ internal sealed class ClientCommands
                 "!force_seed: failed to write the guard tag",
                 "AP: !force_seed failed - see client log."),
             _ => (
-                "!force_seed: save/AP-seed guard bypassed - this save is now tagged with the current seed",
+                "!force_seed: save/AP-seed guard bypassed - this save is now tagged with the current seed/slot",
                 "AP: Save/seed guard bypassed - AP actions are re-enabled for this save."),
         };
 
