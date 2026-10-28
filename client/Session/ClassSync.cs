@@ -30,6 +30,7 @@ internal sealed class ClassSync
         _classUpgradeSpoofOriginalClass = null;
         _sgtGlyphAddr = null;
         _sgtGlyphOriginalMode = null;
+        _pendingClassUpgrade = null;
         ResyncFromItems();
     }
 
@@ -45,9 +46,26 @@ internal sealed class ClassSync
     /// else reads or writes PassengerClass.</summary>
     public void SyncFromItems(long gameManager)
     {
+        SyncPendingClassUpgrade(gameManager);
         SyncPassengerClassFromItems(gameManager);
         SyncStateroomFromItems(gameManager);
         SyncRepairTitaniaGoal();
+    }
+
+    /// <summary>A DeskBot class upgrade ClassUpgradeHook blocked before the seed's class option was known, held until
+    /// slot data arrives.</summary>
+    private int? _pendingClassUpgrade;
+
+    /// <summary>Applies a DeskBot upgrade held by <see cref="PollClassUpgradeHook"/> once slot data shows the seed has
+    /// vanilla class upgrades; otherwise drops it, as the real class stays item-gated.</summary>
+    private void SyncPendingClassUpgrade(long gameManager)
+    {
+        if (_pendingClassUpgrade is not { } newClass || _ctx.Ap.KnownSlotData is not { } slotData)
+            return;
+
+        _pendingClassUpgrade = null;
+        if (ClassUpgradeTracker.IsVanilla(slotData))
+            ApplyVanillaClassUpgrade(newClass, gameManager);
     }
 
     /// <summary>Under the Repair Titania goal, reports the goal once Titania's repair has been checked or queued -
@@ -96,7 +114,13 @@ internal sealed class ClassSync
 
         if (LocationChecks.TryGetClassUpgradeLocationName(attemptedClass.Value, out string locationName))
         {
-            if (ClassUpgradeTracker.IsVanilla(_ctx.Ap.KnownSlotData))
+            if (_ctx.Ap.KnownSlotData is null)
+            {
+                // Option not known yet: SyncPendingClassUpgrade applies it once slot data arrives, if vanilla.
+                _pendingClassUpgrade = attemptedClass.Value;
+                _ctx.Report.AppendLog($"ClassUpgradeHook: blocked setPassengerClass({PassengerClassNames.GetName(attemptedClass.Value)}) before slot data - held until the class option is known");
+            }
+            else if (ClassUpgradeTracker.IsVanilla(_ctx.Ap.KnownSlotData))
                 ApplyVanillaClassUpgrade(attemptedClass.Value, gameManager);
             else
                 _ctx.Report.AppendLog($"ClassUpgradeHook: blocked setPassengerClass({PassengerClassNames.GetName(attemptedClass.Value)}) from taking effect - real class stays item-gated");
@@ -373,9 +397,12 @@ internal sealed class ClassSync
         }
         else if (rnv == DeskBotRnv
             && currentClass.Value != (int)PassengerClass.None
+            && !(vanillaClass && currentClass.Value <= (int)PassengerClass.Second)
             && !GameActions.HasAnyAssignedRoom(_ctx.Mem, _ctx.InventoryRoom.Value))
         {
-            // No room assigned yet: report None so the initial DeskBot conversation and room assignment run.
+            // No room assigned yet: report None so the initial DeskBot conversation and room assignment run. Not under
+            // vanilla class upgrades once upgraded: the player has checked in, and None would hide the 1st Class upgrade
+            // until a Progressive Stateroom arrives.
             spoofToClass = (int)PassengerClass.None;
         }
 

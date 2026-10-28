@@ -83,11 +83,11 @@ class StarshipTitanicWorld(World):
         slot data instead (and reuse its cards rather than re-rolling Randomized mode)."""
         options = self.options
         options.goal.value = Goal.options[slot_data["goal"]]
-        options.passenger_class_upgrades.value = (PassengerClassUpgrades.option_vanilla
-            if slot_data["vanilla_passenger_class"] else PassengerClassUpgrades.option_multiworld)
-        options.stateroom_assignment.value = (StateroomAssignment.option_vanilla
-            if slot_data["vanilla_staterooms"] else StateroomAssignment.option_multiworld)
         # Keys added after the first release; older seeds fall back to the defaults
+        options.passenger_class_upgrades.value = (PassengerClassUpgrades.option_vanilla
+            if slot_data.get("vanilla_passenger_class", False) else PassengerClassUpgrades.option_multiworld)
+        options.stateroom_assignment.value = (StateroomAssignment.option_vanilla
+            if slot_data.get("vanilla_staterooms", False) else StateroomAssignment.option_multiworld)
         if "item_delivery_method" in slot_data:
             options.item_delivery_method.value = ItemDeliveryMethod.options[slot_data["item_delivery_method"]]
         options.easy_music_room_puzzle.value = int(slot_data.get("easy_music_room_puzzle", False))
