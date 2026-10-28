@@ -69,7 +69,7 @@ class StarshipTitanicWorld(World):
         return StarshipTitanicItem(name, ItemClassification.progression, None, self.player)
 
     def generate_early(self) -> None:
-        self.access_cards = enabled_access_cards(self.options)
+        self.access_cards = enabled_access_cards(self.options, self.random)
 
     def create_regions(self) -> None:
         _create_regions(self)
