@@ -19,6 +19,7 @@ internal sealed class ClientCommands
         {
             ["force_seed"] = _ => ForceSeed(),
             ["ap"] = SendToServer,
+            ["hint"] = args => SendToServer(args.Length == 0 ? "!hint" : $"!hint {args}"),
         };
     }
 
