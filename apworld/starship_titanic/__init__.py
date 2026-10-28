@@ -69,7 +69,17 @@ class StarshipTitanicWorld(World):
         return StarshipTitanicItem(name, ItemClassification.progression, None, self.player)
 
     def generate_early(self) -> None:
-        self.access_cards = enabled_access_cards(self.options, self.random)
+        # Universal Tracker regenerates locally; reuse the seed's cards instead of re-rolling Randomized mode
+        re_gen_passthrough = getattr(self.multiworld, "re_gen_passthrough", {})
+        if self.game in re_gen_passthrough:
+            self.access_cards = list(re_gen_passthrough[self.game]["room_access_cards"])
+        else:
+            self.access_cards = enabled_access_cards(self.options, self.random)
+
+    @staticmethod
+    def interpret_slot_data(slot_data: Dict[str, Any]) -> Dict[str, Any]:
+        # Universal Tracker hook: the returned dict becomes multiworld.re_gen_passthrough[game]
+        return slot_data
 
     def create_regions(self) -> None:
         _create_regions(self)
