@@ -7,19 +7,22 @@ internal sealed class ClientCommands
 {
     private readonly SessionContext _ctx;
     private readonly SaveSeedGuard _saveSeedGuard;
+    private readonly ItemSync _itemSync;
 
     /// <summary>Command name (without the "/") to handler, which receives the rest of the line as its arguments.</summary>
     private readonly Dictionary<string, Action<string>> _commands;
 
-    public ClientCommands(SessionContext ctx, SaveSeedGuard saveSeedGuard)
+    public ClientCommands(SessionContext ctx, SaveSeedGuard saveSeedGuard, ItemSync itemSync)
     {
         _ctx = ctx;
         _saveSeedGuard = saveSeedGuard;
+        _itemSync = itemSync;
         _commands = new(StringComparer.OrdinalIgnoreCase)
         {
             ["force_seed"] = _ => ForceSeed(),
             ["ap"] = SendToServer,
             ["hint"] = args => SendToServer(args.Length == 0 ? "!hint" : $"!hint {args}"),
+            ["return"] = ReturnItem,
         };
     }
 
@@ -66,6 +69,53 @@ internal sealed class ClientCommands
             _ctx.Report.AppendServerLog("CLIENT: Not connected - message not sent");
             _ctx.ShowPetMessage("AP: Not connected to an AP server - message not sent.");
         }
+    }
+
+    /// <summary>/return &lt;item&gt;: moves an item the AP server has already granted back into the player's inventory.
+    /// The item is its AP name, or any unique part of it (e.g. "/return pistachio").</summary>
+    private void ReturnItem(string query)
+    {
+        if (query.Length == 0)
+        {
+            ReportReturn(false, "Usage: /return <item name>");
+            return;
+        }
+        if (_ctx.Options.EnforceSaveSeedGuard && _saveSeedGuard.State != SaveSeedGuardState.Ok)
+        {
+            ReportReturn(false, "/return failed - AP actions are blocked for this save (see the save/seed guard).");
+            return;
+        }
+
+        List<string> matches = ItemSync.MatchReturnableItems(query);
+        if (matches.Count != 1)
+        {
+            ReportReturn(false, matches.Count == 0
+                ? $"/return failed - no returnable item matches \"{query}\"."
+                : $"/return failed - \"{query}\" matches more than one item: {string.Join(", ", matches)}.");
+            return;
+        }
+
+        string itemName = matches[0];
+        ReturnItemResult result = _itemSync.ReturnToInventory(itemName);
+        ReportReturn(result == ReturnItemResult.Returned, result switch
+        {
+            ReturnItemResult.NotInGame => "/return failed: not in game yet.",
+            ReturnItemResult.UnknownItem => $"/return failed: {itemName} can't be returned.",
+            ReturnItemResult.NotGranted => $"/return failed: {itemName} hasn't been received from the AP server yet.",
+            ReturnItemResult.NotFound => $"/return failed: couldn't find {itemName} in the game.",
+            ReturnItemResult.AlreadyInInventory => $"/return: {itemName} is already in your inventory.",
+            ReturnItemResult.InstalledInFuseBox => $"/return failed: {itemName} is installed in the Fuse Box.",
+            ReturnItemResult.Restored => "/return failed: Unable to return that item right now.",
+            ReturnItemResult.MoveFailed => $"/return failed: couldn't move {itemName} to your inventory.",
+            _ => $"/return: {itemName} returned to your inventory.",
+        });
+    }
+
+    private void ReportReturn(bool success, string message)
+    {
+        _ctx.Report.ReportAction(success, message);
+        _ctx.Report.AppendServerLog($"CLIENT: {message}");
+        _ctx.ShowPetMessage($"AP: {message}");
     }
 
     /// <summary>/force_seed: overrides the save/AP-seed guard by tagging the attached save with the connected seed.</summary>

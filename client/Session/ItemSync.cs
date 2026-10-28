@@ -1,5 +1,19 @@
 namespace StarshipTitanicAp;
 
+/// <summary>Outcome of <see cref="ItemSync.ReturnToInventory"/>.</summary>
+internal enum ReturnItemResult
+{
+    NotInGame,
+    UnknownItem,
+    NotGranted,
+    NotFound,
+    AlreadyInInventory,
+    InstalledInFuseBox,
+    Restored,
+    MoveFailed,
+    Returned,
+}
+
 /// <summary>Keeps the physical carry items in the game in line with AP: sends pickup checks, hides items picked up
 /// before they're granted, delivers granted items by mail, and temporarily restores granted-but-unfound items to
 /// their home spot (reverting them if the player leaves without picking them up).</summary>
@@ -400,6 +414,90 @@ internal sealed class ItemSync
         _ctx.Report.ReportAction(moved, moved
             ? "Feathers picked up - not yet granted, hidden pending AP grant"
             : "Feathers picked up - not yet granted, but failed to hide it");
+    }
+
+    /// <summary>AP item name to engine name for every item <see cref="ReturnToInventory"/> can return. Feathers has
+    /// no AP item mapping of its own (see TryHideOrDeliverFeather), so it's added by hand.</summary>
+    private static readonly Dictionary<string, string> EngineNameByApItemName = Items.All
+        .Where(d => (d.ServerGrantedApItemName ?? d.ApItemName) is not null)
+        .Select(d => (ApName: (d.ServerGrantedApItemName ?? d.ApItemName)!, d.Name))
+        .Append((ApName: "Feather", Name: "Feathers"))
+        .ToDictionary(x => x.ApName, x => x.Name, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The AP item names that <paramref name="query"/> refers to: an exact (case-insensitive) match, or
+    /// failing that every name containing it.</summary>
+    public static List<string> MatchReturnableItems(string query)
+    {
+        if (EngineNameByApItemName.ContainsKey(query))
+            return new List<string> { EngineNameByApItemName.Keys.First(k => string.Equals(k, query, StringComparison.OrdinalIgnoreCase)) };
+
+        return EngineNameByApItemName.Keys
+            .Where(k => k.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>Moves an already-granted item back into the player's inventory from wherever it ended up (used on
+    /// something, left in a room, sitting in the mail or hidden room...). A tracked item's pickup check is left as it
+    /// was, so one that hasn't fired yet is still restored to its home spot for a real pickup later.</summary>
+    public ReturnItemResult ReturnToInventory(string apItemName)
+    {
+        if (_ctx.Project is not { } project || _ctx.GameManager is not { } gameManager
+            || _ctx.InventoryRoom is not { } inventoryRoom)
+            return ReturnItemResult.NotInGame;
+        if (!EngineNameByApItemName.TryGetValue(apItemName, out string? name))
+            return ReturnItemResult.UnknownItem;
+        if (!_ctx.Ap.GetReceivedItemNames().Contains(apItemName, StringComparer.OrdinalIgnoreCase))
+            return ReturnItemResult.NotGranted;
+
+        if (FindByName(GameState.FindAllCarryItems(_ctx.Mem, project), name) is not { } item)
+            return ReturnItemResult.NotFound;
+        if (item.ParentAddress == inventoryRoom)
+            return ReturnItemResult.AlreadyInInventory;
+        if (IsInstalledInFuseBox(project, name))
+            return ReturnItemResult.InstalledInFuseBox;
+
+        // A Restored item is sitting at its home spot for the player to pick up, and moving it would leave that view's
+        // restoration side effects (hidden sibling, drop-target frame) stale while they're still looking at it.
+        if (!ItemTracking.ServerGrantedItemNames.ContainsKey(name)
+            && GameActions.ReadItemPersistedState(_ctx.Mem, item.Address).Stage == ItemStage.Restored)
+            return ReturnItemResult.Restored;
+
+        bool fromMail = item.ParentAddress == _ctx.MailManRoom;
+        if (!GameActions.MoveItemSmart(_ctx.Mem, item.Address, inventoryRoom, inventoryRoom, gameManager))
+            return ReturnItemResult.MoveFailed;
+
+        CancelPendingUnrestoreChecks(new[] { name });
+        GameActions.SetItemVisible(_ctx.Mem, item.Address, true);
+        if (ItemTracking.RequiresCanTakeRestoreToggle(name) || ItemTracking.RequiresCanTakeOverride(name))
+            GameActions.SetItemCanTake(_ctx.Mem, item.Address, true);
+        if (fromMail)
+        {
+            GameActions.UnmarkItemAsToolPlaced(_ctx.Mem, item.Address);
+            _ctx.Report.NotifyMailChanged();
+        }
+
+        // Server-granted items don't use the persisted state. Everything else is marked as being in inventory.
+        if (!ItemTracking.ServerGrantedItemNames.ContainsKey(name))
+        {
+            ItemPersistedState persisted = GameActions.ReadItemPersistedState(_ctx.Mem, item.Address);
+
+            // Same as collecting it from the mail (see ReconcileTrackedItems): a Magazine the game itself mailed is a
+            // natural pickup, so it sends its check.
+            bool fireCheck = persisted.Stage == ItemStage.Mail
+                && !persisted.CheckFired
+                && string.Equals(name, "Magazine", StringComparison.OrdinalIgnoreCase)
+                && !persisted.ToolDelivered;
+            if (fireCheck)
+                SendItemPickupCheck(name);
+
+            GameActions.WriteItemPersistedState(_ctx.Mem, item.Address,
+                new ItemPersistedState(ItemStage.Inventory, fireCheck || persisted.CheckFired, ItemPulledFrom.None));
+        }
+
+        ScheduleDirtyReassert();
+        _ctx.Report.NotifyItemsChanged();
+        return ReturnItemResult.Returned;
     }
 
     /// <summary>True when a fuse is currently installed in a Fuse Box socket (an installed fuse's real item is parked

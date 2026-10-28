@@ -54,7 +54,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         _saveSeedGuard = new SaveSeedGuard(_ctx);
         _classSync = new ClassSync(_ctx);
         _itemSync = new ItemSync(_ctx);
-        _commands = new ClientCommands(_ctx, _saveSeedGuard);
+        _commands = new ClientCommands(_ctx, _saveSeedGuard, _itemSync);
 
         _timer.Tick += (_, _) => OnTick();
         _apConnection.StateChanged += (state, message) => RunOnUiThread(() => OnApStateChanged(state, message));
