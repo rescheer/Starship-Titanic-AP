@@ -23,6 +23,7 @@ internal sealed class ClientCommands
             ["ap"] = SendToServer,
             ["hint"] = args => SendToServer(args.Length == 0 ? "!hint" : $"!hint {args}"),
             ["return"] = ReturnItem,
+            ["getmail"] = _ => GetMail(),
         };
     }
 
@@ -109,6 +110,32 @@ internal sealed class ClientCommands
             ReturnItemResult.MoveFailed => $"/return failed: couldn't move {itemName} to your inventory.",
             _ => $"/return: {itemName} returned to your inventory.",
         });
+    }
+
+    /// <summary>/getMail: moves every item the client delivered to the mail system into the player's inventory, so
+    /// they don't have to be fetched from a SuccUBus.</summary>
+    private void GetMail()
+    {
+        if (_ctx.Options.EnforceSaveSeedGuard && _saveSeedGuard.State != SaveSeedGuardState.Ok)
+        {
+            ReportReturn(false, "/getMail failed - AP actions are blocked for this save (see the save/seed guard).");
+            return;
+        }
+
+        if (_itemSync.CollectToolPlacedMail() is not (var moved, var failed))
+        {
+            ReportReturn(false, "/getMail failed: not in game yet.");
+            return;
+        }
+
+        if (moved.Count == 0 && failed.Count == 0)
+            ReportReturn(true, "/getMail: no AP items are waiting in the mail.");
+        else if (failed.Count == 0)
+            ReportReturn(true, $"/getMail: moved to your inventory: {string.Join(", ", moved)}.");
+        else
+            ReportReturn(false, moved.Count == 0
+                ? $"/getMail failed: couldn't move {string.Join(", ", failed)} to your inventory."
+                : $"/getMail: moved {string.Join(", ", moved)} to your inventory, but couldn't move {string.Join(", ", failed)}.");
     }
 
     private void ReportReturn(bool success, string message)

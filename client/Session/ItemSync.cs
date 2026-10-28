@@ -463,9 +463,48 @@ internal sealed class ItemSync
             && GameActions.ReadItemPersistedState(_ctx.Mem, item.Address).Stage == ItemStage.Restored)
             return ReturnItemResult.Restored;
 
+        if (!MoveIntoInventory(item, inventoryRoom, gameManager))
+            return ReturnItemResult.MoveFailed;
+
+        ScheduleDirtyReassert();
+        _ctx.Report.NotifyItemsChanged();
+        return ReturnItemResult.Returned;
+    }
+
+    /// <summary>Moves every item this app placed in the mail system into the player's inventory, the same way
+    /// <see cref="ReturnToInventory"/> does. Returns the engine names of the items moved and of those that failed to
+    /// move, or null when not in game yet.</summary>
+    public (List<string> Moved, List<string> Failed)? CollectToolPlacedMail()
+    {
+        if (_ctx.Project is not { } project || _ctx.GameManager is not { } gameManager
+            || _ctx.InventoryRoom is not { } inventoryRoom || _ctx.MailManRoom is not { } mailManRoom)
+            return null;
+
+        var moved = new List<string>();
+        var failed = new List<string>();
+        foreach (CarryItemLocation item in GameState.FindAllCarryItems(_ctx.Mem, project))
+        {
+            if (item.ParentAddress != mailManRoom || !GameActions.IsItemToolPlaced(_ctx.Mem, item.Address))
+                continue;
+            (MoveIntoInventory(item, inventoryRoom, gameManager) ? moved : failed).Add(item.Name);
+        }
+
+        if (moved.Count > 0)
+        {
+            ScheduleDirtyReassert();
+            _ctx.Report.NotifyItemsChanged();
+        }
+        return (moved, failed);
+    }
+
+    /// <summary>Moves <paramref name="item"/> into the player's inventory and makes it usable there: visible,
+    /// takeable, no longer marked as mail, and (for tracked items) persisted as being in inventory.</summary>
+    private bool MoveIntoInventory(CarryItemLocation item, long inventoryRoom, long gameManager)
+    {
+        string name = item.Name;
         bool fromMail = item.ParentAddress == _ctx.MailManRoom;
         if (!GameActions.MoveItemSmart(_ctx.Mem, item.Address, inventoryRoom, inventoryRoom, gameManager))
-            return ReturnItemResult.MoveFailed;
+            return false;
 
         CancelPendingUnrestoreChecks(new[] { name });
         GameActions.SetItemVisible(_ctx.Mem, item.Address, true);
@@ -495,9 +534,7 @@ internal sealed class ItemSync
                 new ItemPersistedState(ItemStage.Inventory, fireCheck || persisted.CheckFired, ItemPulledFrom.None));
         }
 
-        ScheduleDirtyReassert();
-        _ctx.Report.NotifyItemsChanged();
-        return ReturnItemResult.Returned;
+        return true;
     }
 
     /// <summary>True when a fuse is currently installed in a Fuse Box socket (an installed fuse's real item is parked
