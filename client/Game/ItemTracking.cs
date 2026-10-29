@@ -45,6 +45,9 @@ public static class ItemTracking
     public static bool RestoreLoadsEnterFrame(string itemName) =>
         Items.TryGet(itemName, out ItemDefinition item) && item.RestoreLoadsEnterFrame;
 
+    public static bool RestoreResetsVisibleFrame(string itemName) =>
+        Items.TryGet(itemName, out ItemDefinition item) && item.RestoreResetsVisibleFrame;
+
     public static bool TryGetInventoryBoundsSize(string itemName, out (short Width, short Height) size)
     {
         size = default;

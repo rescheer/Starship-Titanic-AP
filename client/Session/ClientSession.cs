@@ -42,6 +42,10 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     private readonly HashSet<RoomNodeView> _sentPointOfInterestChecks = new();
     private int _lastTableAccessItemsCount = -1;
 
+    /// <summary>Set on each AP connection so the room the player is already standing in gets its checks sent - but
+    /// only from OnTick, once the save/seed guard has verified the save against the new seed.</summary>
+    private bool _currentLocationChecksPending;
+
     private bool _conversationsAddrShown;
 
     /// <summary>A room assignment RoomAssignHook blocked before the seed was known to have vanilla staterooms, held
@@ -211,10 +215,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
                 _classSync.ResyncFromItems();
                 SyncRoomAssignHook();
                 _lastTableAccessItemsCount = -1;
-                if (_ctx.CurrentRoomName is not null)
-                    TrySendRoomVisitCheck(_ctx.CurrentRoomName);
-                if (_lastRoomNodeView is not null)
-                    TrySendPointOfInterestCheck(_lastRoomNodeView.Value);
+                _currentLocationChecksPending = true;
                 NotifyPendingChecksChanged();
                 ConnectionSettings.Save(Connection);
                 AppendServerLog($"CLIENT: Connected to Archipelago ({message})");

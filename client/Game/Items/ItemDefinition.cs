@@ -87,6 +87,11 @@ public sealed record ItemDefinition
     /// showing its glyph frame (_visibleFrame) in-world otherwise.</summary>
     public bool RestoreLoadsEnterFrame { get; init; }
 
+    /// <summary>True if restoration to its home parent also resets _visibleFrame to _enterFrame. For items whose
+    /// PETGainedObjectMsg points _visibleFrame at the glyph and which are later revealed in-world by a CVisibleMsg
+    /// (e.g. the Mouth, shown by CGondolierMixer once its puzzle is solved), which loads _visibleFrame.</summary>
+    public bool RestoreResetsVisibleFrame { get; init; }
+
     /// <summary>The item's true drawn size, applied to its _bounds on direct delivery into inventory. The engine only
     /// resizes _bounds to the surface while drawing or dragging the item, so an item that was never drawn in-world
     /// (e.g. hidden inside a CDropTarget) keeps its authored size, and the PET's dragGlyph centres it on the mouse

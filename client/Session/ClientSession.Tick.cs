@@ -209,6 +209,15 @@ internal sealed partial class ClientSession
             _classSync.ApplySpoofs(rnv.Value, gameManager.Value);
         }
 
+        // The room the player was already in when AP connected; deduped against any checks the block above just sent.
+        if (_currentLocationChecksPending && rnv is not null)
+        {
+            _currentLocationChecksPending = false;
+            if (_ctx.CurrentRoomName is not null)
+                TrySendRoomVisitCheck(_ctx.CurrentRoomName);
+            TrySendPointOfInterestCheck(rnv.Value);
+        }
+
         PollMusicConsole();
         SyncTableAccessFromItems();
         SyncRoomGate();

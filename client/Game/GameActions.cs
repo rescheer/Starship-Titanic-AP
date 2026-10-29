@@ -348,6 +348,19 @@ public static class GameActions
         mem.ReadInt32(itemAddr + GameOffsets.CarryEnterFrameOffset) is { } enterFrame
         && CallLoadFrame(mem, itemAddr, enterFrame);
 
+    /// <summary>Copies the item's _enterFrame into _visibleFrame, undoing the glyph frame a PETGainedObjectMsg handler
+    /// stored there, so a later CCarry::VisibleMsg in-world shows the in-scene look again.</summary>
+    public static bool ResetItemVisibleFrameToEnterFrame(MemoryReader mem, long itemAddr) =>
+        mem.ReadInt32(itemAddr + GameOffsets.CarryEnterFrameOffset) is { } enterFrame
+        && mem.WriteInt32(itemAddr + GameOffsets.CarryVisibleFrameOffset, enterFrame);
+
+    /// <summary>Sets CCarry::_enterFrameSet, as if EnterViewMsg had already loaded _enterFrame. Vanilla always sets it
+    /// on the first visit to the item's home view, before it can be picked up. Left false on a granted item, the
+    /// first re-entry of whatever view it's later placed in (e.g. an arm hooked on a gondolier lever) reloads its
+    /// home-scene frame.</summary>
+    public static bool MarkItemEnterFrameSet(MemoryReader mem, long itemAddr) =>
+        mem.WriteByte(itemAddr + GameOffsets.CarryEnterFrameSetOffset, 1);
+
     /// <summary>Calls CGameObject::loadFrame(int frameNumber) to seek an item's displayed movie frame.</summary>
     public static bool CallLoadFrame(MemoryReader mem, long itemAddr, int frameNumber)
     {

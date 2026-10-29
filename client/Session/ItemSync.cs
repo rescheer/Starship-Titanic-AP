@@ -473,6 +473,7 @@ internal sealed class ItemSync
         CancelPendingUnrestoreChecks(new[] { name });
         GameActions.SetItemVisible(_ctx.Mem, item.Address, true);
         GameActions.LoadItemVisibleFrame(_ctx.Mem, item.Address);
+        GameActions.MarkItemEnterFrameSet(_ctx.Mem, item.Address);
         if (ItemTracking.TryGetInventoryBoundsSize(name, out var size)
             && _ctx.Mem.ReadInt32(item.Address + GameOffsets.GameObjectBoundsOffset) is { } topLeft)
         {
@@ -632,6 +633,13 @@ internal sealed class ItemSync
                     // After the bounds override, so loadFrame's dirty-rect registration uses the corrected rect.
                     if (ItemTracking.RestoreLoadsEnterFrame(name))
                         GameActions.LoadItemEnterFrame(_ctx.Mem, item.Address);
+
+                    if (ItemTracking.RestoreResetsVisibleFrame(name))
+                        GameActions.ResetItemVisibleFrameToEnterFrame(_ctx.Mem, item.Address);
+
+                    // The player is already in the view, so its EnterViewMsg has been missed for good. Restored items are
+                    // fixed up above instead, and a later natural pickup must not reload the home frame elsewhere.
+                    GameActions.MarkItemEnterFrameSet(_ctx.Mem, item.Address);
 
                     if (ItemHomeLocations.TryGetHideSiblingOnRestore(name, out var sibling))
                     {
@@ -973,6 +981,7 @@ internal sealed class ItemSync
         if (ok)
         {
             GameActions.MarkItemAsToolPlaced(_ctx.Mem, item.Address);
+            GameActions.MarkItemEnterFrameSet(_ctx.Mem, item.Address);
             if (ItemTracking.RequiresCanTakeOverride(item.Name))
                 GameActions.SetItemCanTake(_ctx.Mem, item.Address, true);
         }
