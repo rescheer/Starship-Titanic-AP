@@ -131,7 +131,7 @@ location_table: Dict[str, STLocationData] = {
     # POI/Visit
     "2nd Class Lobby - Succ-U-Bus": STLocationData("2nd Class Lobby"),
     "2nd Class Lobby - Visited": STLocationData("2nd Class Lobby"),
-    "2nd Class Stateroom - Succ-U-Bus": STLocationData("2nd Class Lobby"),
+    "2nd Class Stateroom - Succ-U-Bus": STLocationData("2nd Class Stateroom"),
     "2nd Class Stateroom - Visited": STLocationData("2nd Class Stateroom"),
     # Item
     "2nd Class Stateroom - Titania's Ear (Pistachio Bowl)": STLocationData("2nd Class Stateroom"),
@@ -163,12 +163,12 @@ location_table: Dict[str, STLocationData] = {
     # 1st Class Stateroom/Lobby
     # ---------------------------------------------------------------- #
     # POI/Visit
-    "1st Class Stateroom - Succ-U-Bus": STLocationData("1st Class Lobby"),
+    "1st Class Stateroom - Succ-U-Bus": STLocationData("1st Class Stateroom"),
     "1st Class Stateroom - Visited": STLocationData("1st Class Stateroom"),
     "1st Class Lobby - Succ-U-Bus": STLocationData("1st Class Lobby"),
     "1st Class Lobby - Visited": STLocationData("1st Class Lobby"),
     # Item
-    "1st Class Stateroom - Titania's Eye (Light)": STLocationData("1st Class Lobby"),
+    "1st Class Stateroom - Titania's Eye (Light)": STLocationData("1st Class Stateroom"),
     # Puzzle
     # Other
 
