@@ -24,7 +24,10 @@ public enum ItemPulledFrom : byte
 /// (an AP grant landing before the player found it naturally), as opposed to the game's own script placing it
 /// there (a genuine natural delivery). Only meaningful for the Magazine (see MagazineItem.cs); recorded at the
 /// moment the item enters Mail.</param>
-public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFired, ItemPulledFrom PulledFrom, bool ToolDelivered = false)
+/// <param name="ReshowSibling">True while <see cref="ItemStage.Restored"/> holds an item whose HideSiblingOnRestore
+/// sibling has to be shown again once the item leaves its home parent (see ItemSync.ReshowHiddenSibling). Recorded at
+/// the moment the item is restored.</param>
+public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFired, ItemPulledFrom PulledFrom, bool ToolDelivered = false, bool ReshowSibling = false)
 {
     public static readonly ItemPersistedState None = new(ItemStage.None, false, ItemPulledFrom.None);
 
@@ -32,8 +35,9 @@ public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFire
         (ItemStage)(raw & 0xFF),
         ((raw >> 8) & 1) != 0,
         (ItemPulledFrom)((raw >> 16) & 0xFF),
-        ((raw >> 9) & 1) != 0);
+        ((raw >> 9) & 1) != 0,
+        ((raw >> 10) & 1) != 0);
 
     public int Encode() =>
-        (int)Stage | (CheckFired ? 1 << 8 : 0) | ((int)PulledFrom << 16) | (ToolDelivered ? 1 << 9 : 0);
+        (int)Stage | (CheckFired ? 1 << 8 : 0) | ((int)PulledFrom << 16) | (ToolDelivered ? 1 << 9 : 0) | (ReshowSibling ? 1 << 10 : 0);
 }

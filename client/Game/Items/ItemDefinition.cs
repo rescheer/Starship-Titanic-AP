@@ -41,7 +41,8 @@ public sealed record ItemDefinition
     /// <summary>Field overrides to reapply after a generic tree re-attach restoration.</summary>
     public RestoreFieldOverride? RestoreFieldOverride { get; init; }
 
-    /// <summary>Sibling object to force-hide when this item is restored to its home parent.</summary>
+    /// <summary>Sibling object to force-hide when this item is restored to its home parent. Shown again once the item
+    /// leaves, if the game had already shown it (only Ear 2's Replacement Phonograph Ear is supported).</summary>
     public (string Name, string ClassName)? HideSiblingOnRestore { get; init; }
 
     /// <summary>True for an item that enters play via some other in-game mechanism rather than the player
@@ -65,6 +66,12 @@ public sealed record ItemDefinition
     /// inventory (so the player can hold/use it), forced false while temporarily restored to its home parent for
     /// a re-pickup, and back to true once un-restored or actually picked up again.</summary>
     public bool RequiresCanTakeRestoreToggle { get; init; }
+
+    /// <summary>True if RequiresCanTakeOverride's forced true is held back on restoration to its home parent until the
+    /// Music Room puzzle is solved, so the pickup there still needs the puzzle. The solve is recorded on the item
+    /// itself (ItemSync.RecordMusicSolved), since the engine's own unlock (CPhonographEar::CorrectMusicPlayedMsg)
+    /// only reaches it while it sits in the Music Room.</summary>
+    public bool RestoreCanTakeRequiresMusicSolved { get; init; }
 
     /// <summary>True if the generic restoration flow must NOT reorder this item to be its home parent's first
     /// child, preserving its authored draw order relative to its siblings.</summary>

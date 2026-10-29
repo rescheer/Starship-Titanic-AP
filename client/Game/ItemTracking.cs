@@ -33,6 +33,9 @@ public static class ItemTracking
     public static bool RequiresCanTakeRestoreToggle(string itemName) =>
         Items.TryGet(itemName, out ItemDefinition item) && item.RequiresCanTakeRestoreToggle;
 
+    public static bool RestoreCanTakeRequiresMusicSolved(string itemName) =>
+        Items.TryGet(itemName, out ItemDefinition item) && item.RestoreCanTakeRequiresMusicSolved;
+
     public static bool SkipsFirstChildReorderOnRestore(string itemName) =>
         Items.TryGet(itemName, out ItemDefinition item) && item.SkipFirstChildReorderOnRestore;
 

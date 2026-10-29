@@ -34,6 +34,10 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
 
     private List<GameState.MailItem>? _lastMailItems;
 
+    /// <summary>The Music Room's console button while the player is in the Music Room, else null.</summary>
+    private long? _musicConsoleAddr;
+    private bool _musicConsoleWasActive;
+
     private readonly HashSet<string> _sentRoomVisitChecks = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<RoomNodeView> _sentPointOfInterestChecks = new();
     private int _lastTableAccessItemsCount = -1;

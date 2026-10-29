@@ -13,6 +13,7 @@ internal sealed partial class ClientSession
         _lastRoomFlags = null;
         _lastPassengerClass = null;
         _lastMailItems = null;
+        _musicConsoleAddr = null;
         _itemSync.Reset(); // pending unrestores and the eaten Magazine were tracked against the old tree
         _classSync.Reset(); // the load overwrote PassengerClass and the glyphs, along with any spoof on them
         _movers = null; // scanned from the old tree
@@ -184,7 +185,14 @@ internal sealed partial class ClientSession
                 DeliverQueuedMailAtStation(roomName);
                 TrySendRoomVisitCheck(roomName);
                 if (roomName == MusicRoomControls.RoomName)
+                {
                     TrySolveMusicRoomControls();
+                    ResolveMusicConsole();
+                }
+                else
+                {
+                    _musicConsoleAddr = null;
+                }
             }
 
             // Runs before TrySendPointOfInterestCheck so a first visit's own check doesn't count as already checked.
@@ -201,6 +209,7 @@ internal sealed partial class ClientSession
             _classSync.ApplySpoofs(rnv.Value, gameManager.Value);
         }
 
+        PollMusicConsole();
         SyncTableAccessFromItems();
         SyncRoomGate();
         KeepTelevisionChannel4GlyphOn();

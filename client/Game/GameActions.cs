@@ -325,6 +325,11 @@ public static class GameActions
         return cursor && fieldEc;
     }
 
+    /// <summary>Calls CReplacementEar::VisibleMsg, which shows the Replacement Phonograph Ear with its growing
+    /// animation and sound, the way CPhonographEar's timer does after the ear is first taken.</summary>
+    public static bool CallReplacementEarVisibleMsg(MemoryReader mem, long replacementEarAddr) =>
+        RemoteCaller.Call(mem, mem.ModuleBase + GameOffsets.ReplacementEarVisibleMsgFunc, rcx: replacementEarAddr);
+
     /// <summary>Calls CGameObject::loadFrame(int frameNumber) to seek an item's displayed movie frame.</summary>
     public static bool CallLoadFrame(MemoryReader mem, long itemAddr, int frameNumber)
     {
@@ -376,6 +381,20 @@ public static class GameActions
 
         return unlinkedPrior && unlinkedNext && wroteItemNext && wroteItemPrior && wroteOldFirstPrior && wroteParentFirst;
     }
+
+    /// <summary>Records on the item itself that the Music Room puzzle has been solved. Written as 1.0 into _unused2,
+    /// a double the save format round-trips through a 32-bit float.</summary>
+    public static bool MarkItemMusicSolved(MemoryReader mem, long itemAddr) =>
+        mem.WriteInt64(itemAddr + GameOffsets.GameObjectUnused2Offset, BitConverter.DoubleToInt64Bits(1.0));
+
+    /// <summary>True if MarkItemMusicSolved was written to the item.</summary>
+    public static bool IsItemMusicSolved(MemoryReader mem, long itemAddr) =>
+        mem.ReadInt64(itemAddr + GameOffsets.GameObjectUnused2Offset) is long raw && BitConverter.Int64BitsToDouble(raw) == 1.0;
+
+    /// <summary>True if the Phonograph ear has already had its one-time CPETGainedObjectMsg, so the game has shown the
+    /// Replacement Phonograph Ear and won't show it again.</summary>
+    public static bool HasPhonographEarShownReplacement(MemoryReader mem, long earAddr) =>
+        mem.ReadBytes(earAddr + GameOffsets.PhonographEarReplacementEarOffset, 1) is [0];
 
     /// <summary>Reads this app's own persisted per-item state.</summary>
     public static ItemPersistedState ReadItemPersistedState(MemoryReader mem, long itemAddr)

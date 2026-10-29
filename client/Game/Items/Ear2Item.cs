@@ -13,5 +13,6 @@ internal static class Ear2Item
         // Spawned by CPhonographEar::PETGainedObjectMsg as set-dressing for the empty Phonograph socket.
         HideSiblingOnRestore = ("Replacement Phonograph Ear", "CReplacementEar"),
         RequiresCanTakeOverride = true,
+        RestoreCanTakeRequiresMusicSolved = true,
     };
 }

@@ -202,6 +202,7 @@ internal sealed class ItemSync
 
                 if (persisted.Stage == ItemStage.Restored)
                 {
+                    ReshowHiddenSibling(item.Name, persisted, animate: true);
                     SendItemPickupCheck(item.Name);
                     GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Inventory, true, ItemPulledFrom.None));
                     continue;
@@ -279,8 +280,11 @@ internal sealed class ItemSync
         if (!LocationChecks.TryGetClassUpgradeLocationName((int)PassengerClass.Second, out string secondLocationName))
             return;
 
+        // Only a Magazine the client saw the player hold (Inventory + CheckFired, which the hand-off leaves as-is):
+        // one already eaten in a save from before this seed would just be re-picked-up and hidden again.
         if (FindByName(items, "Magazine") is not { } magazine
             || _ctx.Ap.IsLocationCheckedOrQueued(secondLocationName)
+            || GameActions.ReadItemPersistedState(_ctx.Mem, magazine.Address) is not { Stage: ItemStage.Inventory, CheckFired: true }
             || !IsEatenByDeskBot(magazine, petControlAddr, mailManAddr))
         {
             _eatenMagazineAddr = null;
@@ -518,6 +522,31 @@ internal sealed class ItemSync
     private void ScheduleDirtyReassert() =>
         _pendingDirtyReassertTick = _ctx.TickCount + DirtyReassertDelayTicks;
 
+    /// <summary>Records the Music Room puzzle as solved on every item whose restored pickup waits for it (see
+    /// ItemDefinition.RestoreCanTakeRequiresMusicSolved), and makes it takeable.</summary>
+    public void RecordMusicSolved()
+    {
+        if (_ctx.Project is not { } project)
+            return;
+
+        List<CarryItemLocation>? items = null;
+        foreach (ItemDefinition definition in Items.All)
+        {
+            if (!definition.RestoreCanTakeRequiresMusicSolved)
+                continue;
+
+            items ??= GameState.FindAllCarryItems(_ctx.Mem, project);
+            if (FindByName(items, definition.Name) is not { } item || GameActions.IsItemMusicSolved(_ctx.Mem, item.Address))
+                continue;
+
+            bool ok = GameActions.MarkItemMusicSolved(_ctx.Mem, item.Address)
+                && GameActions.SetItemCanTake(_ctx.Mem, item.Address, true);
+            _ctx.Report.ReportAction(ok, ok
+                ? $"Music Room puzzle solved - recorded on {item.Name}"
+                : $"Music Room puzzle solved, but failed to record it on {item.Name}");
+        }
+    }
+
     /// <summary>Restores eligible items to their home parent, or self-heals a stray item, on arrival at the RNV that owns them.</summary>
     public void TryRestoreItemsAtHomeRnv(RoomNodeView rnv, long gameManager)
     {
@@ -561,8 +590,12 @@ internal sealed class ItemSync
                 bool moved = GameActions.MoveItemSmart(_ctx.Mem, item.Address, homeParent.Value, _ctx.InventoryRoom, gameManager);
                 if (moved)
                 {
+                    // The game only shows the Replacement Phonograph Ear on the ear's first trip to the PET. If that's
+                    // already happened, the sibling hidden below has to come back once the ear leaves again.
+                    bool reshowSibling = ItemHomeLocations.TryGetHideSiblingOnRestore(name, out _)
+                        && GameActions.HasPhonographEarShownReplacement(_ctx.Mem, item.Address);
                     GameActions.WriteItemPersistedState(_ctx.Mem, item.Address,
-                        new ItemPersistedState(ItemStage.Restored, false, pulledFrom));
+                        new ItemPersistedState(ItemStage.Restored, false, pulledFrom, ReshowSibling: reshowSibling));
                     GameActions.SetItemVisible(_ctx.Mem, item.Address, false);
 
                     if (!ItemTracking.SkipsFirstChildReorderOnRestore(name))
@@ -571,7 +604,11 @@ internal sealed class ItemSync
                     if (ItemTracking.RequiresCanTakeRestoreToggle(name))
                         GameActions.SetItemCanTake(_ctx.Mem, item.Address, false);
                     else if (ItemTracking.RequiresCanTakeOverride(name))
-                        GameActions.SetItemCanTake(_ctx.Mem, item.Address, true);
+                    {
+                        bool canTake = !ItemTracking.RestoreCanTakeRequiresMusicSolved(name)
+                            || GameActions.IsItemMusicSolved(_ctx.Mem, item.Address);
+                        GameActions.SetItemCanTake(_ctx.Mem, item.Address, canTake);
+                    }
 
                     if (ItemHomeLocations.TryGetRestoreFieldOverride(name, out var fields))
                     {
@@ -591,6 +628,9 @@ internal sealed class ItemSync
                         if (siblingAddr is not null)
                             GameActions.SetItemVisible(_ctx.Mem, siblingAddr.Value, false);
                     }
+
+                    if (string.Equals(name, "Ear1", StringComparison.OrdinalIgnoreCase))
+                        ResetEar1BowlPuzzle(homeParent.Value);
 
                     if (ItemTracking.HomeParentIsDropTargetDisplay(name)
                         && !GameActions.ShowDropTargetHolding(_ctx.Mem, homeParent.Value))
@@ -710,6 +750,29 @@ internal sealed class ItemSync
         }
     }
 
+    /// <summary>Ear1's first trip to the PET marks its bowl puzzle done for good (CBowlEar::PETGainedObjectMsg sends
+    /// the ParrotNutBowlActor BowlStateChangeMsg(3)), after which the bowl never jiggles and the parrot never eats the
+    /// nuts. Restoring Ear1 for a pickup that hasn't happened yet puts the actor back at the puzzle's start. The
+    /// bowl's other pieces are already there: that same first trip sent CReplaceBowlAndNutsMsg, which resets them.</summary>
+    private void ResetEar1BowlPuzzle(long homeParent)
+    {
+        long? actorAddr = GameState.FindDescendant(_ctx.Mem, homeParent, "ParrotNutBowlActor", "CParrotNutBowlActor");
+        if (actorAddr is not { } actor)
+        {
+            _ctx.Report.ReportAction(false, "Ear1 restored, but its ParrotNutBowlActor wasn't found - the nut puzzle may not start");
+            return;
+        }
+
+        if (_ctx.Mem.ReadBytes(actor + GameOffsets.ParrotNutBowlActorPuzzleDoneOffset, 1) is not [1])
+            return;
+
+        bool ok = _ctx.Mem.WriteByte(actor + GameOffsets.ParrotNutBowlActorPuzzleDoneOffset, 0)
+            && _ctx.Mem.WriteInt32(actor + GameOffsets.ParrotNutBowlActorStateOffset, 0);
+        _ctx.Report.ReportAction(ok, ok
+            ? "Ear1 restored - reset its nut puzzle, which its earlier trip to the PET had marked done"
+            : "Ear1 restored, but its nut puzzle couldn't be reset");
+    }
+
     /// <summary>If Ear1 (Pistachio Bowl) was left behind after its ParrotNutBowlActor reached the unlocked state, moves
     /// it into inventory instead of reverting it, so ReconcileTrackedItems's Restored + inInventory branch sends the
     /// pickup check.</summary>
@@ -766,12 +829,34 @@ internal sealed class ItemSync
         if (moved)
         {
             GameActions.SetItemVisible(_ctx.Mem, item.Address, true);
-            if (ItemTracking.RequiresCanTakeRestoreToggle(item.Name))
+            if (ItemTracking.RequiresCanTakeRestoreToggle(item.Name) || ItemTracking.RestoreCanTakeRequiresMusicSolved(item.Name))
                 GameActions.SetItemCanTake(_ctx.Mem, item.Address, true);
+            ReshowHiddenSibling(item.Name, persisted, animate: false);
             ScheduleDirtyReassert();
         }
 
         return moved;
+    }
+
+    /// <summary>Shows the sibling HideSiblingOnRestore hid, once a Restored item recorded with ReshowSibling has left
+    /// its home parent. With animate, a Replacement Phonograph Ear plays its growing animation, for a pickup the player
+    /// is watching; otherwise it just appears, since the player has already walked away.</summary>
+    private void ReshowHiddenSibling(string name, ItemPersistedState persisted, bool animate)
+    {
+        if (!persisted.ReshowSibling || _ctx.Project is not { } project
+            || !ItemHomeLocations.TryGetHideSiblingOnRestore(name, out var sibling)
+            || GameState.ResolveHomeParent(_ctx.Mem, project, name) is not { } homeParent)
+        {
+            return;
+        }
+
+        long? siblingAddr = GameState.FindDescendant(_ctx.Mem, homeParent, sibling.Name, sibling.ClassName);
+        bool shown = siblingAddr is { } addr
+            && ((animate && sibling.ClassName == "CReplacementEar" && GameActions.CallReplacementEarVisibleMsg(_ctx.Mem, addr))
+                || GameActions.SetItemVisible(_ctx.Mem, addr, true));
+        if (!shown)
+            _ctx.Report.ReportAction(false, $"{name} left its home, but its {sibling.Name} couldn't be shown again");
+        ScheduleDirtyReassert();
     }
 
     private bool RevertToInventory(CarryItemLocation item, long gameManager)

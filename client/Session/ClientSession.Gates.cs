@@ -45,6 +45,35 @@ internal sealed partial class ClientSession
             ReportAction(false, $"Easy Music Room Puzzle: set {written} panel controls, {failed} missing or unexpected");
     }
 
+    /// <summary>Finds the Music Room's console button on entering the Music Room. Starts from its current _isActive,
+    /// so music already playing (a save loaded mid-song) isn't taken for a fresh start.</summary>
+    private void ResolveMusicConsole()
+    {
+        _musicConsoleAddr = _ctx.Project is { } project ? MusicRoomControls.FindConsoleButton(_mem, project) : null;
+        if (_musicConsoleAddr is null)
+        {
+            ReportAction(false, "Music Room console button not found - solving the music won't be detected");
+            return;
+        }
+        _musicConsoleWasActive = MusicRoomControls.ReadConsoleActive(_mem, _musicConsoleAddr.Value) ?? false;
+    }
+
+    /// <summary>Detects the Music Room puzzle being solved: the console starting the music with the panel set to the
+    /// solution, which is when CMusicConsoleButton::MouseButtonDownMsg sends CCorrectMusicPlayedMsg. That message only
+    /// reaches the Music Room, so the client records the solve on the ear itself (ItemSync.RecordMusicSolved).</summary>
+    private void PollMusicConsole()
+    {
+        if (_musicConsoleAddr is not { } consoleAddr || _ctx.Project is not { } project)
+            return;
+        if (MusicRoomControls.ReadConsoleActive(_mem, consoleAddr) is not bool active)
+            return;
+
+        bool started = active && !_musicConsoleWasActive;
+        _musicConsoleWasActive = active;
+        if (started && MusicRoomControls.IsSolution(_mem, project))
+            _itemSync.RecordMusicSolved();
+    }
+
     /// <summary>Keeps CTelevision::_channel4Glyph pinned to true, so taking Eye1 never takes channel 4's picture
     /// off the television. Only writes when the game has cleared it.</summary>
     private void KeepTelevisionChannel4GlyphOn()

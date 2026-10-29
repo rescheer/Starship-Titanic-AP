@@ -110,8 +110,9 @@ public static class GameOffsets
     // _unused4 is this app's own per-item state storage (see ItemPersistedState.cs).
     // _unused3 is used by SaveSeedTag.cs, but only on the BeamBridge (Red Fuse) item.
     // _unused1 is this app's own tool-placed/game-placed mail marker (see ToolPlacedSentinel below).
-    // _unused2 remains available, unused.
+    // _unused2 is this app's Music Room puzzle solved marker, but only on Ear 2 (see GameActions.MarkItemMusicSolved).
     public const long GameObjectUnused1Offset = 0x58;
+    public const long GameObjectUnused2Offset = 0x60;
     public const long GameObjectUnused3Offset = 0x68;
     public const long GameObjectSurfaceOffset = 0xD0;
     public const long GameObjectUnused4Offset = 0x100;
@@ -121,6 +122,16 @@ public static class GameOffsets
 
     // CCarry::_canTake - gates whether the item can be picked up at all, independent of _visible/_cursorId.
     public const long CarryCanTakeOffset = 0x1E8;
+
+    // CPhonographEar::_replacementEar - true until the ear's first CPETGainedObjectMsg, which clears it and shows the
+    // "Replacement Phonograph Ear" (CReplacementEar) on the Phonograph, once only. Follows CHeadPiece's fields
+    // (_flag@0x218, _string6@0x220, _field13C@0x248).
+    public const long PhonographEarReplacementEarOffset = 0x249;
+
+    // CReplacementEar::VisibleMsg(CVisibleMsg*) - setVisible(true), playMovie(MOVIE_WAIT_FOR_FINISH) of the ear
+    // growing into the Phonograph, then its sound. Never reads the message, so it's safe to call with rdx = 0. Found
+    // through CReplacementEar's message map (its only entry), which its getMessageMap() fills in at 0x23EE960.
+    public const long ReplacementEarVisibleMsgFunc = 0x23EE8E0;
 
     // CTelevision::_channel4Glyph (titanic/game/television.h) - a STATIC bool, so a module-relative global
     // (add mem.ModuleBase), not a field on the CTelevision object. Gates the channel-4 picture in
@@ -245,6 +256,11 @@ public static class GameOffsets
     // 0 before the nut-rustle, 1 once the parrot-eats-the-nuts animation has played, 2 once the bowl has unlocked
     // and renders pickable. Re-entering the view before the bowl is taken resets it to 0.
     public const long ParrotNutBowlActorStateOffset = 0x124;
+
+    // CParrotNutBowlActor::_puzzleDone - the bool declared before _state, packed right after CGameObject's _visible.
+    // Set for good by Ear1's first CPETGainedObjectMsg (BowlStateChangeMsg(3)); while set, the parrot never eats
+    // the nuts (CEarSweetBowl::MovieEndMsg) and leaving the view no longer resets the puzzle.
+    public const long ParrotNutBowlActorPuzzleDoneOffset = 0x121;
     public const int ParrotNutBowlActorStateUnlocked = 2; // bowl unlocked, ear rendered pickable
 
     // CLight::_eyePresent (titanic/game/light.h) - true while the light fixture still holds its bulb, flipped
