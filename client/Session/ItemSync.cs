@@ -629,6 +629,10 @@ internal sealed class ItemSync
                             GameActions.SetItemVisible(_ctx.Mem, item.Address, true);
                     }
 
+                    // After the bounds override, so loadFrame's dirty-rect registration uses the corrected rect.
+                    if (ItemTracking.RestoreLoadsEnterFrame(name))
+                        GameActions.LoadItemEnterFrame(_ctx.Mem, item.Address);
+
                     if (ItemHomeLocations.TryGetHideSiblingOnRestore(name, out var sibling))
                     {
                         long? siblingAddr = GameState.FindDescendant(_ctx.Mem, homeParent.Value, sibling.Name, sibling.ClassName);

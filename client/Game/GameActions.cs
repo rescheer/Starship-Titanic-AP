@@ -342,6 +342,12 @@ public static class GameActions
         return visibleFrame == -1 || CallLoadFrame(mem, itemAddr, visibleFrame.Value);
     }
 
+    /// <summary>Loads the item's own _enterFrame, the way CCarry::EnterViewMsg does the first time the item's view is
+    /// entered. Unlike _visibleFrame, -1 isn't skipped, matching EnterViewMsg.</summary>
+    public static bool LoadItemEnterFrame(MemoryReader mem, long itemAddr) =>
+        mem.ReadInt32(itemAddr + GameOffsets.CarryEnterFrameOffset) is { } enterFrame
+        && CallLoadFrame(mem, itemAddr, enterFrame);
+
     /// <summary>Calls CGameObject::loadFrame(int frameNumber) to seek an item's displayed movie frame.</summary>
     public static bool CallLoadFrame(MemoryReader mem, long itemAddr, int frameNumber)
     {

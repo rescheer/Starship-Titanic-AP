@@ -120,6 +120,10 @@ public static class GameOffsets
     public const long GameObjectCursorIdOffset = 0x11C;
     public const long GameObjectVisibleOffset = 0x120;
 
+    // CCarry::_enterFrame - frame CCarry::EnterViewMsg loads (the item's in-scene look), once only, gated by
+    // _enterFrameSet (@ 0x1B4). Followed by _centroid (@ 0x1B8), then _visibleFrame, per carry.h's declaration order.
+    public const long CarryEnterFrameOffset = 0x1B0;
+
     // CCarry::_visibleFrame - frame loaded by CCarry::PassOnDragStartMsg/VisibleMsg (skipped when -1). Directly
     // before _npcUse (CString @ 0x1C0), which is directly before _canTake.
     public const long CarryVisibleFrameOffset = 0x1BC;

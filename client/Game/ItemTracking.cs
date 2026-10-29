@@ -42,6 +42,9 @@ public static class ItemTracking
     public static bool HomeParentIsDropTargetDisplay(string itemName) =>
         Items.TryGet(itemName, out ItemDefinition item) && item.HomeParentIsDropTargetDisplay;
 
+    public static bool RestoreLoadsEnterFrame(string itemName) =>
+        Items.TryGet(itemName, out ItemDefinition item) && item.RestoreLoadsEnterFrame;
+
     public static bool TryGetInventoryBoundsSize(string itemName, out (short Width, short Height) size)
     {
         size = default;

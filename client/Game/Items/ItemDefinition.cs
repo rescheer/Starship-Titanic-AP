@@ -82,6 +82,11 @@ public sealed record ItemDefinition
     /// restoration flow sets it directly (see GameActions.ShowDropTargetHolding).</summary>
     public bool HomeParentIsDropTargetDisplay { get; init; }
 
+    /// <summary>True if restoration to its home parent reloads the item's own _enterFrame (its in-scene look). The
+    /// engine only loads it in CCarry::EnterViewMsg, once, so an item that went through the inventory first keeps
+    /// showing its glyph frame (_visibleFrame) in-world otherwise.</summary>
+    public bool RestoreLoadsEnterFrame { get; init; }
+
     /// <summary>The item's true drawn size, applied to its _bounds on direct delivery into inventory. The engine only
     /// resizes _bounds to the surface while drawing or dragging the item, so an item that was never drawn in-world
     /// (e.g. hidden inside a CDropTarget) keeps its authored size, and the PET's dragGlyph centres it on the mouse

@@ -11,5 +11,6 @@ internal static class SeasonBridgeItem
         DefaultParent = new DefaultParent(null, "CViewItem"),
         IsFuseBoxItem = true,
         RestoreFieldOverride = new RestoreFieldOverride(222, 319, 310, 407, null, null, KeepVisible: true),
+        RestoreLoadsEnterFrame = true,
     };
 }

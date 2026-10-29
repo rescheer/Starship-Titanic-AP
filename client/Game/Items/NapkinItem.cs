@@ -10,5 +10,6 @@ internal static class NapkinItem
         HomeRnvs = new[] { new RoomNodeView(49, 8, 1) },
         DefaultParent = new DefaultParent(null, "CViewItem"),
         RestoreFieldOverride = new RestoreFieldOverride(285, 299, 365, 407, null, null, KeepVisible: true),
+        RestoreLoadsEnterFrame = true,
     };
 }

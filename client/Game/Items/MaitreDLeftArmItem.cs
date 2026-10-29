@@ -10,6 +10,7 @@ internal static class MaitreDLeftArmItem
         HomeRnvs = new[] { new RoomNodeView(49, 8, 1) },
         DefaultParent = new DefaultParent(null, "CViewItem"),
         RestoreFieldOverride = new RestoreFieldOverride(274, 68, 374, 332, null, null, KeepVisible: true),
+        RestoreLoadsEnterFrame = true,
         SkipFirstChildReorderOnRestore = true,
     };
 }
