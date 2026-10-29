@@ -166,7 +166,7 @@ internal sealed class ItemSync
 
             if (inInventory)
             {
-                if (ItemTracking.RequiresCanTakeRestoreToggle(item.Name))
+                if (ItemTracking.RequiresCanTakeRestoreToggle(item.Name) || ItemTracking.RequiresCanTakeOverride(item.Name))
                     GameActions.SetItemCanTake(_ctx.Mem, item.Address, true);
 
                 if (persisted.Stage == ItemStage.Mail)
