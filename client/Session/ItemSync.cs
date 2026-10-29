@@ -166,7 +166,7 @@ internal sealed class ItemSync
 
             if (inInventory)
             {
-                if (ItemTracking.RequiresCanTakeRestoreToggle(item.Name) || ItemTracking.RequiresCanTakeOverride(item.Name))
+                if (ItemTracking.RequiresCanTakeRestoreToggle(item.Name))
                     GameActions.SetItemCanTake(_ctx.Mem, item.Address, true);
 
                 if (persisted.Stage == ItemStage.Mail)
@@ -472,6 +472,13 @@ internal sealed class ItemSync
 
         CancelPendingUnrestoreChecks(new[] { name });
         GameActions.SetItemVisible(_ctx.Mem, item.Address, true);
+        GameActions.LoadItemVisibleFrame(_ctx.Mem, item.Address);
+        if (ItemTracking.TryGetInventoryBoundsSize(name, out var size)
+            && _ctx.Mem.ReadInt32(item.Address + GameOffsets.GameObjectBoundsOffset) is { } topLeft)
+        {
+            short left = (short)topLeft, top = (short)(topLeft >> 16);
+            GameActions.SetItemBounds(_ctx.Mem, item.Address, left, top, (short)(left + size.Width), (short)(top + size.Height));
+        }
         if (ItemTracking.RequiresCanTakeRestoreToggle(name) || ItemTracking.RequiresCanTakeOverride(name))
             GameActions.SetItemCanTake(_ctx.Mem, item.Address, true);
         if (fromMail)

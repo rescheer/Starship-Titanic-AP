@@ -120,6 +120,10 @@ public static class GameOffsets
     public const long GameObjectCursorIdOffset = 0x11C;
     public const long GameObjectVisibleOffset = 0x120;
 
+    // CCarry::_visibleFrame - frame loaded by CCarry::PassOnDragStartMsg/VisibleMsg (skipped when -1). Directly
+    // before _npcUse (CString @ 0x1C0), which is directly before _canTake.
+    public const long CarryVisibleFrameOffset = 0x1BC;
+
     // CCarry::_canTake - gates whether the item can be picked up at all, independent of _visible/_cursorId.
     public const long CarryCanTakeOffset = 0x1E8;
 

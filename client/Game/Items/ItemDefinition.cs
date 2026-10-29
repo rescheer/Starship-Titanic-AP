@@ -81,4 +81,10 @@ public sealed record ItemDefinition
     /// engine only picks that frame in EnterViewMsg, which has already run by the time the item is restored, so the
     /// restoration flow sets it directly (see GameActions.ShowDropTargetHolding).</summary>
     public bool HomeParentIsDropTargetDisplay { get; init; }
+
+    /// <summary>The item's true drawn size, applied to its _bounds on direct delivery into inventory. The engine only
+    /// resizes _bounds to the surface while drawing or dragging the item, so an item that was never drawn in-world
+    /// (e.g. hidden inside a CDropTarget) keeps its authored size, and the PET's dragGlyph centres it on the mouse
+    /// with that size, failing checkPoint's pixel test.</summary>
+    public (short Width, short Height)? InventoryBoundsSize { get; init; }
 }

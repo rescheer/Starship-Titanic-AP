@@ -330,6 +330,18 @@ public static class GameActions
     public static bool CallReplacementEarVisibleMsg(MemoryReader mem, long replacementEarAddr) =>
         RemoteCaller.Call(mem, mem.ModuleBase + GameOffsets.ReplacementEarVisibleMsgFunc, rcx: replacementEarAddr);
 
+    /// <summary>Loads a CCarry item's _visibleFrame, as CCarry::PassOnDragStartMsg does on every natural pickup.
+    /// Without it, an item added to inventory straight from a CDropTarget keeps the holder's _itemFrame, and
+    /// CGameObject::checkPoint's pixel test fails when dragging it back out of the PET. No-op when -1.</summary>
+    public static bool LoadItemVisibleFrame(MemoryReader mem, long itemAddr)
+    {
+        int? visibleFrame = mem.ReadInt32(itemAddr + GameOffsets.CarryVisibleFrameOffset);
+        if (visibleFrame is null)
+            return false;
+
+        return visibleFrame == -1 || CallLoadFrame(mem, itemAddr, visibleFrame.Value);
+    }
+
     /// <summary>Calls CGameObject::loadFrame(int frameNumber) to seek an item's displayed movie frame.</summary>
     public static bool CallLoadFrame(MemoryReader mem, long itemAddr, int frameNumber)
     {
