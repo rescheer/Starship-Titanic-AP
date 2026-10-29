@@ -2,6 +2,7 @@ client/bin/
 client/obj/
 client/docs/other
 titanic/
+/apworld/starship_titanic/__pycache__
 
 *.bat
 *.lnk
