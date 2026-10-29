@@ -368,10 +368,9 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # 2nd Class Stateroom
     # ---------------------------------------------------------------- #
     world.set_rule(
+        # Any 2nd Class Stateroom works, not just the assigned one
         world.get_location("2nd Class Stateroom - Titania's Ear (Pistachio Bowl)"),
-        Has("Magazine")
-        & has_second_room(world)
-        & CanReachRegion("Parrot Lobby")
+        CanReachRegion("Parrot Lobby")
         & CanReachRegion("2nd Class Stateroom")
     )
 
