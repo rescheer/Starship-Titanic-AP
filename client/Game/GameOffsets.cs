@@ -272,6 +272,11 @@ public static class GameOffsets
     public const long ParrotNutBowlActorPuzzleDoneOffset = 0x121;
     public const int ParrotNutBowlActorStateUnlocked = 2; // bowl unlocked, ear rendered pickable
 
+    // CGondolierFace::_flag - its only field, packed right after CGameObject's _visible. Cleared for good by
+    // CGondolierMixer's StatusChangeMsg(1) when the gondolier puzzle is solved, the same moment the mixer sends the
+    // Mouth its one-time CVisibleMsg. (The mixer's own _puzzleSolved is a static, with no field to read.)
+    public const long GondolierFaceFlagOffset = 0x121;
+
     // CLight::_eyePresent (titanic/game/light.h) - true while the light fixture still holds its bulb, flipped
     // false by CLight::ActMsg("Eye Removed") once the bulb/eye is taken. The "6WTL" fixture (Room 7 / Node 6 /
     // View 4) holds Titania's Eye (Light)/Eye1.

@@ -651,6 +651,9 @@ internal sealed class ItemSync
                     if (string.Equals(name, "Ear1", StringComparison.OrdinalIgnoreCase))
                         ResetEar1BowlPuzzle(homeParent.Value);
 
+                    if (string.Equals(name, "Mouth", StringComparison.OrdinalIgnoreCase))
+                        ShowMouthIfGondolierSolved(item.Address, project);
+
                     if (ItemTracking.HomeParentIsDropTargetDisplay(name)
                         && !GameActions.ShowDropTargetHolding(_ctx.Mem, homeParent.Value))
                     {
@@ -790,6 +793,27 @@ internal sealed class ItemSync
         _ctx.Report.ReportAction(ok, ok
             ? "Ear1 restored - reset its nut puzzle, which its earlier trip to the PET had marked done"
             : "Ear1 restored, but its nut puzzle couldn't be reset");
+    }
+
+    /// <summary>The Mouth stays hidden until CGondolierMixer sends it a CVisibleMsg on solving the gondolier puzzle,
+    /// once only. If that's already happened, a Mouth restored hidden would never be shown again, so it's shown here.
+    /// </summary>
+    private void ShowMouthIfGondolierSolved(long mouthAddr, long project)
+    {
+        long? faceAddr = GameState.FindDescendant(_ctx.Mem, project, "GondolierFace", "CGondolierFace");
+        if (faceAddr is not { } face || _ctx.Mem.ReadBytes(face + GameOffsets.GondolierFaceFlagOffset, 1) is not [byte flag] || flag > 1)
+        {
+            _ctx.Report.ReportAction(false, "Mouth restored, but the GondolierFace wasn't found - it may stay hidden if the gondolier puzzle is solved");
+            return;
+        }
+
+        if (flag == 1)
+            return; // puzzle unsolved: the mixer shows the Mouth itself
+
+        bool ok = GameActions.SetItemVisible(_ctx.Mem, mouthAddr, true);
+        _ctx.Report.ReportAction(ok, ok
+            ? "Mouth restored - shown, since the gondolier puzzle that reveals it is already solved"
+            : "Mouth restored, but couldn't be shown after the already-solved gondolier puzzle");
     }
 
     /// <summary>If Ear1 (Pistachio Bowl) was left behind after its ParrotNutBowlActor reached the unlocked state, moves
