@@ -627,7 +627,8 @@ internal sealed class ClueBar : TrackerControl
         for (int i = 0; i < _total; i++)
         {
             Rectangle dot = DotBounds(i);
-            DrawPip(e.Graphics, dot.X, dot.Y, dot.Width, i < _found ? TrackerTheme.Accent : TrackerTheme.PipLocked, i < _found);
+            bool useless = i < _clues.Length && _clues[i].Discovery is null;
+            DrawPip(e.Graphics, dot.X, dot.Y, dot.Width, i < _found && !useless ? TrackerTheme.Accent : TrackerTheme.PipLocked, i < _found);
         }
     }
 }
