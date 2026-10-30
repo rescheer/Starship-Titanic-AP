@@ -14,7 +14,7 @@ class STItemData(NamedTuple):
     code: Optional[int]
     classification: ItemClassification
     group: str = ""
-    quantity: int = 1  # how many copies of this item go into the pool
+    quantity: int = 1
 
 
 class StarshipTitanicItem(Item):
@@ -56,6 +56,22 @@ _progressive_room_quantities: Dict[str, int] = {
 }
 
 # --------------------------------------------------------------------------
+# Progressive Clue - Parrot Hunt goal only. quantity comes from the Parrot Hunt Clues option
+# --------------------------------------------------------------------------
+_progressive_clue_items: Dict[str, int] = {
+    "Progressive Clue": 46,
+}
+
+# --------------------------------------------------------------------------
+# Class Upgrade Records - locked to the DeskBot's upgrade checks under vanilla class upgrades (locations.py), never
+# in the pool. Otherwise these names are plain events with no ID (create_event)
+# --------------------------------------------------------------------------
+_class_upgrade_records: Dict[str, int] = {
+    "2nd Class Upgrade": 47,
+    "1st Class Upgrade": 48,
+}
+
+# --------------------------------------------------------------------------
 # Titania Parts
 # --------------------------------------------------------------------------
 _titania_parts: Dict[str, int] = {
@@ -82,8 +98,7 @@ _progressive_quantities: Dict[str, int] = {
 }
 
 # --------------------------------------------------------------------------
-# Access Cards - each unlocks entry to its region(s). The client locks the matching engine rooms (RoomKeys.cs)
-# until the card is received.
+# Access Cards
 # --------------------------------------------------------------------------
 _access_card_items: Dict[str, int] = {
     "Top of the Well Access Card": 30,
@@ -104,7 +119,7 @@ _access_card_items: Dict[str, int] = {
     "1st Class Staterooms Access Card": 45,
 }
 
-# region (regions.py) -> the Access Card needed to enter it. Each class's Lobby and Stateroom share one card.
+# region (regions.py) -> the Access Card needed to enter it. Each class's Lobby and Stateroom share a card
 REGION_ACCESS_CARDS: Dict[str, str] = {
     "Top of the Well": "Top of the Well Access Card",
     "Bottom of the Well": "Bottom of the Well Access Card",
@@ -156,14 +171,12 @@ _trap_items: Dict[str, int] = {
 # Events
 # --------------------------------------------------------------------------
 _event_items: Set[str] = {
-    "2nd Class Upgrade",
-    "1st Class Upgrade",
     "Titania's Auditory Center",
     "Titania Repaired",
+    "Parrot Released",
     "Victory",
 }
 
-# Create the table
 item_table: Dict[str, STItemData] = {}
 
 for name, offset in _progression_items.items():
@@ -184,6 +197,12 @@ for name, offset in _progressive_room_items.items():
         "Progressive",
         quantity=_progressive_room_quantities[name],
     )
+
+for name, offset in _progressive_clue_items.items():
+    item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, "Progressive", quantity=0)
+
+for name, offset in _class_upgrade_records.items():
+    item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, quantity=0)
 
 for name, offset in _titania_parts.items():
     item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, "Titania Part")
@@ -213,7 +232,8 @@ item_name_groups: Dict[str, Set[str]] = {
     "Fuses": {"Blue Fuse", "Green Fuse", "Red Fuse", "Yellow Fuse"},
     "Filler": set(_filler_items.keys()),
     "Traps": set(_trap_items.keys()),
-    "Progressive": set(_progressive_items.keys()) | set(_progressive_room_items.keys()),
+    "Progressive": set(_progressive_items.keys()) | set(_progressive_room_items.keys())
+                   | set(_progressive_clue_items.keys()),
 }
 
 filler_item_names = list(_filler_items.keys())
@@ -223,9 +243,10 @@ PROGRESSIVE_CLASS_UPGRADE = "Progressive Passenger Class Upgrade"
 SECOND_CLASS_TIER = 1
 FIRST_CLASS_TIER = 2
 
-# Events fired by the DeskBot's own upgrades (locations.py), which grant the class under the vanilla option
 SECOND_CLASS_UPGRADE_EVENT = "2nd Class Upgrade"
 FIRST_CLASS_UPGRADE_EVENT = "1st Class Upgrade"
+
+PROGRESSIVE_CLUE = "Progressive Clue"
 
 PROGRESSIVE_STATEROOM = "Progressive Stateroom"
 SGT_STATEROOM_TIER = 1

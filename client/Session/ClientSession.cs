@@ -19,6 +19,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     private readonly SaveSeedGuard _saveSeedGuard;
     private readonly ClassSync _classSync;
     private readonly ItemSync _itemSync;
+    private readonly ParrotHuntSync _parrotHuntSync;
     private readonly ClientCommands _commands;
 
     private readonly SynchronizationContext _uiContext;
@@ -73,6 +74,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         _saveSeedGuard = new SaveSeedGuard(_ctx);
         _classSync = new ClassSync(_ctx);
         _itemSync = new ItemSync(_ctx);
+        _parrotHuntSync = new ParrotHuntSync(_ctx);
         _commands = new ClientCommands(_ctx, _saveSeedGuard, _itemSync);
 
         _timer.Tick += (_, _) => OnTick();
@@ -213,6 +215,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
                 _sentPointOfInterestChecks.Clear();
                 _saveSeedGuard.Reset();
                 _classSync.ResyncFromItems();
+                _parrotHuntSync.ResyncFromItems();
                 SyncRoomAssignHook();
                 _lastTableAccessItemsCount = -1;
                 _currentLocationChecksPending = true;

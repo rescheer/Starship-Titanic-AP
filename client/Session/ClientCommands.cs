@@ -30,6 +30,7 @@ internal sealed class ClientCommands
             ["return"] = new("/return <item>", "move a received item back into your inventory", ReturnItem),
             ["getmail"] = new("/getmail", "move all AP items waiting in the mail into your inventory", _ => GetMail()),
             ["loc"] = new("/loc", "show your current room/node/view", _ => PrintLocation()),
+            ["clues"] = new("/clues", "show the Parrot Hunt clues revealed so far", _ => PrintClues()),
             ["force_seed"] = new("/force_seed", "bypass the save/seed guard by tagging this save with the current seed",
                 _ => ForceSeed()),
         };
@@ -169,6 +170,22 @@ internal sealed class ClientCommands
 
         string room = _ctx.CurrentRoomName is { } name ? $" ({name})" : "";
         ReportReturn(true, $"/loc: RNV [{r.Room}, {r.Node}, {r.View}]{room}");
+    }
+
+    /// <summary>/clues: prints the parts of the parrot's address revealed so far.
+    /// Elevator numbers are the PET's, which in 2nd Class come from the corridor rather than the elevator ridden.</summary>
+    private void PrintClues()
+    {
+        if (ParrotHuntTracker.TryRead(_ctx.Ap.KnownSlotData) is not { } info)
+        {
+            ReportReturn(false, _ctx.Ap.KnownSlotData is null
+                ? "/clues failed: not connected to an AP server yet."
+                : "/clues: this seed's goal isn't Parrot Hunt.");
+            return;
+        }
+
+        int found = info.CountClues(_ctx.Ap.GetReceivedItemNames());
+        ReportReturn(true, $"/clues: {info.DescribeProgress(found)} (found {found} of {info.TotalClues} clues)");
     }
 
     private void ReportReturn(bool success, string message)

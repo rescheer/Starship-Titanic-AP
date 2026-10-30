@@ -16,6 +16,7 @@ internal sealed partial class ClientSession
         _musicConsoleAddr = null;
         _itemSync.Reset(); // pending unrestores and the eaten Magazine were tracked against the old tree
         _classSync.Reset(); // the load overwrote PassengerClass and the glyphs, along with any spoof on them
+        _parrotHuntSync.Reset(); // CarryParrot was rebuilt with the tree
         _movers = null; // scanned from the old tree
         _conversationsAddrShown = false;
         _saveSeedGuard.Reset();
@@ -170,6 +171,9 @@ internal sealed partial class ClientSession
 
         // Runs before anything below reads or writes PassengerClass.
         _classSync.SyncFromItems(gameManager.Value);
+
+        // Every tick, so the parrot is in the mail as soon as the player enters the target stateroom
+        _parrotHuntSync.Sync();
 
         _itemSync.ProcessPendingUnrestoreChecks(gameManager.Value);
 

@@ -31,11 +31,13 @@ public sealed class MainForm : Form
     private int _lastMailCount;
     private readonly Label _lblInfoChecks = new() { Text = "Checks: -/-", AutoSize = true, Font = InfoFont };
     private readonly Label _lblInfoStations = new() { Text = "Visited Succ-U-Bus Stations (-/-)", AutoSize = true, Font = InfoFont };
+    // Parrot Hunt goal only
+    private readonly Label _lblInfoParrot = new() { Text = "", AutoSize = true, Font = InfoFont, Visible = false };
     private readonly TableLayoutPanel _infoPanel = new()
     {
         Dock = DockStyle.Top,
         ColumnCount = 2,
-        RowCount = 2,
+        RowCount = 3,
         AutoSize = true,
         Padding = new Padding(6),
     };
@@ -145,8 +147,10 @@ public sealed class MainForm : Form
             UpdateApToggleButton();
             UpdateInfoChecks();
             UpdateInfoMailCount(_lastMailCount);
+            UpdateInfoParrot();
         };
         _session.ItemReceived += UpdateRoomAccess;
+        _session.ItemReceived += UpdateInfoParrot;
         _session.PendingChecksChanged += UpdateRoomAccess; // picks up the Titania repair check
         _session.MailChanged += items =>
         {
@@ -235,6 +239,9 @@ public sealed class MainForm : Form
         _infoPanel.Controls.Add(_lblInfoMail, 1, 0);
         _infoPanel.Controls.Add(_lblInfoChecks, 0, 1);
         _infoPanel.Controls.Add(_lblInfoStations, 1, 1);
+        _lblInfoParrot.Margin = new Padding(0, 8, 0, 0);
+        _infoPanel.Controls.Add(_lblInfoParrot, 0, 2);
+        _infoPanel.SetColumnSpan(_lblInfoParrot, 2);
 
         foreach ((RoomRequirement requirement, string heading, string[] cards) in RoomAccessGroups)
         {
@@ -419,6 +426,16 @@ public sealed class MainForm : Form
             _lblInfoStations.Text = $"Visited Succ-U-Bus Stations ({stations.Checked}/{stations.Total})";
         else
             _lblInfoStations.Text = "Visited Succ-U-Bus Stations (-/-)";
+    }
+
+    /// <summary>Sets the information area's Parrot Hunt line (the clues revealed so far), shown only for
+    /// that goal.</summary>
+    private void UpdateInfoParrot()
+    {
+        string? clues = ParrotHuntSync.DescribeClues(_session.Ap);
+        _lblInfoParrot.Visible = clues is not null;
+        if (clues is not null)
+            _lblInfoParrot.Text = $"Parrot Hunt: {clues}";
     }
 
     /// <summary>The class reached through the DeskBot's own upgrades, for seeds with vanilla class upgrades.</summary>

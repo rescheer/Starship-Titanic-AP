@@ -164,6 +164,7 @@ internal sealed partial class ClientSession
         _movers = null;
         _conversationsAddrShown = false;
         _pendingVanillaRoomAssignmentClass = null;
+        _parrotHuntSync.Reset();
         _saveSeedGuard.Reset();
         GameActions.ClearHiddenRoomAddressCache();
         GameState.ClearClassNameCache();

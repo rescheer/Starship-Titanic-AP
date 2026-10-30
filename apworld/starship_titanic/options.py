@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from random import Random
 from typing import Dict, List
 
-from Options import Choice, OptionGroup, PerGameCommonOptions, Toggle, Visibility # pyright: ignore[reportMissingImports]
+from Options import Choice, OptionGroup, PerGameCommonOptions, Range, Toggle, Visibility # pyright: ignore[reportMissingImports]
 
 
 # --------------------------------------------------------------------------
@@ -13,11 +13,34 @@ from Options import Choice, OptionGroup, PerGameCommonOptions, Toggle, Visibilit
 # --------------------------------------------------------------------------
 class Goal(Choice):
     """Return Home: Repair Titania and fly the Starship Titanic back to Earth from the Bridge.
-    Repair Titania: Acquire all of Titania's parts and put them back into their correct slots."""
+    Repair Titania: Acquire all of Titania's parts and put them back into their correct slots.
+    Parrot Hunt: The parrot has been mailed to a random 2nd or 1st Class Stateroom. Collect Progressive Clues to
+    learn its elevator, floor and room number, then receive it at that stateroom's Succ-U-Bus and release it."""
     display_name = "Goal"
     option_return_home = 0
     option_repair_titania = 1
+    option_parrot_hunt = 2
     default = 0
+
+
+class ParrotHuntStateroomClass(Choice):
+    """Which class of stateroom the parrot can be mailed to. Only applies to the Parrot Hunt goal.
+    1st Class tends to make for a longer game, since reaching it needs both class upgrades."""
+    display_name = "Parrot Hunt Stateroom Class"
+    option_first_class = 0
+    option_second_class = 1
+    option_either = 2
+    default = 2
+
+
+class ParrotHuntClues(Range):
+    """How many Progressive Clues are shuffled into the item pool. Only applies to the Parrot Hunt goal.
+    The parrot's elevator, floor and room number are revealed at roughly a third, two thirds, and all of the clues;
+    the rest are only flavor."""
+    display_name = "Parrot Hunt Clues"
+    range_start = 3
+    range_end = 10
+    default = 7
 
 class PassengerClassUpgrades(Choice):
     """Multiworld: Receive Progressive Passenger Class Upgrade items from the multiworld (adds 2 items).
@@ -173,6 +196,8 @@ class RequireAccessCard1stClassStaterooms(Toggle):
 @dataclass
 class StarshipTitanicOptions(PerGameCommonOptions):
     goal: Goal
+    parrot_hunt_stateroom_class: ParrotHuntStateroomClass
+    parrot_hunt_clues: ParrotHuntClues
     passenger_class_upgrades: PassengerClassUpgrades
     stateroom_assignment: StateroomAssignment
     item_delivery_method: ItemDeliveryMethod

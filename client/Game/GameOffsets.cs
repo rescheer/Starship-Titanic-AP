@@ -110,7 +110,8 @@ public static class GameOffsets
     // _unused4 is this app's own per-item state storage (see ItemPersistedState.cs).
     // _unused3 is used by SaveSeedTag.cs, but only on the BeamBridge (Red Fuse) item.
     // _unused1 is this app's own tool-placed/game-placed mail marker (see ToolPlacedSentinel below).
-    // _unused2 is this app's Music Room puzzle solved marker, but only on Ear 2 (see GameActions.MarkItemMusicSolved).
+    // _unused2 is this app's Music Room puzzle solved marker, but only on Ear 2 (see GameActions.MarkItemMusicSolved),
+    // and the count of Progressive Clues announced so far, but only on CarryParrot (see GameActions.ReadCluesAnnounced).
     public const long GameObjectUnused1Offset = 0x58;
     public const long GameObjectUnused2Offset = 0x60;
     public const long GameObjectUnused3Offset = 0x68;
@@ -147,6 +148,21 @@ public static class GameOffsets
     // CTelevision::PETActivateMsg (`_channelNum == 4 && _channel4Glyph`); CEye clears it once Eye1 is taken.
     // Saved/loaded with each CTelevision, and reset to true by CTelevision::init().
     public const long TelevisionChannel4GlyphStatic = 0x5F32601;
+
+    // CParrot::_state (titanic/npcs/parrot.h) - a STATIC ParrotState (int), so a module-relative global. Found from
+    // CParrot::save/load (vtable slots 3/4, module + 0x2421080/0x24211E0), which reference it in source order between
+    // _eatOffsetX and _coreReplaced (0x5F32DE0). Saved and loaded with CParrot. PARROT_MAILED keeps the parrot out of
+    // its cage and quiet, and makes CCarryParrot::PassOnDragStartMsg release it from a Succ-U-Bus tray.
+    public const long ParrotStateStatic = 0x5F32DE4;
+    public const int ParrotStateMailed = 3;
+
+    // CParrotLobbyController::ActMsg(CActMsg*) (titanic/game/parrot/parrot_lobby_controller.cpp) - the only entry in
+    // the controller's message map (module + 0x4F225A0). "LoseParrot" clears _haveParrot, recalculates _flags, and
+    // sends "Refresh" to the Parrot Lobby objects and ParrotLobbyUpdater_TOW, which hides the parrot in the lobby's
+    // views and movement videos. Reads only the message's CActMsg::_action (a CString at +8).
+    public const long ParrotLobbyControllerActMsgFunc = 0x23FAFE0;
+    public const long ActMsgActionOffset = 0x8;
+    public const int ActMsgSize = 0x40;
 
     // CGetLiftEye2::_destObject (titanic/game/get_lift_eye2.h) - a STATIC `CString *`, so this module-relative
     // global holds a pointer to a heap-allocated CString (allocated once by CGetLiftEye2::init()), not the string
