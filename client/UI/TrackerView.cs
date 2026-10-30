@@ -69,7 +69,7 @@ internal sealed class TrackerView : TrackerControl
     private readonly Label[] _deckLabels;
     private readonly RoomTile[][] _roomTiles;
     private readonly CheckPopup _checkPopup = new();
-    private RoomTile? _popupTile;
+    private Control? _popupSource;
 
     private static readonly (string Text, Color? Pip, bool PipFilled)[] TitaniaMailLegend =
     {
@@ -133,7 +133,8 @@ internal sealed class TrackerView : TrackerControl
         Controls.AddRange(_parrotTiles.ToArray<Control>());
 
         foreach (RoomTile tile in _roomTiles.SelectMany(row => row))
-            tile.PipHoverChanged += OnPipHoverChanged;
+            tile.PipHoverChanged += OnCheckHoverChanged;
+        _here.CheckHoverChanged += OnCheckHoverChanged;
         _gameTile.Button.Click += (_, _) => AttachButtonClicked?.Invoke();
         _apTile.Button.Click += (_, _) => ApButtonClicked?.Invoke();
         _chatSend.Click += (_, _) => SubmitChat();
@@ -187,19 +188,19 @@ internal sealed class TrackerView : TrackerControl
             PerformLayout();
     }
 
-    /// <summary>Moving between tiles can bring the new tile's hover before the old tile's leave, so a tile can only
+    /// <summary>Moving between controls can bring the new one's hover before the old one's leave, so a control can only
     /// hide the popup while it's the one showing it.</summary>
-    private void OnPipHoverChanged(RoomTile tile, CheckPip? check, Rectangle bounds)
+    private void OnCheckHoverChanged(Control source, CheckPip? check, Rectangle bounds)
     {
         if (check is { } shown)
         {
-            _popupTile = tile;
-            bounds.Offset(tile.Location);
+            _popupSource = source;
+            bounds.Offset(source.Location);
             _checkPopup.ShowFor(shown, bounds);
         }
-        else if (_popupTile == tile)
+        else if (_popupSource == source)
         {
-            _popupTile = null;
+            _popupSource = null;
             _checkPopup.Visible = false;
         }
     }

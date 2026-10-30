@@ -519,6 +519,11 @@ internal readonly record struct HereState(string RoomName, CheckPip[] Checks, st
 internal sealed class HerePanel : TrackerControl
 {
     private HereState _state = new("", Array.Empty<CheckPip>(), "");
+    private int _hoveredIndex = -1;
+    private CheckPip? _hoveredCheck;
+
+    /// <summary>The locked check under the mouse changed: the panel, its check (null for none) and its line's bounds in the panel.</summary>
+    public event Action<HerePanel, CheckPip?, Rectangle>? CheckHoverChanged;
 
     public HereState State
     {
@@ -528,31 +533,75 @@ internal sealed class HerePanel : TrackerControl
                 return;
             _state = value;
             Invalidate();
+            if (_hoveredIndex >= 0)
+                UpdateHover(PointToClient(Cursor.Position));
         }
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        UpdateHover(e.Location);
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        UpdateHover(new Point(-1, -1));
+    }
+
+    private void UpdateHover(Point mouse)
+    {
+        int index = LockedCheckAt(mouse);
+        CheckPip? check = index >= 0 ? _state.Checks[index] : null;
+        if (index == _hoveredIndex && check == _hoveredCheck)
+            return;
+        _hoveredIndex = index;
+        _hoveredCheck = check;
+        CheckHoverChanged?.Invoke(this, check, index >= 0 ? LineBounds(index) : Rectangle.Empty);
+    }
+
+    /// <summary>The check at a point, among those with known needs to show.</summary>
+    private int LockedCheckAt(Point point)
+    {
+        for (int i = 0; i < _state.Checks.Length; i++)
+        {
+            CheckPip check = _state.Checks[i];
+            if (check.Status == CheckStatus.Locked && check.Requires.Length > 0 && LineBounds(i).Contains(point))
+                return i;
+        }
+        return -1;
+    }
+
+    private Rectangle LineBounds(int index)
+    {
+        int left = S(8), columnWidth = (Width - left * 2) / 2, rowHeight = S(18);
+        return new Rectangle(left + index % 2 * columnWidth, S(28) + index / 2 * rowHeight, columnWidth, rowHeight);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        FillTile(e.Graphics, TrackerTheme.AccentFill, TrackerTheme.Accent);
+        FillTile(e.Graphics, TrackerTheme.Background, TrackerTheme.LineStrong);
 
-        int left = S(8), top = S(28), rowHeight = S(18), pip = S(8), textOffset = pip + S(5);
-        int columnWidth = (Width - left * 2) / 2;
+        int left = S(8), pip = S(8), textOffset = pip + S(5);
         TextRenderer.DrawText(e.Graphics, _state.RoomName, TrackerTheme.BodyFont, new Rectangle(left, S(6), Width - left * 2, S(19)),
             TrackerTheme.Text, SingleLine | TextFormatFlags.EndEllipsis);
 
         if (_state.Checks.Length == 0)
         {
-            TextRenderer.DrawText(e.Graphics, _state.Message, TrackerTheme.TileNameFont, new Rectangle(left, top, Width - left * 2, rowHeight),
+            Rectangle message = LineBounds(0);
+            message.Width = Width - left * 2;
+            TextRenderer.DrawText(e.Graphics, _state.Message, TrackerTheme.TileNameFont, message,
                 TrackerTheme.TextMuted, SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
             return;
         }
 
         for (int i = 0; i < _state.Checks.Length; i++)
         {
-            int x = left + i % 2 * columnWidth, y = top + i / 2 * rowHeight;
+            Rectangle line = LineBounds(i);
             bool locked = _state.Checks[i].Status == CheckStatus.Locked;
-            DrawPip(e.Graphics, x, y + (rowHeight - pip) / 2, pip, locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, filled: false);
-            TextRenderer.DrawText(e.Graphics, _state.Checks[i].Name, TrackerTheme.TileNameFont, new Rectangle(x + textOffset, y, columnWidth - textOffset - S(4), rowHeight),
+            DrawPip(e.Graphics, line.X, line.Y + (line.Height - pip) / 2, pip, locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, filled: false);
+            TextRenderer.DrawText(e.Graphics, _state.Checks[i].Name, TrackerTheme.TileNameFont, new Rectangle(line.X + textOffset, line.Y, line.Width - textOffset - S(4), line.Height),
                 locked ? TrackerTheme.TextMuted : TrackerTheme.Text, SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
     }
