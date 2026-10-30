@@ -303,19 +303,15 @@ internal sealed class GoalTile : TrackerControl
 /// <summary>A small labeled value in the command bar, highlighted when it needs attention.</summary>
 internal sealed class StatusTile : TrackerControl
 {
-    private readonly string _label;
+    private string _label = "";
     private string _value = "";
     private bool _highlighted;
 
-    public StatusTile(string label)
+    public void Set(string label, string value, bool highlighted)
     {
-        _label = label;
-    }
-
-    public void Set(string value, bool highlighted)
-    {
-        if (value == _value && highlighted == _highlighted)
+        if (label == _label && value == _value && highlighted == _highlighted)
             return;
+        _label = label;
         _value = value;
         _highlighted = highlighted;
         Invalidate();

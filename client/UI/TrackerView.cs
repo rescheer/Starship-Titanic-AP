@@ -21,7 +21,7 @@ internal abstract record GoalState
 internal sealed record TrackerState(
     string GameValue, bool GameHasError, string GameButton,
     string ApValue, Color ApValueColor, bool ApHasError, string ApButton, bool ApButtonEnabled,
-    string MailValue, bool MailHighlighted,
+    string MailLabel, string MailValue, bool MailHighlighted,
     string ClassValue,
     bool SaveSeedMismatch,
     DeckState[] Decks,
@@ -47,8 +47,8 @@ internal sealed class TrackerView : TrackerControl
 
     private readonly ConnectionTile _gameTile = new("STARSHIP TITANIC");
     private readonly ConnectionTile _apTile = new("ARCHIPELAGO");
-    private readonly StatusTile _mailTile = new("SUCC-U-BUS");
-    private readonly StatusTile _classTile = new("PASSENGER CLASS");
+    private readonly StatusTile _mailTile = new();
+    private readonly StatusTile _classTile = new();
 
     private readonly Label _saveSeedBanner = new()
     {
@@ -147,8 +147,8 @@ internal sealed class TrackerView : TrackerControl
     {
         _gameTile.Set(state.GameValue, state.GameHasError ? TrackerTheme.Error : TrackerTheme.Text, state.GameHasError, state.GameButton, buttonEnabled: true);
         _apTile.Set(state.ApValue, state.ApValueColor, state.ApHasError, state.ApButton, state.ApButtonEnabled);
-        _mailTile.Set(state.MailValue, state.MailHighlighted);
-        _classTile.Set(state.ClassValue, highlighted: false);
+        _mailTile.Set(state.MailLabel, state.MailValue, state.MailHighlighted);
+        _classTile.Set("PASSENGER CLASS", state.ClassValue, highlighted: false);
 
         for (int deck = 0; deck < _roomTiles.Length; deck++)
         {
@@ -279,7 +279,7 @@ internal sealed class TrackerView : TrackerControl
         _gameTile.SetBounds(margin, tileTop, S(250), tileHeight);
         _apTile.SetBounds(_gameTile.Right + gap, tileTop, S(370), tileHeight);
         _classTile.SetBounds(width - margin - S(136), tileTop, S(136), tileHeight);
-        _mailTile.SetBounds(_classTile.Left - gap - S(116), tileTop, S(116), tileHeight);
+        _mailTile.SetBounds(_classTile.Left - gap - S(136), tileTop, S(136), tileHeight);
 
         int top = barHeight;
         if (_saveSeedBanner.Visible)

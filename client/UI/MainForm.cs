@@ -180,6 +180,7 @@ public sealed class MainForm : Form
             apError,
             _session.Ap.State is ApConnectionState.Connected or ApConnectionState.Connecting ? "Disconnect" : "Connect to AP...",
             _session.Ap.State != ApConnectionState.Connecting,
+            directToInventory ? "ITEM DELIVERY MODE" : "SUCC-U-BUS",
             directToInventory ? "Direct" : $"{mailCount} waiting",
             !directToInventory && mailCount > 0,
             PassengerClassLabel(passengerClass),
