@@ -65,6 +65,9 @@ class StarshipTitanicWorld(World):
     # Whether the DeskBot's upgrade checks hold the upgrades themselves (locations.py): vanilla class upgrades only,
     # and only on seeds generated since that arrangement was added
     class_upgrades_locked: bool
+    # Whether the Auditory Center is a real check holding a record of itself (items.py): only on seeds generated since
+    # that arrangement was added
+    auditory_center_locked: bool
     # Every rule set on this slot, by location or entrance name, for export_logic
     logic_rules: Dict[str, Any]
     # Parrot Hunt goal only (parrot_hunt.py): the parrot's stateroom ("elevator", "floor", "room", "class"), and the
@@ -92,6 +95,7 @@ class StarshipTitanicWorld(World):
         else:
             self.access_cards = enabled_access_cards(self.options, self.random)
             self.class_upgrades_locked = self.is_vanilla_class()
+            self.auditory_center_locked = True
             # Only rolled under this goal, so other goals' seeds keep the same random stream
             if self.is_parrot_hunt():
                 classes = {
@@ -117,6 +121,7 @@ class StarshipTitanicWorld(World):
         options.easy_music_room_puzzle.value = int(slot_data.get("easy_music_room_puzzle", False))
         self.access_cards = list(slot_data.get("room_access_cards", []))
         self.class_upgrades_locked = slot_data.get("class_upgrades_locked", False)
+        self.auditory_center_locked = slot_data.get("auditory_center_locked", False)
         if self.is_parrot_hunt():
             options.parrot_hunt_stateroom_class.value = ParrotHuntStateroomClass.options[
                 slot_data["parrot_hunt_stateroom_class"]]
@@ -213,6 +218,7 @@ class StarshipTitanicWorld(World):
             "item_delivery_method": self.options.item_delivery_method.current_key,  # "succubus" or "direct_to_inventory"
             "easy_music_room_puzzle": bool(self.options.easy_music_room_puzzle),
             "class_upgrades_locked": self.class_upgrades_locked,
+            "auditory_center_locked": self.auditory_center_locked,
             "logic": export_logic(self),  # the client's tracker reads this (logic_export.py)
         }
         if self.is_parrot_hunt():

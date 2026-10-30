@@ -72,6 +72,15 @@ _class_upgrade_records: Dict[str, int] = {
 }
 
 # --------------------------------------------------------------------------
+# Auditory Center Record - locked to its own check, never in the pool. The game hands over the part itself when the
+# Maitre'D's right arm releases it, so the client doesn't deliver this item; it only tells the tracker the part is found.
+# On seeds from before this was added it's a plain event with no ID (create_event)
+# --------------------------------------------------------------------------
+_auditory_center_record: Dict[str, int] = {
+    "Titania's Auditory Center": 49,
+}
+
+# --------------------------------------------------------------------------
 # Titania Parts
 # --------------------------------------------------------------------------
 _titania_parts: Dict[str, int] = {
@@ -171,7 +180,6 @@ _trap_items: Dict[str, int] = {
 # Events
 # --------------------------------------------------------------------------
 _event_items: Set[str] = {
-    "Titania's Auditory Center",
     "Titania Repaired",
     "Parrot Released",
     "Victory",
@@ -202,6 +210,9 @@ for name, offset in _progressive_clue_items.items():
     item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, "Progressive", quantity=0)
 
 for name, offset in _class_upgrade_records.items():
+    item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, quantity=0)
+
+for name, offset in _auditory_center_record.items():
     item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, quantity=0)
 
 for name, offset in _titania_parts.items():
