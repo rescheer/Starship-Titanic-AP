@@ -58,15 +58,16 @@ internal readonly record struct CheckPip(string Name, CheckStatus Status, string
 /// <param name="Checks">The room's checks, in the order to draw them.</param>
 /// <param name="IsLocked">Whether something's missing to enter the room, which dims the tile.</param>
 /// <param name="IsHere">Whether the player's in this room, which highlights the tile and adds a map pin.</param>
-internal readonly record struct RoomTileState(string Name, CheckPip[] Checks, string Tag, bool IsLocked, bool IsHere);
+/// <param name="NeedsCard">Whether the room's Access Card is still missing, which adds a lock unless there's a map pin.</param>
+internal readonly record struct RoomTileState(string Name, CheckPip[] Checks, string Tag, bool IsLocked, bool IsHere, bool NeedsCard);
 
 /// <summary>One room: its name, a dot per check, and a line on where it stands.</summary>
 internal sealed class RoomTile : TrackerControl
 {
-    private const int HerePinSize = 12;
-    private const int HerePinInset = 5;
+    private const int CornerIconSize = 12;
+    private const int CornerIconInset = 5;
 
-    private RoomTileState _state = new("", Array.Empty<CheckPip>(), "", false, false);
+    private RoomTileState _state = new("", Array.Empty<CheckPip>(), "", false, false, false);
     private int _hoveredIndex = -1;
     private CheckPip? _hoveredPip;
 
@@ -154,16 +155,19 @@ internal sealed class RoomTile : TrackerControl
             DrawPip(e.Graphics, pip.X, pip.Y, pip.Width, status == CheckStatus.Locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, status == CheckStatus.Checked);
         }
 
-        // A tag stops short of the pin
-        int tagRight = _state.IsHere ? Width - S(HerePinInset + HerePinSize + 3) : Width - S(2);
+        // A tag stops short of the corner icon
+        bool hasCornerIcon = _state.IsHere || _state.NeedsCard;
+        int tagRight = hasCornerIcon ? Width - S(CornerIconInset + CornerIconSize + 3) : Width - S(2);
         TextRenderer.DrawText(e.Graphics, _state.Tag, TrackerTheme.CaptionFont, new Rectangle(left, Height - S(17), tagRight - left, S(14)),
             TrackerTheme.TextMuted, SingleLine | TextFormatFlags.EndEllipsis);
 
         if (_state.IsHere)
             DrawHerePin(e.Graphics);
+        else if (_state.NeedsCard)
+            DrawCardLock(e.Graphics);
     }
 
-    /// <summary>Draws the map pin in the lower right corner, from a <see cref="HerePinSize"/> square design.</summary>
+    /// <summary>Draws the map pin, from a <see cref="CornerIconSize"/> square design.</summary>
     private void DrawHerePin(Graphics g)
     {
         using var pin = new GraphicsPath();
@@ -173,14 +177,43 @@ internal sealed class RoomTile : TrackerControl
         pin.CloseFigure();
         pin.AddEllipse(4.6f, 3.2f, 2.8f, 2.8f); // the hole, by the path's alternate fill
 
+        FillCornerIcon(g, pin, TrackerTheme.Accent);
+    }
+
+    /// <summary>Draws the lock, from a <see cref="CornerIconSize"/> square design.</summary>
+    private void DrawCardLock(Graphics g)
+    {
+        using var padlock = new GraphicsPath();
+        padlock.AddLine(1.7f, 5.3f, 3.2f, 5.3f);
+        padlock.AddLine(3.2f, 5.3f, 3.2f, 3.3f);
+        padlock.AddArc(3.2f, 0.5f, 5.6f, 5.6f, 180f, 180f);
+        padlock.AddLine(8.8f, 3.3f, 8.8f, 5.3f);
+        padlock.AddLine(8.8f, 5.3f, 10.3f, 5.3f);
+        padlock.AddLine(10.3f, 5.3f, 10.3f, 11.5f);
+        padlock.AddLine(10.3f, 11.5f, 1.7f, 11.5f);
+        padlock.CloseFigure();
+
+        // The holes in the shackle and for the key, by the path's alternate fill
+        padlock.AddLine(4.5f, 5.3f, 4.5f, 3.3f);
+        padlock.AddArc(4.5f, 1.8f, 3f, 3f, 180f, 180f);
+        padlock.AddLine(7.5f, 3.3f, 7.5f, 5.3f);
+        padlock.CloseFigure();
+        padlock.AddEllipse(5f, 7.4f, 2f, 2f);
+
+        FillCornerIcon(g, padlock, TrackerTheme.Error);
+    }
+
+    /// <summary>Fills a <see cref="CornerIconSize"/> square design in the lower right corner.</summary>
+    private void FillCornerIcon(Graphics g, GraphicsPath icon, Color color)
+    {
         using var transform = new Matrix();
-        transform.Translate(Width - S(HerePinInset + HerePinSize), Height - S(HerePinInset + HerePinSize));
-        transform.Scale(S(HerePinSize) / (float)HerePinSize, S(HerePinSize) / (float)HerePinSize);
-        pin.Transform(transform);
+        transform.Translate(Width - S(CornerIconInset + CornerIconSize), Height - S(CornerIconInset + CornerIconSize));
+        transform.Scale(S(CornerIconSize) / (float)CornerIconSize, S(CornerIconSize) / (float)CornerIconSize);
+        icon.Transform(transform);
 
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        using var brush = new SolidBrush(TrackerTheme.Accent);
-        g.FillPath(brush, pin);
+        using var brush = new SolidBrush(color);
+        g.FillPath(brush, icon);
         g.SmoothingMode = SmoothingMode.Default;
     }
 }

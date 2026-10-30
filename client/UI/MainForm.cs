@@ -244,7 +244,7 @@ public sealed class MainForm : Form
     {
         bool isHere = room == _hereRoom;
         if (!connected || !_roomLocationNames.TryGetValue(room, out string[]? locations))
-            return new RoomTileState(room.Name, Array.Empty<CheckPip>(), "", false, isHere);
+            return new RoomTileState(room.Name, Array.Empty<CheckPip>(), "", false, isHere, false);
 
         CheckPip[] checks = locations.Select(BuildCheck).OrderBy(check => check.Status).ToArray();
         int total = checks.Length;
@@ -278,7 +278,7 @@ public sealed class MainForm : Form
             _ when _logic is null => $"{checkedCount}/{total}", // an older seed, without logic to go by
             _ => $"{inLogic} in logic",
         };
-        return new RoomTileState(room.Name, checks, tag, lockReason is not null, isHere);
+        return new RoomTileState(room.Name, checks, tag, lockReason is not null, isHere, !hasCard);
     }
 
     /// <summary>A check's dot. Every unchecked check is locked on an older seed, without logic to go by.</summary>
