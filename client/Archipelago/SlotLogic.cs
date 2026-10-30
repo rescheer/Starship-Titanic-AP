@@ -64,8 +64,9 @@ public sealed class SlotLogic
 
     /// <summary>Where a set of received items leaves the slot's locations, checked or not.</summary>
     /// <param name="Reachable">The names of the locations reachable with these items.</param>
-    /// <param name="MissingItems">For the rest, the items still needed. Events are followed through to the items behind
-    /// them, and where a rule has alternatives this is the one needing the fewest items. Empty if nothing can open it.</param>
+    /// <param name="MissingItems">For the rest, what's still needed, described for the player (progressive class and
+    /// stateroom items as the tier they lead to). Events are followed through to the items behind them, and where a rule
+    /// has alternatives this is the one needing the fewest items. Empty if nothing can open it.</param>
     public sealed record Evaluation(HashSet<string> Reachable, Dictionary<string, string[]> MissingItems);
 
     /// <summary>Works out an <see cref="Evaluation"/>. Pass duplicates for items received more than once.</summary>
@@ -128,10 +129,19 @@ public sealed class SlotLogic
         Dictionary<string, int>? missing = FindMissing(InRegion(location.Region, location.Rule), state, new HashSet<string>(StringComparer.Ordinal));
         if (missing is null)
             return Array.Empty<string>();
-        return missing
-            .Select(item => item.Value > 1 ? $"{item.Key} ({state.Items.GetValueOrDefault(item.Key)}/{item.Value})" : item.Key)
-            .ToArray();
+        return missing.Select(item => DescribeItem(item.Key, item.Value, state)).ToArray();
     }
+
+    private static string DescribeItem(string item, int count, State state) => (item, count) switch
+    {
+        ("Progressive Passenger Class Upgrade", 1) => "2nd Class",
+        ("Progressive Passenger Class Upgrade", 2) => "1st Class",
+        ("Progressive Stateroom", 1) => "Assigned SGT Stateroom",
+        ("Progressive Stateroom", 2) => "Assigned 2nd Class Stateroom",
+        ("Progressive Stateroom", 3) => "Assigned 1st Class Stateroom",
+        _ when count > 1 => $"{item} ({state.Items.GetValueOrDefault(item)}/{count})",
+        _ => item,
+    };
 
     /// <summary>The items, with their required counts, still needed to meet a rule: none if it's met, null if no items
     /// could. <paramref name="visiting"/> holds the regions and events being followed, to stop at cycles.</summary>
