@@ -13,13 +13,13 @@ public static class TitaniaParts
         new("Nose", "Titania's Nose", "Nose"),
         new("Mouth", "Titania's Mouth", "Mouth"),
         new("Core", "Titania's Core", "CentralCore"),
-        new("Eye (Elevator)", "Titania's Eye (Elevator)", "Eye2"),
-        new("Eye (Light)", "Titania's Eye (Light)", "Eye1"),
-        new("Ear (Bowl)", "Titania's Ear (Pistachio Bowl)", "Ear1"),
+        new("Eye\n(Elevator)", "Titania's Eye (Elevator)", "Eye2"),
+        new("Eye\n(Light)", "Titania's Eye (Light)", "Eye1"),
+        new("Ear\n(Bowl)", "Titania's Ear (Pistachio Bowl)", "Ear1"),
         new("Ear (Phonograph)", "Titania's Ear (Phonograph)", "Ear 2"),
         new("Olfactory Center", "Titania's Olfactory Center", "OlfactoryCentre"),
-        new("Speech Center", "Titania's Speech Center", "SpeechCentre"),
-        new("Vision Center", "Titania's Vision Center", "VisionCentre"),
+        new("Speech\nCenter", "Titania's Speech Center", "SpeechCentre"),
+        new("Vision\nCenter", "Titania's Vision Center", "VisionCentre"),
         // A record the part's own check holds (items.py), not a delivery: the game hands over the part itself
         new("Auditory Center", "Titania's Auditory Center", "AuditoryCentre"),
     };
