@@ -344,6 +344,18 @@ public sealed class MainForm : Form
         return room[(room.LastIndexOf(' ') + 1)..] + separator + name;
     }
 
+    /// <summary>The found clues, as they were or would have been announced. None until the seed's known, since it picks the lines.</summary>
+    private ClueEntry[] BuildClues(ParrotHuntInfo info, int clues)
+    {
+        if (_session.Ap.SeedName is not { } seedName || _session.Ap.SlotName is not { } slotName)
+            return Array.Empty<ClueEntry>();
+
+        var text = new ParrotHuntClueText(info, seedName, slotName);
+        return Enumerable.Range(1, clues)
+            .Select(clue => new ClueEntry(clue, text.LineFor(clue), info.DiscoveryAt(clue)))
+            .ToArray();
+    }
+
     private GoalState BuildGoal(bool attached, bool connected, string[] receivedItems)
     {
         if (ParrotHuntTracker.TryRead(_session.Ap.KnownSlotData) is { } info)
@@ -355,7 +367,8 @@ public sealed class MainForm : Form
                 info.IsRevealed("room", clues) ? info.Room : null,
                 clues,
                 info.TotalClues,
-                info.CountPossibleRooms(clues));
+                info.CountPossibleRooms(clues),
+                BuildClues(info, clues));
         }
 
         // In hand can only be read from the game, so until attached a received part stays "in the mail", or under

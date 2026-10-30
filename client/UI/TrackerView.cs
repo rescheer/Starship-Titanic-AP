@@ -15,7 +15,8 @@ internal abstract record GoalState
 
     /// <param name="Elevator">Each part of the address is null until revealed.</param>
     /// <param name="PossibleLocations">How many staterooms the revealed parts still allow.</param>
-    public sealed record Parrot(int? Elevator, int? Floor, int? Room, int CluesFound, int CluesTotal, int PossibleLocations) : GoalState;
+    /// <param name="Clues">The clues found so far, in order. Empty while not connected, since their text depends on the seed.</param>
+    public sealed record Parrot(int? Elevator, int? Floor, int? Room, int CluesFound, int CluesTotal, int PossibleLocations, ClueEntry[] Clues) : GoalState;
 }
 
 /// <summary>Everything the main window shows, besides the log and Recent lines.</summary>
@@ -105,6 +106,7 @@ internal sealed class TrackerView : TrackerControl
     private readonly SectionHeader _parrotHeader = new("THE PARROT");
     private readonly GoalTile[] _parrotTiles = { new(), new(), new() };
     private readonly ClueBar _clueBar = new();
+    private readonly CluePopup _cluePopup = new();
     private readonly PossibleLocationsBar _possibleLocationsBar = new();
 
     private readonly RichTextBox _log = new()
@@ -143,7 +145,8 @@ internal sealed class TrackerView : TrackerControl
         TrackerTheme.StyleTextBox(_chatInput);
         TrackerTheme.StyleButton(_chatSend);
 
-        Controls.Add(_checkPopup); // added first, so it's on top of everything else
+        Controls.Add(_checkPopup); // the popups are added first, so they're on top of everything else
+        Controls.Add(_cluePopup);
         Controls.AddRange(new Control[] { _gameTile, _apTile, _goModeTile, _mailTile, _classTile, _saveSeedBanner, _forceSeedLink, _roomsHeader, _titaniaHeader, _parrotHeader, _clueBar, _possibleLocationsBar, _log, _chatInput, _chatSend, _hereHeader, _here, _recentHeader, _recent });
         Controls.AddRange(_deckLabels);
         Controls.AddRange(_roomTiles.SelectMany(row => row).ToArray<Control>());
@@ -153,6 +156,7 @@ internal sealed class TrackerView : TrackerControl
         foreach (RoomTile tile in _roomTiles.SelectMany(row => row))
             tile.PipHoverChanged += OnCheckHoverChanged;
         _here.CheckHoverChanged += OnCheckHoverChanged;
+        _clueBar.ClueHoverChanged += OnClueHoverChanged;
         _gameTile.Button.Click += (_, _) => AttachButtonClicked?.Invoke();
         _apTile.Button.Click += (_, _) => ApButtonClicked?.Invoke();
         _forceSeedLink.LinkClicked += (_, _) => ForceSeedClicked?.Invoke();
@@ -226,6 +230,19 @@ internal sealed class TrackerView : TrackerControl
         }
     }
 
+    private void OnClueHoverChanged(ClueEntry? clue, Rectangle bounds)
+    {
+        if (clue is { } shown)
+        {
+            bounds.Offset(_clueBar.Location);
+            _cluePopup.ShowFor(shown, bounds);
+        }
+        else
+        {
+            _cluePopup.Visible = false;
+        }
+    }
+
     private void ApplyGoal(GoalState goal)
     {
         switch (goal)
@@ -250,7 +267,7 @@ internal sealed class TrackerView : TrackerControl
                 SetParrotTile(0, "ELEVATOR", parrot.Elevator);
                 SetParrotTile(1, "FLOOR", parrot.Floor);
                 SetParrotTile(2, "ROOM", parrot.Room);
-                _clueBar.Set(parrot.CluesFound, parrot.CluesTotal);
+                _clueBar.Set(parrot.CluesFound, parrot.CluesTotal, parrot.Clues);
                 _possibleLocationsBar.Set(parrot.PossibleLocations);
                 break;
         }

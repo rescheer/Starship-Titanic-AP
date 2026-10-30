@@ -218,29 +218,68 @@ internal sealed class RoomTile : TrackerControl
     }
 }
 
-/// <summary>Names the check under the mouse and where it stands or, if it's locked, what it still requires. Drawn over its siblings in the
-/// main window, rather than as a Windows tooltip, so it can match the window and appear at once.</summary>
-internal sealed class CheckPopup : TrackerControl
+/// <summary>Details on what's under the mouse. Drawn over its siblings in the main window, rather than as a Windows
+/// tooltip, so it can match the window and appear at once.</summary>
+internal abstract class HoverPopup : TrackerControl
 {
-    private const int Inset = 7;
-    private const int CaptionGap = 6;
+    protected const int Inset = 7;
+    protected const int CaptionGap = 6;
     private const int WmNcHitTest = 0x84;
     private static readonly IntPtr HtTransparent = new(-1);
 
-    private CheckPip _check;
-
-    public CheckPopup()
+    protected HoverPopup()
     {
         Visible = false;
     }
+
+    /// <summary>Shows the popup beside <paramref name="anchor"/> (in the parent's coordinates), inside the parent, sized to its content.</summary>
+    protected void ShowBeside(Rectangle anchor, int contentWidth, int contentHeight)
+    {
+        int margin = S(4);
+        Size parent = Parent!.ClientSize;
+        int width = Math.Min(contentWidth + S(Inset) * 2, parent.Width - margin * 2);
+        int height = contentHeight + S(Inset) * 2;
+
+        int x = Math.Clamp(anchor.Left - S(Inset), margin, parent.Width - width - margin);
+        int y = anchor.Bottom + margin;
+        if (y + height > parent.Height - margin)
+            y = Math.Max(margin, anchor.Top - margin - height);
+
+        SetBounds(x, y, width, height);
+        Visible = true;
+        Invalidate();
+    }
+
+    protected static Size Measure(string text, Font font) => TextRenderer.MeasureText(text, font, Size.Empty, SingleLine);
+
+    /// <summary>Lets the mouse through to the dots underneath, so the popup can't take the hover away from them.</summary>
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == WmNcHitTest)
+            m.Result = HtTransparent;
+        else
+            base.WndProc(ref m);
+    }
+
+    /// <summary>Draws a line of text and returns where the next one goes.</summary>
+    protected int DrawLine(Graphics g, string text, Font font, Color color, int x, int y)
+    {
+        int height = Measure(text, font).Height;
+        TextRenderer.DrawText(g, text, font, new Rectangle(x, y, Width - x * 2, height), color, SingleLine | TextFormatFlags.EndEllipsis);
+        return y + height;
+    }
+}
+
+/// <summary>Names the check under the mouse and where it stands or, if it's locked, what it still requires.</summary>
+internal sealed class CheckPopup : HoverPopup
+{
+    private CheckPip _check;
 
     /// <summary>Shows a check beside <paramref name="anchor"/> (in the parent's coordinates), inside the parent.</summary>
     public void ShowFor(CheckPip check, Rectangle anchor)
     {
         _check = check;
 
-        int margin = S(4);
-        Size parent = Parent!.ClientSize;
         Size nameSize = Measure(check.Name, TrackerTheme.TileNameFont);
         int width = nameSize.Width, height = nameSize.Height;
         if (Caption(check) is { } caption)
@@ -255,17 +294,7 @@ internal sealed class CheckPopup : TrackerControl
                 height += size.Height;
             }
         }
-        width = Math.Min(width + S(Inset) * 2, parent.Width - margin * 2);
-        height += S(Inset) * 2;
-
-        int x = Math.Clamp(anchor.Left - S(Inset), margin, parent.Width - width - margin);
-        int y = anchor.Bottom + margin;
-        if (y + height > parent.Height - margin)
-            y = Math.Max(margin, anchor.Top - margin - height);
-
-        SetBounds(x, y, width, height);
-        Visible = true;
-        Invalidate();
+        ShowBeside(anchor, width, height);
     }
 
     /// <summary>The line under the name. A locked check without known requirements has none.</summary>
@@ -275,17 +304,6 @@ internal sealed class CheckPopup : TrackerControl
         CheckStatus.InLogic => "IN LOGIC",
         _ => check.Requires.Length > 0 ? "REQUIRES" : null,
     };
-
-    private static Size Measure(string text, Font font) => TextRenderer.MeasureText(text, font, Size.Empty, SingleLine);
-
-    /// <summary>Lets the mouse through to the dots underneath, so the popup can't take the hover away from them.</summary>
-    protected override void WndProc(ref Message m)
-    {
-        if (m.Msg == WmNcHitTest)
-            m.Result = HtTransparent;
-        else
-            base.WndProc(ref m);
-    }
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -300,13 +318,54 @@ internal sealed class CheckPopup : TrackerControl
         foreach (string item in _check.Requires)
             y = DrawLine(e.Graphics, item, TrackerTheme.TileNameFont, TrackerTheme.Text, x, y);
     }
+}
 
-    /// <summary>Draws a line of text and returns where the next one goes.</summary>
-    private int DrawLine(Graphics g, string text, Font font, Color color, int x, int y)
+/// <summary>Shows what the clue under the mouse said and whether it turned up anything.</summary>
+internal sealed class CluePopup : HoverPopup
+{
+    private const int MaxTextWidth = 300;
+    private const TextFormatFlags Wrapped = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak;
+
+    private ClueEntry _clue;
+    private Size _textSize;
+
+    /// <summary>Shows a clue beside <paramref name="anchor"/> (in the parent's coordinates), inside the parent.</summary>
+    public void ShowFor(ClueEntry clue, Rectangle anchor)
     {
-        int height = Measure(text, font).Height;
-        TextRenderer.DrawText(g, text, font, new Rectangle(x, y, Width - x * 2, height), color, SingleLine | TextFormatFlags.EndEllipsis);
-        return y + height;
+        _clue = clue;
+
+        int maxWidth = Math.Min(S(MaxTextWidth), Parent!.ClientSize.Width - S(4 + Inset) * 2);
+        _textSize = TextRenderer.MeasureText(clue.Text, TrackerTheme.TileNameFont, new Size(maxWidth, int.MaxValue), Wrapped);
+
+        Size titleSize = Measure(Title, TrackerTheme.CaptionFont);
+        Size captionSize = Measure(Caption, TrackerTheme.CaptionFont);
+        int width = Math.Max(Math.Max(titleSize.Width, _textSize.Width), captionSize.Width);
+        int height = titleSize.Height + S(CaptionGap) + _textSize.Height + S(CaptionGap) + captionSize.Height;
+        if (clue.Discovery is { } discovery)
+        {
+            Size discoverySize = Measure(discovery, TrackerTheme.TileNameFont);
+            width = Math.Max(width, discoverySize.Width);
+            height += discoverySize.Height;
+        }
+        ShowBeside(anchor, width, height);
+    }
+
+    private string Title => $"CLUE {_clue.Number}";
+
+    private string Caption => _clue.Discovery is null ? "USELESS CLUE" : "NEW DISCOVERY";
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        FillTile(e.Graphics, TrackerTheme.Surface, _clue.Discovery is null ? TrackerTheme.PipLocked : TrackerTheme.Accent);
+
+        int x = S(Inset), y = S(Inset);
+        y = DrawLine(e.Graphics, Title, TrackerTheme.CaptionFont, TrackerTheme.TextMuted, x, y) + S(CaptionGap);
+        TextRenderer.DrawText(e.Graphics, _clue.Text, TrackerTheme.TileNameFont, new Rectangle(x, y, Width - x * 2, _textSize.Height), TrackerTheme.Text, Wrapped);
+        y += _textSize.Height + S(CaptionGap);
+
+        y = DrawLine(e.Graphics, Caption, TrackerTheme.CaptionFont, TrackerTheme.TextMuted, x, y);
+        if (_clue.Discovery is { } discovery)
+            DrawLine(e.Graphics, discovery, TrackerTheme.TileNameFont, TrackerTheme.Accent, x, y);
     }
 }
 
@@ -482,19 +541,81 @@ internal sealed class SectionHeader : TrackerControl
     }
 }
 
+/// <summary>A Progressive Clue that's been found.</summary>
+/// <param name="Number">Which one it was, counting from 1.</param>
+/// <param name="Discovery">The part of the address it revealed, like "Floor 23". Null for a red herring.</param>
+internal readonly record struct ClueEntry(int Number, string Text, string? Discovery);
+
 /// <summary>How many Progressive Clues the Parrot Hunt has turned up, as a count and a row of dots.</summary>
 internal sealed class ClueBar : TrackerControl
 {
     private int _found;
     private int _total;
+    private ClueEntry[] _clues = Array.Empty<ClueEntry>();
+    private int _hoveredIndex = -1;
+    private ClueEntry? _hoveredClue;
 
-    public void Set(int found, int total)
+    /// <summary>The found clue under the mouse changed: its entry (null for none) and its dot's bounds in the bar.</summary>
+    public event Action<ClueEntry?, Rectangle>? ClueHoverChanged;
+
+    /// <param name="clues">The found clues in order, where they're known.</param>
+    public void Set(int found, int total, ClueEntry[] clues)
     {
-        if (found == _found && total == _total)
+        if (found == _found && total == _total && clues.SequenceEqual(_clues))
             return;
         _found = found;
         _total = total;
+        _clues = clues;
         Invalidate();
+        if (_hoveredIndex >= 0)
+            UpdateHover(PointToClient(Cursor.Position));
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        UpdateHover(e.Location);
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        UpdateHover(new Point(-1, -1));
+    }
+
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+        if (!Visible)
+            UpdateHover(new Point(-1, -1));
+    }
+
+    private void UpdateHover(Point mouse)
+    {
+        int index = DotAt(mouse);
+        ClueEntry? clue = index >= 0 && index < _clues.Length ? _clues[index] : null;
+        if (index == _hoveredIndex && clue == _hoveredClue)
+            return;
+        _hoveredIndex = index;
+        _hoveredClue = clue;
+        ClueHoverChanged?.Invoke(clue, index >= 0 ? DotBounds(index) : Rectangle.Empty);
+    }
+
+    /// <summary>The dot at a point, counting the gaps around a dot as part of it.</summary>
+    private int DotAt(Point point)
+    {
+        for (int i = 0; i < _total; i++)
+        {
+            if (Rectangle.Inflate(DotBounds(i), S(3), S(3)).Contains(point))
+                return i;
+        }
+        return -1;
+    }
+
+    private Rectangle DotBounds(int index)
+    {
+        int pip = S(14), pitch = pip + S(6);
+        return new Rectangle(Width - S(12) - (_total - index) * pitch + S(6), (Height - pip) / 2, pip, pip);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -503,10 +624,11 @@ internal sealed class ClueBar : TrackerControl
         TextRenderer.DrawText(e.Graphics, "CLUES", TrackerTheme.CaptionFont, new Rectangle(S(12), S(10), Width / 2, S(14)), TrackerTheme.TextMuted, SingleLine);
         TextRenderer.DrawText(e.Graphics, $"{_found} / {_total}", TrackerTheme.ClueCountFont, new Rectangle(S(12), S(26), Width / 2, Height - S(30)), TrackerTheme.Text, SingleLine);
 
-        int pip = S(14), gap = S(6);
-        int x = Width - S(12) - _total * (pip + gap) + gap;
-        for (int i = 0; i < _total; i++, x += pip + gap)
-            DrawPip(e.Graphics, x, (Height - pip) / 2, pip, i < _found ? TrackerTheme.Accent : TrackerTheme.PipLocked, i < _found);
+        for (int i = 0; i < _total; i++)
+        {
+            Rectangle dot = DotBounds(i);
+            DrawPip(e.Graphics, dot.X, dot.Y, dot.Width, i < _found ? TrackerTheme.Accent : TrackerTheme.PipLocked, i < _found);
+        }
     }
 }
 
