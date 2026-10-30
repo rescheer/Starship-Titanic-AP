@@ -354,7 +354,8 @@ public sealed class MainForm : Form
                 info.IsRevealed("floor", clues) ? info.Floor : null,
                 info.IsRevealed("room", clues) ? info.Room : null,
                 clues,
-                info.TotalClues);
+                info.TotalClues,
+                info.CountPossibleRooms(clues));
         }
 
         // In hand can only be read from the game, so until attached a received part stays "in the mail", or under

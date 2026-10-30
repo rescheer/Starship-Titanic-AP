@@ -46,6 +46,29 @@ public sealed record ParrotHuntInfo(
         string classText = ClassIsFixed || IsRevealed("floor", clues) ? $"{ClassName}, " : "";
         return $"{classText}{Part("elevator", "Elevator", Elevator)}, {Part("floor", "Floor", Floor)}, {Part("room", "Room", Room)}";
     }
+
+    /// <summary>How many staterooms the clues so far still allow, going by the same rooms as valid_rooms in
+    /// apworld/starship_titanic/parrot_hunt.py. Each part narrows the others: only 2nd Class even elevators have a room 4.</summary>
+    public int CountPossibleRooms(int clues)
+    {
+        int count = 0;
+        for (int floor = 2; floor <= 27; floor++)
+        {
+            int passengerClass = floor < 20 ? (int)StarshipTitanicAp.PassengerClass.First : (int)StarshipTitanicAp.PassengerClass.Second;
+            if ((ClassIsFixed && passengerClass != PassengerClass) || (IsRevealed("floor", clues) && floor != Floor))
+                continue;
+
+            for (int elevator = 1; elevator <= 4; elevator++)
+            {
+                if (IsRevealed("elevator", clues) && elevator != Elevator)
+                    continue;
+
+                int rooms = passengerClass == (int)StarshipTitanicAp.PassengerClass.Second && elevator % 2 == 0 ? 4 : 3;
+                count += !IsRevealed("room", clues) ? rooms : Room <= rooms ? 1 : 0;
+            }
+        }
+        return count;
+    }
 }
 
 /// <summary>Reads the Parrot Hunt goal's slot data (see apworld/starship_titanic/parrot_hunt.py).</summary>
