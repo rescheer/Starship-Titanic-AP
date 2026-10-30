@@ -77,6 +77,7 @@ public sealed class ItemFieldsForm : Form
         _itemAddr = itemAddr;
 
         Text = $"Fields - {itemName} @ 0x{itemAddr:X}";
+        Icon = AppInfo.AppIcon;
         Width = 760;
         Height = 600;
         StartPosition = FormStartPosition.CenterParent;

@@ -16,6 +16,7 @@ public sealed partial class DebugForm : Form
     {
         _session = new ClientSession();
         Text = AppInfo.TitleBarText;
+        Icon = AppInfo.AppIcon;
         Width = 900;   // 500 * 1.5 * 1.20
         Height = 660;  // 600 * 1.10
         StartPosition = FormStartPosition.CenterScreen;

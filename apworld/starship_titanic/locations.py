@@ -227,7 +227,7 @@ location_table: Dict[str, STLocationData] = {
     "1st Class Restaurant - Napkin": STLocationData("1st Class Restaurant"),
     "1st Class Restaurant - Green Fuse": STLocationData("1st Class Restaurant"),
     "1st Class Restaurant - Maitre'D Bot's Right Arm": STLocationData("1st Class Restaurant"),
-    "1st Class Restaurant - Titania's Auditory Center": STLocationData("1st Class Restaurant", "Titania's Auditory Center"),
+    "1st Class Restaurant - Titania's Auditory Center": STLocationData("1st Class Restaurant"),
     # Puzzle
     # Other
 
@@ -265,3 +265,7 @@ CLASS_UPGRADE_CHECKS: Dict[str, str] = {
     "DeskBot - 1st Class Upgrade": "1st Class Upgrade",
 }
 CLASS_UPGRADE_EVENT_LOCATIONS = {f"{name} (Event)" for name in CLASS_UPGRADE_CHECKS}
+
+# Fires when the part first enters the inventory, and holds a record of it (items.py)
+AUDITORY_CENTER_LOCATION = "1st Class Restaurant - Titania's Auditory Center"
+AUDITORY_CENTER_ITEM = "Titania's Auditory Center"

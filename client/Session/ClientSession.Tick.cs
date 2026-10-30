@@ -3,11 +3,13 @@ namespace StarshipTitanicAp;
 internal sealed partial class ClientSession
 {
     /// <summary>Handles the game rebuilding its object tree (a save was loaded while attached): clears every address
-    /// and spoof state cached against the old tree and resets the save/seed guard to Unverified.</summary>
+    /// and spoof state cached against the old tree, forgets the player's room, and resets the save/seed guard to
+    /// Unverified.</summary>
     private void HandleTreeReloaded()
     {
         _ctx.InventoryRoom = null;
         _ctx.MailManRoom = null;
+        _ctx.CurrentRoomName = null;
         _lastRoomNodeView = null;
         _lastDisplayedRnv = null;
         _lastRoomFlags = null;
@@ -24,6 +26,7 @@ internal sealed partial class ClientSession
         TextCommandHook.ResetConversationsAddr(_mem);
         ReportAddress("Player Inventory (CPetControl)", null);
         ReportAddress("Conversations (CPetConversations)", null);
+        RoomNodeViewChanged?.Invoke(null, "save loaded"); // so the main window clears its highlight before the new room is read
     }
 
     private void OnTick()

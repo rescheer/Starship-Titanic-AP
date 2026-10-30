@@ -7,179 +7,73 @@ namespace StarshipTitanicAp;
 public sealed class MainForm : Form
 {
     private readonly ClientSession _session;
+    private readonly TrackerView _view = new() { Dock = DockStyle.Fill };
 
-    private readonly Button _btnAttach = new() { Text = "Attach", Width = 110, Height = 40 };
-    private readonly Button _btnApToggle = new() { Text = "Connect to AP...", Width = 110, Height = 40 };
+    private int _mailCount;
 
-    // Server log
-    private readonly RichTextBox _txtServerLog = new()
-    {
-        Multiline = true,
-        ReadOnly = true,
-        Dock = DockStyle.Fill,
-        ScrollBars = RichTextBoxScrollBars.Vertical,
-        Font = new Font(Control.DefaultFont.FontFamily, 11f),
-        WordWrap = true,
-    };
+    // Each room's location names in this slot, and the seed's logic, rebuilt on each connection state change
+    private readonly Dictionary<RoomDefinition, string[]> _roomLocationNames = new();
+    private SlotLogic? _logic;
+    private SlotLogic.Evaluation? _evaluation;
+    private int _evaluatedItemCount = -1;
 
-    private readonly TextBox _txtChatInput = new() { Dock = DockStyle.Fill };
-    private readonly Button _btnChatSend = new() { Text = "Send", Width = 80, Dock = DockStyle.Right };
-
-    private static readonly Font InfoFont = new(Control.DefaultFont.FontFamily, 11f);
-    private readonly Label _lblInfoRoom = new() { Text = "Room: -", AutoSize = true, Font = InfoFont };
-    private readonly Label _lblInfoMail = new() { Text = "Succ-U-Bus has 0 AP items ready for delivery", AutoSize = true, Font = InfoFont };
-    private int _lastMailCount;
-    private readonly Label _lblInfoChecks = new() { Text = "Checks: -/-", AutoSize = true, Font = InfoFont };
-    private readonly Label _lblInfoStations = new() { Text = "Visited Succ-U-Bus Stations (-/-)", AutoSize = true, Font = InfoFont };
-    // Parrot Hunt goal only
-    private readonly Label _lblInfoParrot = new() { Text = "", AutoSize = true, Font = InfoFont, Visible = false };
-    private readonly TableLayoutPanel _infoPanel = new()
-    {
-        Dock = DockStyle.Top,
-        ColumnCount = 2,
-        RowCount = 3,
-        AutoSize = true,
-        Padding = new Padding(6),
-    };
-    private readonly Label _lblInfoSaveSeedMismatch = new()
-    {
-        Text = "Save seed does not match server seed! AP sync paused",
-        Dock = DockStyle.Top,
-        Height = 40,
-        TextAlign = ContentAlignment.MiddleCenter,
-        Font = new Font(InfoFont, FontStyle.Bold),
-        ForeColor = Color.Red,
-        Visible = false,
-    };
-
-    private readonly Label _lblFooterAp = new() { Text = "✖ Not connected to an Archipelago server", AutoSize = true, Anchor = AnchorStyles.Right, ForeColor = Color.Red };
-    private readonly Label _lblFooterAttach = new() { Text = "✖ Not attached to a game instance", AutoSize = true, Anchor = AnchorStyles.Right, ForeColor = Color.Red };
-
-    // Room Access panel - one heading per entry requirement (rules.py's entrance rules), each followed by the
-    // Access Cards of the rooms behind it
-    private enum RoomRequirement { SgtClass, SecondClass, FirstClass, TitaniaRepaired }
-
-    private static readonly (RoomRequirement Requirement, string Heading, string[] Cards)[] RoomAccessGroups =
-    {
-        (RoomRequirement.SgtClass, "SGT Class", new[]
-        {
-            "Top of the Well Access Card",
-            "Bottom of the Well Access Card",
-            "Parrot Lobby Access Card",
-            "Bilge Room Access Card",
-            "Titania's Room Access Card",
-            "SGT Class Staterooms Access Card",
-        }),
-        (RoomRequirement.SecondClass, "2nd Class", new[]
-        {
-            "Creator's Chamber Access Card",
-            "Sculpture Chamber Access Card",
-            "Promenade Deck Access Card",
-            "Bar Access Card",
-            "Music Room Access Card",
-            "2nd Class Staterooms Access Card",
-        }),
-        (RoomRequirement.FirstClass, "1st Class", new[]
-        {
-            "Arboretum Access Card",
-            "1st Class Restaurant Access Card",
-            "1st Class Staterooms Access Card",
-        }),
-        (RoomRequirement.TitaniaRepaired, "Titania Repaired", new[]
-        {
-            "Bridge Access Card",
-        }),
-    };
-
-    // Location-name prefixes ("<prefix> - ...") counted toward each card's "(x/y)", for cards whose rooms aren't
-    // just the card's display name. Follows locations.py's regions: the Bomb Room's Succ-U-Bus is in Titania's Room,
-    // and the Broken Elevator is boarded from the 2nd Class Lobby.
-    private static readonly Dictionary<string, string[]> RoomLocationPrefixes = new()
-    {
-        ["Titania's Room Access Card"] = new[] { "Titania's Room", "Bomb Room" },
-        ["SGT Class Staterooms Access Card"] = new[] { "SGT Class Lobby", "SGT Class Stateroom" },
-        ["2nd Class Staterooms Access Card"] = new[] { "2nd Class Lobby", "2nd Class Stateroom", "Broken Elevator" },
-        ["1st Class Staterooms Access Card"] = new[] { "1st Class Lobby", "1st Class Stateroom" },
-    };
-
-    private static readonly Font RoomAccessFont =new(Control.DefaultFont.FontFamily, 10f);
-    private readonly FlowLayoutPanel _roomAccessPanel = new()
-    {
-        Dock = DockStyle.Right,
-        Width = 280,
-        FlowDirection = FlowDirection.TopDown,
-        WrapContents = false,
-        AutoScroll = true,
-        Padding = new Padding(8, 6, 8, 6),
-    };
-    private readonly Dictionary<RoomRequirement, Label> _roomRequirementLabels = new();
-    private readonly Dictionary<string, (Label Mark, Label Name)> _roomAccessLabels = new();
-    // card -> the slot's location names in its rooms, rebuilt on each connection state change
-    private readonly Dictionary<string, string[]> _roomLocationNames = new();
-    // Lists each room's uncompleted checks on hover
-    private readonly ToolTip _roomAccessToolTip = new() { AutoPopDelay = 30000, InitialDelay = 300 };
+    // The tile that's highlighted as the player's location
+    private RoomDefinition? _hereRoom;
 
     public MainForm()
     {
         _session = new ClientSession();
         Text = AppInfo.TitleBarText;
-        Width = 900;   // 500 * 1.5 * 1.20
-        Height = 660;  // 600 * 1.10
+        Icon = AppInfo.AppIcon;
+        ClientSize = new Size(LogicalToDeviceUnits(1200), LogicalToDeviceUnits(750));
+        MinimumSize = new Size(LogicalToDeviceUnits(1120), LogicalToDeviceUnits(640));
         StartPosition = FormStartPosition.CenterScreen;
+        BackColor = TrackerTheme.Background;
+        Controls.Add(_view);
 
-        BuildLayout();
-        UpdateFooterAttachStatus();
-        UpdateFooterApStatus();
-        UpdateApToggleButton();
+        RefreshView();
 
         _session.ServerLog += AppendServerLog;
-        _session.ServerLogMessage += AppendServerLogMessage;
-        _session.AttachChanged += () =>
+        _session.ServerLogMessage += parts => _view.AppendLog(LogParts(parts), bold: false);
+        _session.ActivePlayerMessage += parts => _view.AddRecent(LogParts(parts), DateTime.Now);
+        _session.AttachChanged += RefreshView;
+        _session.ApStateChanged += (state, _) =>
         {
-            UpdateFooterAttachStatus();
-            _btnAttach.Enabled = !_session.Memory.IsAttached;
+            if (state == ApConnectionState.Connecting)
+                _view.ClearRecent();
+            RebuildSlotData();
+            RefreshView();
         };
-        _session.ApStateChanged += (_, _) =>
-        {
-            UpdateFooterApStatus();
-            RebuildRoomLocationNames();
-            UpdateRoomAccess();
-            UpdateApToggleButton();
-            UpdateInfoChecks();
-            UpdateInfoMailCount(_lastMailCount);
-            UpdateInfoParrot();
-        };
-        _session.ItemReceived += UpdateRoomAccess;
-        _session.ItemReceived += UpdateInfoParrot;
-        _session.PendingChecksChanged += UpdateRoomAccess; // picks up the Titania repair check
+        _session.ItemReceived += RefreshView;
+        _session.CheckedLocationsChanged += RefreshView;
+        _session.PendingChecksChanged += RefreshView; // every tick while playing, and picks up the Titania repair check
+        _session.TitaniaPartsChanged += RefreshView;
+        _session.PassengerClassChanged += _ => RefreshView();
         _session.MailChanged += items =>
         {
-            if (items is not null)
-                UpdateInfoMailCount(items.Count(i => i.ToolPlaced));
+            _mailCount = items?.Count(i => i.ToolPlaced) ?? 0;
+            RefreshView();
         };
-        _session.RoomNodeViewChanged += (rnv, _) =>
-        {
-            if (rnv is { } r)
-                UpdateInfoRoom(_session.CurrentRoomName ?? RoomNames.GetName(r.Room));
-        };
-        _session.Ticked += () =>
-        {
-            UpdateInfoChecks();
-            UpdateInfoAreaSaveSeedGuard();
-        };
+        _session.RoomNodeViewChanged += (_, _) => RefreshView();
+        _session.Ticked += RefreshView;
 
-        _btnAttach.Click += (_, _) => _session.Attach();
-        _btnApToggle.Click += (_, _) => DoToggleApConnection();
-        _btnChatSend.Click += (_, _) => DoSendChatMessage();
-        _txtChatInput.KeyDown += (_, e) =>
+        _view.AttachButtonClicked += DoToggleAttach;
+        _view.ApButtonClicked += DoToggleApConnection;
+        _view.ApValueClicked += () =>
         {
-            if (e.KeyCode != Keys.Enter)
-                return;
-            e.SuppressKeyPress = true;
-            DoSendChatMessage();
+            _session.ToggleConnectionInfoHidden();
+            RefreshView();
         };
+        _view.ChatSubmitted += DoSendChatMessage;
+        _view.ForceSeedClicked += () => _session.SubmitChat("/force_seed");
 
         _session.Start();
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        TrackerTheme.UseDarkTitleBar(this);
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -188,95 +82,16 @@ public sealed class MainForm : Form
         base.OnFormClosed(e);
     }
 
-    private void BuildLayout()
+    private void DoToggleAttach()
     {
-        var buttonRow = new FlowLayoutPanel
+        if (!_session.Memory.IsAttached)
         {
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            AutoSize = true,
-            Anchor = AnchorStyles.Left,
-            Margin = new Padding(0),
-        };
-        buttonRow.Controls.Add(_btnAttach);
-        buttonRow.Controls.Add(_btnApToggle);
-
-        var statusPanel = new TableLayoutPanel
-        {
-            ColumnCount = 1,
-            RowCount = 2,
-            AutoSize = true,
-            Anchor = AnchorStyles.Right,
-            Margin = new Padding(0),
-        };
-        statusPanel.Controls.Add(_lblFooterAp, 0, 0);
-        statusPanel.Controls.Add(_lblFooterAttach, 0, 1);
-
-        var footerPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Bottom,
-            ColumnCount = 2,
-            RowCount = 1,
-            AutoSize = true,
-            Padding = new Padding(8, 4, 8, 6),
-        };
-        footerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        footerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        footerPanel.Controls.Add(buttonRow, 0, 0);
-        footerPanel.Controls.Add(statusPanel, 1, 0);
-
-        var chatRow = new Panel { Dock = DockStyle.Bottom, Height = 30, Padding = new Padding(4, 2, 4, 2) };
-        chatRow.Controls.Add(_btnChatSend);
-        chatRow.Controls.Add(_txtChatInput);
-
-        _infoPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        _infoPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        _lblInfoRoom.Margin = new Padding(0, 0, 16, 8);
-        _lblInfoMail.Margin = new Padding(0, 0, 0, 8);
-        _lblInfoChecks.Margin = new Padding(0, 0, 16, 0);
-        _lblInfoStations.Margin = new Padding(0);
-        _infoPanel.Controls.Add(_lblInfoRoom, 0, 0);
-        _infoPanel.Controls.Add(_lblInfoMail, 1, 0);
-        _infoPanel.Controls.Add(_lblInfoChecks, 0, 1);
-        _infoPanel.Controls.Add(_lblInfoStations, 1, 1);
-        _lblInfoParrot.Margin = new Padding(0, 8, 0, 0);
-        _infoPanel.Controls.Add(_lblInfoParrot, 0, 2);
-        _infoPanel.SetColumnSpan(_lblInfoParrot, 2);
-
-        foreach ((RoomRequirement requirement, string heading, string[] cards) in RoomAccessGroups)
-        {
-            var headingLabel = new Label { Text = heading, AutoSize = true, Font = new Font(RoomAccessFont, FontStyle.Bold), Margin = new Padding(0, 6, 0, 4) };
-            _roomRequirementLabels[requirement] = headingLabel;
-            _roomAccessPanel.Controls.Add(headingLabel);
-
-            // Each room is a ✔/✖ mark and a name in separate labels, so the two can be colored differently
-            foreach (string card in cards)
-            {
-                var row = new FlowLayoutPanel
-                {
-                    FlowDirection = FlowDirection.LeftToRight,
-                    WrapContents = false,
-                    AutoSize = true,
-                    Margin = new Padding(14, 0, 0, 4),
-                    Padding = new Padding(0),
-                };
-                var mark = new Label { AutoSize = true, Font = RoomAccessFont, Margin = new Padding(0, 0, 2, 0) };
-                var name = new Label { Text = AccessCardDisplayName(card), AutoSize = true, Font = RoomAccessFont, Margin = new Padding(0) };
-                row.Controls.Add(mark);
-                row.Controls.Add(name);
-                _roomAccessLabels[card] = (mark, name);
-                _roomAccessPanel.Controls.Add(row);
-            }
+            _session.Attach();
+            return;
         }
 
-        // Docking runs from the last-added control inward: footer, seed warning and info area across the full width,
-        // then the room access panel down the right side, leaving the chat row and log to share what remains on the left
-        Controls.Add(_txtServerLog);
-        Controls.Add(chatRow);
-        Controls.Add(_roomAccessPanel);
-        Controls.Add(_infoPanel);
-        Controls.Add(_lblInfoSaveSeedMismatch);
-        Controls.Add(footerPanel);
+        _session.Detach();
+        AppendServerLog("CLIENT: Detached - room and item locks are off until you attach again", bold: false);
     }
 
     private void DoToggleApConnection()
@@ -293,149 +108,115 @@ public sealed class MainForm : Form
             _session.Connect(dlg.Server, dlg.Slot, dlg.Password);
     }
 
-    private void DoSendChatMessage()
+    private void DoSendChatMessage(string text)
     {
-        string text = _txtChatInput.Text.Trim();
-        if (text.Length == 0)
-            return;
-
         bool ok = _session.SubmitChat(text);
         if (ok)
-            _txtChatInput.Clear();
+            _view.ClearChatInput();
         else
             AppendServerLog("CLIENT: Not connected - message not sent", bold: false);
     }
 
-    /// <summary>Appends a line to the normal UI's server-only log.</summary>
-    private void AppendServerLog(string line, bool bold)
+    private void AppendServerLog(string line, bool bold) => _view.AppendLog(new[] { (line, TrackerTheme.Text) }, bold);
+
+    private static IEnumerable<(string Text, Color Color)> LogParts(MessagePart[] parts) =>
+        parts.Select(part => (part.Text, LogColor(part)));
+
+    /// <summary>A message part's color, in the standard AP client's colors (Archipelago's data/client.kv). The library's
+    /// own palette differs from them, its green most of all. Plain text stays the normal text color.</summary>
+    private static Color LogColor(MessagePart part) => part.IsBackgroundColor ? TrackerTheme.Text : part.PaletteColor switch
     {
-        AppendServerLogParts(new[] { (line, SystemColors.WindowText) }, bold);
-    }
-
-    /// <summary>Appends an AP server message to the server-only log, each part in its AP palette color.</summary>
-    private void AppendServerLogMessage(MessagePart[] parts)
-    {
-        AppendServerLogParts(parts.Select(part => (part.Text, LogColor(part))), bold: false);
-    }
-
-    /// <summary>Appends one line built from differently colored pieces, trimming the oldest lines past the cap.</summary>
-    private void AppendServerLogParts(IEnumerable<(string Text, Color Color)> parts, bool bold)
-    {
-        _txtServerLog.SelectionStart = _txtServerLog.TextLength;
-        _txtServerLog.SelectionLength = 0;
-        _txtServerLog.SelectionFont = bold ? new Font(_txtServerLog.Font, FontStyle.Bold) : _txtServerLog.Font;
-        foreach ((string text, Color color) in parts)
-        {
-            _txtServerLog.SelectionColor = color;
-            _txtServerLog.AppendText(text);
-        }
-        _txtServerLog.SelectionColor = SystemColors.WindowText;
-        _txtServerLog.AppendText(Environment.NewLine);
-
-        // Cut the oldest lines in place rather than reassigning Lines, which would drop every line's colors
-        const int maxLines = 2000;
-        if (_txtServerLog.Lines.Length > maxLines)
-        {
-            _txtServerLog.ReadOnly = false; // a read-only RichTextBox ignores SelectedText edits
-            _txtServerLog.Select(0, _txtServerLog.GetFirstCharIndexFromLine(maxLines / 2));
-            _txtServerLog.SelectedText = "";
-            _txtServerLog.ReadOnly = true;
-            _txtServerLog.SelectionStart = _txtServerLog.TextLength;
-        }
-
-        _txtServerLog.ScrollToCaret();
-    }
-
-    /// <summary>A message part's color, from AP's palette but darkened where the dark-background original would be
-    /// hard to read on the log's white background. Plain text stays the normal text color.</summary>
-    private static Color LogColor(MessagePart part) => part.IsBackgroundColor ? SystemColors.WindowText : part.PaletteColor switch
-    {
-        PaletteColor.Black => Color.Black,
-        PaletteColor.Red => Color.Firebrick,
-        PaletteColor.Green => Color.Green,
-        PaletteColor.Blue => Color.Blue,
-        PaletteColor.Cyan => Color.DarkCyan,
-        PaletteColor.Magenta => Color.DarkMagenta,
-        PaletteColor.Yellow => Color.DarkGoldenrod,
-        PaletteColor.SlateBlue => Color.SlateBlue,
-        PaletteColor.Salmon => Color.IndianRed,
-        PaletteColor.Plum => Color.DarkOrchid,
-        _ => SystemColors.WindowText, // White or unspecified - plain text
+        PaletteColor.Black => ColorTranslator.FromHtml("#000000"),
+        PaletteColor.Red => ColorTranslator.FromHtml("#EE0000"),
+        PaletteColor.Green => ColorTranslator.FromHtml("#00FF7F"),
+        PaletteColor.Yellow => ColorTranslator.FromHtml("#FAFAD2"),
+        PaletteColor.Blue => ColorTranslator.FromHtml("#6495ED"),
+        PaletteColor.Magenta => ColorTranslator.FromHtml("#EE00EE"),
+        PaletteColor.Cyan => ColorTranslator.FromHtml("#00EEEE"),
+        PaletteColor.SlateBlue => ColorTranslator.FromHtml("#6D8BE8"),
+        PaletteColor.Plum => ColorTranslator.FromHtml("#AF99EF"),
+        PaletteColor.Salmon => ColorTranslator.FromHtml("#FA8072"),
+        _ => TrackerTheme.Text, // White or unspecified - plain text
     };
 
-    private void UpdateFooterAttachStatus()
+    /// <summary>Sorts the slot's location names under their rooms by name prefix, and reads the seed's logic. Empty
+    /// while not connected.</summary>
+    private void RebuildSlotData()
     {
-        if (_session.Memory.IsAttached)
-        {
-            _lblFooterAttach.Text = $"✔ Attached to Starship Titanic (PID {_session.Memory.ProcessId})";
-            _lblFooterAttach.ForeColor = Color.Green;
-        }
-        else
-        {
-            _lblFooterAttach.Text = "✖ Not attached to a game instance";
-            _lblFooterAttach.ForeColor = Color.Red;
-        }
-    }
+        _logic = SlotLogic.TryRead(_session.Ap.SlotData);
+        _evaluatedItemCount = -1;
+        _roomLocationNames.Clear();
 
-    private void UpdateFooterApStatus()
-    {
-        switch (_session.Ap.State)
+        string[] allLocations = _session.Ap.GetAllLocationNames();
+        foreach (RoomDefinition room in RoomTiles.Decks.SelectMany(deck => deck.Rooms))
         {
-            case ApConnectionState.Connected:
-                _lblFooterAp.Text = "✔ Connected to Archipelago";
-                _lblFooterAp.ForeColor = Color.Green;
-                break;
-            case ApConnectionState.Connecting:
-                _lblFooterAp.Text = "Connecting...";
-                _lblFooterAp.ForeColor = Color.Goldenrod;
-                break;
-            case ApConnectionState.Disconnected:
-            case ApConnectionState.ConnectionFailed:
-            default:
-                _lblFooterAp.Text = "✖ Not connected to an Archipelago server";
-                _lblFooterAp.ForeColor = Color.Red;
-                break;
+            _roomLocationNames[room] = allLocations
+                .Where(location => room.LocationPrefixes.Any(prefix => location.StartsWith(prefix + " - ", StringComparison.Ordinal)))
+                .ToArray();
         }
     }
 
-    /// <summary>Sets the information area's room line to the given engine room name's readable form.</summary>
-    private void UpdateInfoRoom(string roomName)
+    /// <summary>Works out what the window should show and passes it to the view, which skips anything unchanged - this
+    /// runs on every tick while playing.</summary>
+    private void RefreshView()
     {
-        _lblInfoRoom.Text = $"Room: {LocationChecks.GetReadableRoomName(roomName)}";
+        bool attached = _session.Memory.IsAttached;
+        bool connected = _session.Ap.State == ApConnectionState.Connected;
+        string[] receivedItems = _session.Ap.GetReceivedItemNames();
+        int? passengerClass = CurrentPassengerClass(connected, receivedItems);
+        bool titaniaRepaired = connected && _session.Ap.IsLocationCheckedOrQueued(ClassSync.TitaniaRepairedLocation);
+
+        if (connected && _logic is not null && _evaluatedItemCount != receivedItems.Length)
+        {
+            _evaluation = _logic.Evaluate(receivedItems);
+            _evaluatedItemCount = receivedItems.Length;
+        }
+
+        (string apValue, Color apColor, bool apError) = _session.Ap.State switch
+        {
+            ApConnectionState.Connected => (_session.Connection.HideConnectionInfo ? "✔ Connected (click to show)" : $"✔ {_session.Ap.SlotName} @ {_session.Connection.Server}", TrackerTheme.Text, false),
+            ApConnectionState.Connecting => ("Connecting...", TrackerTheme.Accent, false),
+            _ => ("✖ Not connected", TrackerTheme.Error, true),
+        };
+        bool directToInventory = ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData);
+        int mailCount = attached ? _mailCount : 0;
+        bool? goMode = connected && _logic is not null ? _evaluation?.GoalReachable : null; // null without logic to go by
+        UpdateHereRoom();
+
+        _view.Apply(new TrackerState(
+            attached ? $"✔ Attached (PID {_session.Memory.ProcessId})" : "✖ Not attached",
+            !attached,
+            attached ? "Detach" : "Attach",
+            apValue,
+            apColor,
+            connected,
+            apError,
+            _session.Ap.State is ApConnectionState.Connected or ApConnectionState.Connecting ? "Disconnect" : "Connect to AP...",
+            _session.Ap.State != ApConnectionState.Connecting,
+            goMode switch { true => "Yes", false => "No", null => "-" },
+            goMode == true,
+            directToInventory ? "ITEM DELIVERY MODE" : "SUCC-U-BUS",
+            directToInventory ? "Direct" : $"{mailCount} waiting",
+            !directToInventory && mailCount > 0,
+            PassengerClassLabel(passengerClass),
+            _session.Options.EnforceSaveSeedGuard && _session.SaveSeedGuardState == SaveSeedGuardState.Blocked,
+            RoomTiles.Decks.Select(deck => BuildDeck(deck, connected, receivedItems, passengerClass, titaniaRepaired)).ToArray(),
+            BuildHere(connected),
+            BuildGoal(attached, connected, receivedItems)));
     }
 
-    /// <summary>Sets the information area's mail line to the current count of tool-placed AP items sitting in the mail
-    /// system, or to a fixed notice when the seed delivers items straight to the inventory.</summary>
-    private void UpdateInfoMailCount(int count)
+    /// <summary>The player's class: what AP says while connected (the game's own value can be spoofed for a room), or
+    /// else what the game says, while attached. Null if neither knows.</summary>
+    private int? CurrentPassengerClass(bool connected, string[] receivedItems)
     {
-        _lastMailCount = count;
-        _lblInfoMail.Text = ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData)
-            ? "Direct to Inventory item mode enabled"
-            : $"Succ-U-Bus has {count} AP item{(count == 1 ? "" : "s")} ready for delivery";
-    }
-
-    /// <summary>Sets the information area's "Checks: x/y" and "Visited Succ-U-Bus Stations (x/y)" lines.</summary>
-    private void UpdateInfoChecks()
-    {
-        if (_session.Ap.GetLocationCheckSummary() is { } overall)
-            _lblInfoChecks.Text = $"Checks: {overall.Checked}/{overall.Total}";
-        else
-            _lblInfoChecks.Text = "Checks: -/-";
-
-        if (_session.Ap.GetLocationCheckSummary(LocationChecks.SuccUBusStationLocationNames) is { } stations)
-            _lblInfoStations.Text = $"Visited Succ-U-Bus Stations ({stations.Checked}/{stations.Total})";
-        else
-            _lblInfoStations.Text = "Visited Succ-U-Bus Stations (-/-)";
-    }
-
-    /// <summary>Sets the information area's Parrot Hunt line (the clues revealed so far), shown only for
-    /// that goal.</summary>
-    private void UpdateInfoParrot()
-    {
-        string? clues = ParrotHuntSync.DescribeClues(_session.Ap);
-        _lblInfoParrot.Visible = clues is not null;
-        if (clues is not null)
-            _lblInfoParrot.Text = $"Parrot Hunt: {clues}";
+        if (connected && _session.Ap.SlotData is { } slotData)
+        {
+            int? fromAp = ClassUpgradeTracker.IsVanilla(slotData) ? ClassFromUpgradeChecks() : ClassUpgradeTracker.ComputeClass(receivedItems, slotData);
+            return fromAp ?? (int)PassengerClass.Third;
+        }
+        return _session.GamePassengerClass is (int)PassengerClass.First or (int)PassengerClass.Second or (int)PassengerClass.Third
+            ? _session.GamePassengerClass
+            : null;
     }
 
     /// <summary>The class reached through the DeskBot's own upgrades, for seeds with vanilla class upgrades.</summary>
@@ -450,117 +231,164 @@ public sealed class MainForm : Form
         return null;
     }
 
-    /// <summary>Marks the right-hand Room Access panel. Each requirement heading gets a green ✔ once met (passenger
-    /// class from received upgrades, or Titania repaired) and a red ✖ until then. Each room is green once all its
-    /// checks are done, whether or not it's accessible; otherwise a red ✖ while its required Access Card hasn't been
-    /// received, a yellow ✔ when the card is in hand (or not required) but its heading isn't met yet, and a plain ✔
-    /// when both are. Plain names while not connected.</summary>
-    private void UpdateRoomAccess()
+    private static string PassengerClassLabel(int? passengerClass) => passengerClass switch
     {
-        bool connected = _session.Ap.State == ApConnectionState.Connected;
-        IReadOnlyDictionary<string, object>? slotData = _session.Ap.SlotData;
-        HashSet<string> requiredCards = RoomKeys.GetRequiredCards(slotData);
-        string[] receivedItems = _session.Ap.GetReceivedItemNames();
-        int? passengerClass = slotData is null ? null
-            : ClassUpgradeTracker.IsVanilla(slotData) ? ClassFromUpgradeChecks()
-            : ClassUpgradeTracker.ComputeClass(receivedItems, slotData);
+        (int)PassengerClass.First => "1st Class",
+        (int)PassengerClass.Second => "2nd Class",
+        (int)PassengerClass.Third => "SGT Class",
+        _ => "-",
+    };
 
-        foreach ((RoomRequirement requirement, string heading, string[] cards) in RoomAccessGroups)
+    private DeckState BuildDeck(DeckDefinition deck, bool connected, string[] receivedItems, int? passengerClass, bool titaniaRepaired)
+    {
+        bool isReached = deck.Label switch
         {
-            bool met = requirement switch
-            {
-                RoomRequirement.SecondClass => passengerClass is (int)PassengerClass.Second or (int)PassengerClass.First,
-                RoomRequirement.FirstClass => passengerClass is (int)PassengerClass.First,
-                RoomRequirement.TitaniaRepaired => _session.Ap.IsLocationCheckedOrQueued(ClassSync.TitaniaRepairedLocation),
-                _ => true,
-            };
-
-            if (!connected)
-                SetStatusLabel(_roomRequirementLabels[requirement], heading, SystemColors.ControlText);
-            else
-                SetStatusLabel(_roomRequirementLabels[requirement], $"{(met ? "✔" : "✖")} {heading}", met ? Color.Green : Color.Red);
-
-            foreach (string card in cards)
-            {
-                (Label markLabel, Label nameLabel) = _roomAccessLabels[card];
-                string name = AccessCardDisplayName(card);
-                bool allChecked = false;
-                string toolTip = "";
-                if (_roomLocationNames.TryGetValue(card, out string[]? locations)
-                    && _session.Ap.GetLocationCheckSummary(locations) is { Total: > 0 } summary)
-                {
-                    name += $" ({summary.Checked}/{summary.Total})";
-                    allChecked = summary.Checked == summary.Total;
-                    toolTip = string.Join(Environment.NewLine, locations.Where(location => !_session.Ap.IsLocationChecked(location)));
-                }
-                foreach (Label label in new[] { markLabel, nameLabel })
-                {
-                    if (_roomAccessToolTip.GetToolTip(label) != toolTip)
-                        _roomAccessToolTip.SetToolTip(label, toolTip);
-                }
-
-                bool hasCard = !requiredCards.Contains(card) || receivedItems.Contains(card, StringComparer.OrdinalIgnoreCase);
-                (string mark, Color markColor, Color nameColor) = true switch
-                {
-                    _ when !connected => ("", SystemColors.ControlText, SystemColors.ControlText),
-                    _ when allChecked => (hasCard ? "✔" : "✖", Color.Green, Color.Green),
-                    _ when !hasCard => ("✖", Color.Red, Color.Red),
-                    _ when !met => ("✔", Color.Goldenrod, Color.Red),
-                    _ => ("✔", SystemColors.ControlText, SystemColors.ControlText),
-                };
-                SetStatusLabel(markLabel, mark, markColor);
-                SetStatusLabel(nameLabel, name, nameColor);
-            }
-        }
+            "BRIDGE" => titaniaRepaired,
+            "1ST" => passengerClass is (int)PassengerClass.First,
+            "2ND" => passengerClass is (int)PassengerClass.First or (int)PassengerClass.Second,
+            _ => passengerClass is not null,
+        };
+        return new DeckState(isReached, deck.Rooms.Select(room => BuildRoom(room, connected, receivedItems, passengerClass, titaniaRepaired)).ToArray());
     }
 
-    /// <summary>Sorts the slot's location names under the Access Card of the room each is in, by name prefix.
-    /// Empty while not connected.</summary>
-    private void RebuildRoomLocationNames()
+    /// <summary>A room's dots and tag. Just its name while not connected, since nothing about the seed is known.</summary>
+    private RoomTileState BuildRoom(RoomDefinition room, bool connected, string[] receivedItems, int? passengerClass, bool titaniaRepaired)
     {
-        _roomLocationNames.Clear();
-        string[] allLocations = _session.Ap.GetAllLocationNames();
-        if (allLocations.Length == 0)
+        bool isHere = room == _hereRoom;
+        if (!connected || !_roomLocationNames.TryGetValue(room, out string[]? locations))
+            return new RoomTileState(room.Name, Array.Empty<CheckPip>(), "", false, isHere, false);
+
+        CheckPip[] checks = locations.Select(BuildCheck).OrderBy(check => check.Status).ToArray();
+        int total = checks.Length;
+        int checkedCount = checks.Count(check => check.Status == CheckStatus.Checked);
+        int inLogic = checks.Count(check => check.Status == CheckStatus.InLogic);
+
+        HashSet<string> requiredCards = RoomKeys.GetRequiredCards(_session.Ap.SlotData);
+        bool hasCard = room.Card is null || !requiredCards.Contains(room.Card) || receivedItems.Contains(room.Card, StringComparer.OrdinalIgnoreCase);
+        bool classMet = room.Requirement switch
+        {
+            RoomRequirement.SecondClass => passengerClass is (int)PassengerClass.First or (int)PassengerClass.Second,
+            RoomRequirement.FirstClass => passengerClass is (int)PassengerClass.First,
+            _ => true,
+        };
+
+        string? lockReason = true switch
+        {
+            _ when room.Requirement == RoomRequirement.TitaniaRepaired && !titaniaRepaired => "Needs Titania",
+            _ when !hasCard => "Locked",
+            _ when !classMet => "", // the deck's row already shows the class it needs
+            _ => null,
+        };
+
+        string tag = true switch
+        {
+            _ when total == 0 => "No checks",
+            _ when checkedCount == total => "Complete",
+            _ when lockReason is not null => lockReason,
+            _ when _logic is null => $"{checkedCount}/{total}", // an older seed, without logic to go by
+            _ => $"{inLogic} in logic",
+        };
+        return new RoomTileState(room.Name, checks, tag, lockReason is not null, isHere, !hasCard);
+    }
+
+    /// <summary>A check's dot. Every unchecked check is locked on an older seed, without logic to go by.</summary>
+    private CheckPip BuildCheck(string location)
+    {
+        if (_session.Ap.IsLocationChecked(location))
+            return new CheckPip(location, CheckStatus.Checked, Array.Empty<string>());
+        if (_logic is null || _evaluation is null)
+            return new CheckPip(location, CheckStatus.Locked, Array.Empty<string>());
+        if (_evaluation.Reachable.Contains(location))
+            return new CheckPip(location, CheckStatus.InLogic, Array.Empty<string>());
+        return new CheckPip(location, CheckStatus.Locked, _evaluation.MissingItems.GetValueOrDefault(location, Array.Empty<string>()));
+    }
+
+    /// <summary>Moves the highlight to the tile of the room the player's in. A room without a tile, like an elevator,
+    /// leaves it where it is. Cleared while the player's room isn't known, which includes each new attach.</summary>
+    private void UpdateHereRoom()
+    {
+        if (_session.CurrentRoomName is not { } roomName || !_session.Memory.IsAttached)
+        {
+            _hereRoom = null;
             return;
-
-        foreach (string card in _roomAccessLabels.Keys)
-        {
-            string[] prefixes = RoomLocationPrefixes.TryGetValue(card, out string[]? custom) ? custom : new[] { AccessCardDisplayName(card) };
-            _roomLocationNames[card] = allLocations
-                .Where(location => prefixes.Any(prefix => location.StartsWith(prefix + " - ", StringComparison.Ordinal)))
-                .ToArray();
         }
+
+        string prefix = LocationChecks.GetReadableRoomName(roomName);
+        _hereRoom = RoomTiles.Decks.SelectMany(deck => deck.Rooms)
+            .FirstOrDefault(room => room.LocationPrefixes.Contains(prefix, StringComparer.Ordinal)) ?? _hereRoom;
     }
 
-    /// <summary>Sets a label's text and color, skipping unchanged values - UpdateRoomAccess runs every tick.</summary>
-    private static void SetStatusLabel(Label label, string text, Color color)
+    /// <summary>The highlighted tile's room and the checks still to get there.</summary>
+    private HereState BuildHere(bool connected)
     {
-        if (label.Text != text)
-            label.Text = text;
-        if (label.ForeColor != color)
-            label.ForeColor = color;
+        if (_hereRoom is null)
+            return new HereState("Unknown", Array.Empty<CheckPip>(), "Waiting for the game");
+        if (!connected || !_roomLocationNames.TryGetValue(_hereRoom, out string[]? locations))
+            return new HereState(_hereRoom.Name, Array.Empty<CheckPip>(), "Not connected to AP");
+
+        CheckPip[] checks = locations
+            .Select(location => BuildCheck(location) with { Name = ShortCheckName(location, locations) })
+            .Where(check => check.Status != CheckStatus.Checked)
+            .OrderBy(check => check.Status)
+            .ToArray();
+        return new HereState(_hereRoom.Name, checks, locations.Length == 0 ? "No checks here" : "All checks complete");
     }
 
-    /// <summary>The card's item name without the " Access Card" suffix - redundant under the panel's heading.</summary>
-    private static string AccessCardDisplayName(string card)
+    /// <summary>A check's name without its room. Tiles can cover more than one room, so a name that's used twice under
+    /// the tile keeps the last word of its room, like "Lobby - Visited".</summary>
+    private static string ShortCheckName(string location, string[] tileLocations)
     {
-        const string suffix = " Access Card";
-        return card.EndsWith(suffix, StringComparison.Ordinal) ? card[..^suffix.Length] : card;
+        const string separator = " - ";
+        int split = location.IndexOf(separator, StringComparison.Ordinal);
+        if (split < 0)
+            return location;
+
+        string name = location[(split + separator.Length)..];
+        if (tileLocations.Count(other => other.EndsWith(separator + name, StringComparison.Ordinal)) < 2)
+            return name;
+
+        string room = location[..split];
+        return room[(room.LastIndexOf(' ') + 1)..] + separator + name;
     }
 
-    /// <summary>Swaps the info area between the normal room/mail/checks/stations labels and a single centered
-    /// warning when AP syncing is paused because the attached save doesn't match the connected AP seed.</summary>
-    private void UpdateInfoAreaSaveSeedGuard()
+    /// <summary>The found clues, as they were or would have been announced. None until the seed's known, since it picks the lines.</summary>
+    private ClueEntry[] BuildClues(ParrotHuntInfo info, int clues)
     {
-        bool mismatch = _session.Options.EnforceSaveSeedGuard && _session.SaveSeedGuardState == SaveSeedGuardState.Blocked;
-        _infoPanel.Visible = !mismatch;
-        _lblInfoSaveSeedMismatch.Visible = mismatch;
+        if (_session.Ap.SeedName is not { } seedName || _session.Ap.SlotName is not { } slotName)
+            return Array.Empty<ClueEntry>();
+
+        var text = new ParrotHuntClueText(info, seedName, slotName);
+        return Enumerable.Range(1, clues)
+            .Select(clue => new ClueEntry(clue, text.LineFor(clue), info.DiscoveryAt(clue)))
+            .ToArray();
     }
 
-    private void UpdateApToggleButton()
+    private GoalState BuildGoal(bool attached, bool connected, string[] receivedItems)
     {
-        bool connectedOrConnecting = _session.Ap.State is ApConnectionState.Connected or ApConnectionState.Connecting;
-        _btnApToggle.Text = connectedOrConnecting ? "Disconnect" : "Connect to AP...";
-        _btnApToggle.Enabled = _session.Ap.State != ApConnectionState.Connecting;
+        if (ParrotHuntTracker.TryRead(_session.Ap.KnownSlotData) is { } info)
+        {
+            int clues = info.CountClues(receivedItems);
+            return new GoalState.Parrot(
+                info.IsRevealed("elevator", clues) ? info.Elevator : null,
+                info.IsRevealed("floor", clues) ? info.Floor : null,
+                info.IsRevealed("room", clues) ? info.Room : null,
+                clues,
+                info.TotalClues,
+                BuildClues(info, clues));
+        }
+
+        // In hand can only be read from the game, so until attached a received part stays "in the mail", or under
+        // Direct To Inventory, which has no mail to wait in, not received
+        bool usesMail = !ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData);
+        PartState[] parts = TitaniaParts.All.Select(part => true switch
+        {
+            _ when !connected || !receivedItems.Contains(part.ApItemName, StringComparer.OrdinalIgnoreCase) => PartState.NotReceived,
+            _ when _session.TitaniaPartsInHand.Contains(part.ApItemName) => PartState.InHand,
+            _ => usesMail ? PartState.InMail : PartState.NotReceived,
+        }).ToArray();
+        return new GoalState.Titania(
+            parts,
+            connected && attached ? parts.Count(p => p == PartState.InHand) : null,
+            usesMail);
     }
 }

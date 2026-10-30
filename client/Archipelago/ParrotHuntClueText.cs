@@ -89,6 +89,9 @@ public sealed class ParrotHuntClueText
         return order[(number - 1) % order.Length];
     }
 
+    /// <summary>The line for reaching exactly <paramref name="clues"/> Progressive Clues: a real clue at a threshold, or else a red herring.</summary>
+    public string LineFor(int clues) => _info.PartRevealedAt(clues) is { } part ? Clue(part) : RedHerring(clues);
+
     /// <summary>A generator seeded from the slot and <paramref name="purpose"/>. Ensures line picks are unique and
     /// consistent across a run.</summary>
     private Random RandomFor(string purpose)

@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace StarshipTitanicAp;
 
-/// <summary>Persists the last-used Archipelago server/slot/password to a small JSON file in the user's local app data folder.</summary>
+/// <summary>Persists the last-used Archipelago server/slot/password, and whether the main window hides them, to a small JSON file in the user's local app data folder.</summary>
 public static class ConnectionSettings
 {
     private static readonly string FilePath = Path.Combine(
@@ -15,6 +15,7 @@ public static class ConnectionSettings
         public string Server { get; set; } = "";
         public string Slot { get; set; } = "";
         public string Password { get; set; } = "";
+        public bool HideConnectionInfo { get; set; } = true;
     }
 
     /// <summary>Loads the last-saved connection info, or an empty Data if none has been saved yet or the file couldn't be read.</summary>

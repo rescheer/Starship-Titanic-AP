@@ -5,7 +5,14 @@ from typing import Dict, List
 
 from BaseClasses import Region # pyright: ignore[reportMissingImports]
 
-from .locations import CLASS_UPGRADE_CHECKS, CLASS_UPGRADE_EVENT_LOCATIONS, location_table, StarshipTitanicLocation
+from .locations import (
+    AUDITORY_CENTER_ITEM,
+    AUDITORY_CENTER_LOCATION,
+    CLASS_UPGRADE_CHECKS,
+    CLASS_UPGRADE_EVENT_LOCATIONS,
+    location_table,
+    StarshipTitanicLocation,
+)
 from .options import Goal
 from .parrot_hunt import PARROT_HUNT_GOAL_LOCATION, PARROT_HUNT_REMOVED_LOCATIONS, STATEROOM_REGIONS
 
@@ -91,10 +98,15 @@ def create_regions(world) -> None:
                 continue  # created below, in the chosen stateroom's region
             if world.class_upgrades_locked and loc_name in CLASS_UPGRADE_EVENT_LOCATIONS:
                 continue
-            code = None if loc_data.event_item else world.location_name_to_id[loc_name]
+            is_auditory_center = loc_name == AUDITORY_CENTER_LOCATION
+            # Seeds from before the Auditory Center was a real check (Universal Tracker regenerating one)
+            is_event = loc_data.event_item or (is_auditory_center and not world.auditory_center_locked)
+            code = None if is_event else world.location_name_to_id[loc_name]
             location = StarshipTitanicLocation(player, loc_name, code, region)
             if loc_data.event_item:
                 location.place_locked_item(world.create_event(loc_data.event_item))
+            elif is_auditory_center:
+                location.place_locked_item((world.create_item if world.auditory_center_locked else world.create_event)(AUDITORY_CENTER_ITEM))
             elif world.class_upgrades_locked and loc_name in CLASS_UPGRADE_CHECKS:
                 location.place_locked_item(world.create_item(CLASS_UPGRADE_CHECKS[loc_name]))
             region.locations.append(location)

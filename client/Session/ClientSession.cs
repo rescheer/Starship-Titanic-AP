@@ -81,6 +81,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         _apConnection.StateChanged += (state, message) => RunOnUiThread(() => OnApStateChanged(state, message));
         _apConnection.MessageReceived += message => RunOnUiThread(() => OnApMessageReceived(message));
         _apConnection.ItemReceived += _ => RunOnUiThread(() => ItemReceived?.Invoke());
+        _apConnection.CheckedLocationsChanged += () => RunOnUiThread(() => CheckedLocationsChanged?.Invoke());
         _apConnection.CheckQueued += name =>
         {
             if (_apConnection.State != ApConnectionState.Connected)
@@ -107,6 +108,12 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     internal string? CurrentRoomName => _ctx.CurrentRoomName;
     internal SaveSeedGuardState SaveSeedGuardState => _saveSeedGuard.State;
 
+    /// <summary>The game's current PassengerClass value, or null until it's been read since attaching.</summary>
+    internal int? GamePassengerClass => _lastPassengerClass;
+
+    /// <summary>See <see cref="ItemSync.TitaniaPartsInHand"/>.</summary>
+    internal IReadOnlySet<string> TitaniaPartsInHand => _itemSync.TitaniaPartsInHand;
+
     // --- Events for the UI ---
 
     /// <summary>A user-facing action (or automatic sync step) finished: (succeeded, description).</summary>
@@ -124,6 +131,9 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     /// <summary>An AP server message for the player-facing server log, split into its colored parts.</summary>
     internal event Action<MessagePart[]>? ServerLogMessage;
 
+    /// <summary>An AP server message about an item sent to or from this slot, or a hint involving it.</summary>
+    internal event Action<MessagePart[]>? ActivePlayerMessage;
+
     /// <summary>A tracked game address was resolved or cleared: (label, address or null).</summary>
     internal event Action<string, long?>? AddressChanged;
 
@@ -132,7 +142,9 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
 
     internal event Action<ApConnectionState, string>? ApStateChanged;
     internal event Action? ItemReceived;
+    internal event Action? CheckedLocationsChanged;
     internal event Action? PendingChecksChanged;
+    internal event Action? TitaniaPartsChanged;
 
     /// <summary>Items were moved around in the game tree; any item listing is stale.</summary>
     internal event Action? ItemsChanged;
@@ -187,8 +199,16 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
 
     internal void Connect(string server, string slot, string password)
     {
-        Connection = new ConnectionSettings.Data { Server = server.Trim(), Slot = slot.Trim(), Password = password };
+        Connection = new ConnectionSettings.Data { Server = server.Trim(), Slot = slot.Trim(), Password = password, HideConnectionInfo = Connection.HideConnectionInfo };
         _ = _apConnection.ConnectAsync(Connection.Server, Connection.Slot, Connection.Password);
+    }
+
+    /// <summary>Hides or shows the slot and server in the main window. Saves <see cref="Connection"/>, so it's only for
+    /// while connected: a server/slot/password that hasn't connected yet shouldn't be saved.</summary>
+    internal void ToggleConnectionInfoHidden()
+    {
+        Connection.HideConnectionInfo = !Connection.HideConnectionInfo;
+        ConnectionSettings.Save(Connection);
     }
 
     public void Dispose()
@@ -242,6 +262,8 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         string text = message.ToString();
         AppendLog($"AP: {text}");
         ServerLogMessage?.Invoke(message.Parts);
+        if (message is ItemSendLogMessage { IsRelatedToActivePlayer: true })
+            ActivePlayerMessage?.Invoke(message.Parts);
 
         if (!_mem.IsAttached)
             return;
@@ -324,6 +346,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     void ISessionReporter.NotifyPendingChecksChanged() => NotifyPendingChecksChanged();
     void ISessionReporter.NotifyItemsChanged() => NotifyItemsChanged();
     void ISessionReporter.NotifyMailChanged() => InvalidateMail();
+    void ISessionReporter.NotifyTitaniaPartsChanged() => TitaniaPartsChanged?.Invoke();
 
     private void ReportAddress(string label, long? value) => AddressChanged?.Invoke(label, value);
 

@@ -151,6 +151,9 @@ public sealed class ArchipelagoConnection : IDisposable
     /// <summary>Fires once per item as it's received.</summary>
     public event Action<string>? ItemReceived;
 
+    /// <summary>Fires when the server reports more of this slot's locations as checked, whoever checked them.</summary>
+    public event Action? CheckedLocationsChanged;
+
     /// <summary>Fires when a location check is newly added to the pending-check queue.</summary>
     public event Action<string>? CheckQueued;
 
@@ -215,6 +218,8 @@ public sealed class ArchipelagoConnection : IDisposable
             }
             ItemReceived?.Invoke(name);
         };
+
+        session.Locations.CheckedLocationsUpdated += _ => CheckedLocationsChanged?.Invoke();
 
         LoginResult result;
         try

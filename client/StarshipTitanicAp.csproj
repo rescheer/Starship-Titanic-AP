@@ -13,10 +13,12 @@
     <!-- Bump for each release -->
     <Version>0.4.1</Version>
     <Product>Starship Titanic AP Client</Product>
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Archipelago.MultiClient.Net" Version="6.7.1" />
+    <EmbeddedResource Include="app.ico" LogicalName="app.ico" />
   </ItemGroup>
 
 </Project>

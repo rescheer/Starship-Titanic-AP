@@ -25,4 +25,9 @@ public static class AppInfo
     }
 
     public static string TitleBarText => $"{DisplayName} v{Version}";
+
+    /// <summary>
+    /// The icon shown in each window's title bar and on the taskbar.
+    /// </summary>
+    public static Icon AppIcon { get; } = new(Assembly.GetExecutingAssembly().GetManifestResourceStream("app.ico")!);
 }

@@ -37,6 +37,15 @@ public sealed record ParrotHuntInfo(
         return index >= 0 && index < ClueOrder.Length ? ClueOrder[index] : null;
     }
 
+    /// <summary>What's revealed on reaching exactly <paramref name="clues"/> Progressive Clues, like "Floor 23", if anything.</summary>
+    public string? DiscoveryAt(int clues) => PartRevealedAt(clues) switch
+    {
+        "elevator" => $"Elevator {Elevator}",
+        "floor" => $"Floor {Floor}",
+        "room" => $"Room {Room}",
+        _ => null,
+    };
+
     public string ClassName => PassengerClass == (int)StarshipTitanicAp.PassengerClass.First ? "1st Class" : "2nd Class";
 
     /// <summary>One line summing up the clues so far, e.g. "2nd Class, Elevator ?, Floor 23, Room 2".</summary>
@@ -45,6 +54,29 @@ public sealed record ParrotHuntInfo(
         string Part(string part, string label, int value) => $"{label} {(IsRevealed(part, clues) ? value.ToString() : "?")}";
         string classText = ClassIsFixed || IsRevealed("floor", clues) ? $"{ClassName}, " : "";
         return $"{classText}{Part("elevator", "Elevator", Elevator)}, {Part("floor", "Floor", Floor)}, {Part("room", "Room", Room)}";
+    }
+
+    /// <summary>How many staterooms the clues so far still allow, going by the same rooms as valid_rooms in
+    /// apworld/starship_titanic/parrot_hunt.py. Each part narrows the others: only 2nd Class even elevators have a room 4.</summary>
+    public int CountPossibleRooms(int clues)
+    {
+        int count = 0;
+        for (int floor = 2; floor <= 27; floor++)
+        {
+            int passengerClass = floor < 20 ? (int)StarshipTitanicAp.PassengerClass.First : (int)StarshipTitanicAp.PassengerClass.Second;
+            if ((ClassIsFixed && passengerClass != PassengerClass) || (IsRevealed("floor", clues) && floor != Floor))
+                continue;
+
+            for (int elevator = 1; elevator <= 4; elevator++)
+            {
+                if (IsRevealed("elevator", clues) && elevator != Elevator)
+                    continue;
+
+                int rooms = passengerClass == (int)StarshipTitanicAp.PassengerClass.Second && elevator % 2 == 0 ? 4 : 3;
+                count += !IsRevealed("room", clues) ? rooms : Room <= rooms ? 1 : 0;
+            }
+        }
+        return count;
     }
 }
 
