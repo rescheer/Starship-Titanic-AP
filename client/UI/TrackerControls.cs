@@ -455,8 +455,11 @@ internal sealed class ConnectionTile : TrackerControl
     private string _value = "";
     private Color _valueColor = TrackerTheme.Text;
     private bool _hasError;
+    private bool _valueClickable;
 
     public Button Button { get; } = new();
+
+    public event Action? ValueClicked;
 
     public ConnectionTile(string label)
     {
@@ -465,7 +468,9 @@ internal sealed class ConnectionTile : TrackerControl
         Controls.Add(Button);
     }
 
-    public void Set(string value, Color valueColor, bool hasError, string buttonText, bool buttonEnabled)
+    private Rectangle ValueBounds => new(S(10), S(21), Button.Left - S(14), S(19));
+
+    public void Set(string value, Color valueColor, bool hasError, string buttonText, bool buttonEnabled, bool valueClickable = false)
     {
         if (Button.Text != buttonText)
         {
@@ -473,6 +478,11 @@ internal sealed class ConnectionTile : TrackerControl
             PerformLayout(); // the button is sized to its text
         }
         Button.Enabled = buttonEnabled;
+        if (_valueClickable != valueClickable)
+        {
+            _valueClickable = valueClickable;
+            UpdateCursor(PointToClient(Cursor.Position));
+        }
         if (value == _value && valueColor == _valueColor && hasError == _hasError)
             return;
         _value = value;
@@ -488,13 +498,35 @@ internal sealed class ConnectionTile : TrackerControl
         Button.SetBounds(Width - buttonWidth - S(8), (Height - S(30)) / 2, buttonWidth, S(30));
     }
 
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        UpdateCursor(e.Location);
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        UpdateCursor(new Point(-1, -1));
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        if (_valueClickable && e.Button == MouseButtons.Left && ValueBounds.Contains(e.Location))
+            ValueClicked?.Invoke();
+    }
+
+    private void UpdateCursor(Point location) =>
+        Cursor = _valueClickable && ValueBounds.Contains(location) ? Cursors.Hand : Cursors.Default;
+
     protected override void OnPaint(PaintEventArgs e)
     {
         FillTile(e.Graphics, TrackerTheme.Background, _hasError ? TrackerTheme.Error : TrackerTheme.Line);
-        int textWidth = Button.Left - S(14);
-        TextRenderer.DrawText(e.Graphics, _label, TrackerTheme.CaptionFont, new Rectangle(S(10), S(6), textWidth, S(14)),
+        Rectangle valueBounds = ValueBounds;
+        TextRenderer.DrawText(e.Graphics, _label, TrackerTheme.CaptionFont, new Rectangle(S(10), S(6), valueBounds.Width, S(14)),
             TrackerTheme.TextMuted, SingleLine);
-        TextRenderer.DrawText(e.Graphics, _value, TrackerTheme.BodyFont, new Rectangle(S(10), S(21), textWidth, S(19)),
+        TextRenderer.DrawText(e.Graphics, _value, TrackerTheme.BodyFont, valueBounds,
             _valueColor, SingleLine | TextFormatFlags.EndEllipsis);
     }
 }

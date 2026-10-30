@@ -58,6 +58,11 @@ public sealed class MainForm : Form
 
         _view.AttachButtonClicked += DoToggleAttach;
         _view.ApButtonClicked += DoToggleApConnection;
+        _view.ApValueClicked += () =>
+        {
+            _session.ToggleConnectionInfoHidden();
+            RefreshView();
+        };
         _view.ChatSubmitted += DoSendChatMessage;
         _view.ForceSeedClicked += () => _session.SubmitChat("/force_seed");
 
@@ -168,7 +173,7 @@ public sealed class MainForm : Form
 
         (string apValue, Color apColor, bool apError) = _session.Ap.State switch
         {
-            ApConnectionState.Connected => ($"✔ {_session.Ap.SlotName} @ {_session.Connection.Server}", TrackerTheme.Text, false),
+            ApConnectionState.Connected => (_session.Connection.HideConnectionInfo ? "✔ Connected (click to show)" : $"✔ {_session.Ap.SlotName} @ {_session.Connection.Server}", TrackerTheme.Text, false),
             ApConnectionState.Connecting => ("Connecting...", TrackerTheme.Accent, false),
             _ => ("✖ Not connected", TrackerTheme.Error, true),
         };
@@ -183,6 +188,7 @@ public sealed class MainForm : Form
             attached ? "Detach" : "Attach",
             apValue,
             apColor,
+            connected,
             apError,
             _session.Ap.State is ApConnectionState.Connected or ApConnectionState.Connecting ? "Disconnect" : "Connect to AP...",
             _session.Ap.State != ApConnectionState.Connecting,

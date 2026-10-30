@@ -199,8 +199,16 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
 
     internal void Connect(string server, string slot, string password)
     {
-        Connection = new ConnectionSettings.Data { Server = server.Trim(), Slot = slot.Trim(), Password = password };
+        Connection = new ConnectionSettings.Data { Server = server.Trim(), Slot = slot.Trim(), Password = password, HideConnectionInfo = Connection.HideConnectionInfo };
         _ = _apConnection.ConnectAsync(Connection.Server, Connection.Slot, Connection.Password);
+    }
+
+    /// <summary>Hides or shows the slot and server in the main window. Saves <see cref="Connection"/>, so it's only for
+    /// while connected: a server/slot/password that hasn't connected yet shouldn't be saved.</summary>
+    internal void ToggleConnectionInfoHidden()
+    {
+        Connection.HideConnectionInfo = !Connection.HideConnectionInfo;
+        ConnectionSettings.Save(Connection);
     }
 
     public void Dispose()

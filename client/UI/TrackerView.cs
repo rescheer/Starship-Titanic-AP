@@ -21,7 +21,7 @@ internal abstract record GoalState
 /// <summary>Everything the main window shows, besides the log and Recent lines.</summary>
 internal sealed record TrackerState(
     string GameValue, bool GameHasError, string GameButton,
-    string ApValue, Color ApValueColor, bool ApHasError, string ApButton, bool ApButtonEnabled,
+    string ApValue, Color ApValueColor, bool ApValueClickable, bool ApHasError, string ApButton, bool ApButtonEnabled,
     string GoModeValue, bool GoModeHighlighted,
     string MailLabel, string MailValue, bool MailHighlighted,
     string ClassValue,
@@ -48,6 +48,7 @@ internal sealed class TrackerView : TrackerControl
 
     public event Action? AttachButtonClicked;
     public event Action? ApButtonClicked;
+    public event Action? ApValueClicked;
     public event Action<string>? ChatSubmitted;
     public event Action? ForceSeedClicked;
 
@@ -157,6 +158,7 @@ internal sealed class TrackerView : TrackerControl
         _clueBar.ClueHoverChanged += OnClueHoverChanged;
         _gameTile.Button.Click += (_, _) => AttachButtonClicked?.Invoke();
         _apTile.Button.Click += (_, _) => ApButtonClicked?.Invoke();
+        _apTile.ValueClicked += () => ApValueClicked?.Invoke();
         _forceSeedLink.LinkClicked += (_, _) => ForceSeedClicked?.Invoke();
         _chatSend.Click += (_, _) => SubmitChat();
         _chatInput.KeyDown += (_, e) =>
@@ -174,7 +176,7 @@ internal sealed class TrackerView : TrackerControl
     public void Apply(TrackerState state)
     {
         _gameTile.Set(state.GameValue, state.GameHasError ? TrackerTheme.Error : TrackerTheme.Text, state.GameHasError, state.GameButton, buttonEnabled: true);
-        _apTile.Set(state.ApValue, state.ApValueColor, state.ApHasError, state.ApButton, state.ApButtonEnabled);
+        _apTile.Set(state.ApValue, state.ApValueColor, state.ApHasError, state.ApButton, state.ApButtonEnabled, state.ApValueClickable);
         _goModeTile.Set("GO MODE", state.GoModeValue, state.GoModeHighlighted);
         _mailTile.Set(state.MailLabel, state.MailValue, state.MailHighlighted);
         _classTile.Set("PASSENGER CLASS", state.ClassValue, highlighted: false);
