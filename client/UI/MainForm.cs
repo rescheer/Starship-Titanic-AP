@@ -17,6 +17,9 @@ public sealed class MainForm : Form
     private SlotLogic.Evaluation? _evaluation;
     private int _evaluatedItemCount = -1;
 
+    // The tile that's highlighted as the player's location
+    private RoomDefinition? _hereRoom;
+
     public MainForm()
     {
         _session = new ClientSession();
@@ -170,6 +173,7 @@ public sealed class MainForm : Form
         };
         bool directToInventory = ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData);
         int mailCount = attached ? _mailCount : 0;
+        UpdateHereRoom();
 
         _view.Apply(new TrackerState(
             attached ? $"✔ Attached (PID {_session.Memory.ProcessId})" : "✖ Not attached",
@@ -238,7 +242,7 @@ public sealed class MainForm : Form
     /// <summary>A room's dots and tag. Just its name while not connected, since nothing about the seed is known.</summary>
     private RoomTileState BuildRoom(RoomDefinition room, bool connected, string[] receivedItems, int? passengerClass, bool titaniaRepaired)
     {
-        bool isHere = room.LocationPrefixes.Contains(CurrentRoomLocationPrefix(), StringComparer.Ordinal);
+        bool isHere = room == _hereRoom;
         if (!connected || !_roomLocationNames.TryGetValue(room, out string[]? locations))
             return new RoomTileState(room.Name, Array.Empty<CheckPip>(), "", false, isHere);
 
@@ -289,9 +293,20 @@ public sealed class MainForm : Form
         return new CheckPip(location, CheckStatus.Locked, _evaluation.MissingItems.GetValueOrDefault(location, Array.Empty<string>()));
     }
 
-    /// <summary>The location-name prefix of the room the player's in, or "" while that's not known.</summary>
-    private string CurrentRoomLocationPrefix() =>
-        _session.CurrentRoomName is { } roomName && _session.Memory.IsAttached ? LocationChecks.GetReadableRoomName(roomName) : "";
+    /// <summary>Moves the highlight to the tile of the room the player's in. A room without a tile, like an elevator,
+    /// leaves it where it is. Cleared while the player's room isn't known, which includes each new attach.</summary>
+    private void UpdateHereRoom()
+    {
+        if (_session.CurrentRoomName is not { } roomName || !_session.Memory.IsAttached)
+        {
+            _hereRoom = null;
+            return;
+        }
+
+        string prefix = LocationChecks.GetReadableRoomName(roomName);
+        _hereRoom = RoomTiles.Decks.SelectMany(deck => deck.Rooms)
+            .FirstOrDefault(room => room.LocationPrefixes.Contains(prefix, StringComparer.Ordinal)) ?? _hereRoom;
+    }
 
     private GoalState BuildGoal(bool attached, bool connected, string[] receivedItems)
     {
