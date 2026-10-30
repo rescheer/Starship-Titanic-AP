@@ -305,16 +305,18 @@ public sealed class MainForm : Form
                 info.TotalClues);
         }
 
-        // In hand can only be read from the game, so a received part stays "in the mail" until attached
+        // In hand can only be read from the game, so until attached a received part stays "in the mail", or under
+        // Direct To Inventory, which has no mail to wait in, not received
+        bool usesMail = !ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData);
         PartState[] parts = TitaniaParts.All.Select(part => true switch
         {
             _ when !connected || !receivedItems.Contains(part.ApItemName, StringComparer.OrdinalIgnoreCase) => PartState.NotReceived,
             _ when _session.TitaniaPartsInHand.Contains(part.ApItemName) => PartState.InHand,
-            _ => PartState.InMail,
+            _ => usesMail ? PartState.InMail : PartState.NotReceived,
         }).ToArray();
         return new GoalState.Titania(
             parts,
             connected && attached ? parts.Count(p => p == PartState.InHand) : null,
-            !ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData));
+            usesMail);
     }
 }
