@@ -208,7 +208,7 @@ internal sealed class ParrotHuntSync
         _ctx.Report.ReportAction(ok, ok ? "Parrot Hunt: parked the parrot in the hidden room" : "Parrot Hunt: failed to park the parrot");
     }
 
-    /// <summary>Shows a PET message for the Progressive Clues not announced yet: the real clue at each of the seed's
+    /// <summary>Shows PET messages for the Progressive Clues not announced yet: one for the real clue at each of the seed's
     /// thresholds, or a red herring when none of them hit one. The count announced is saved on CarryParrot, so
     /// reconnecting (which re-receives every item) or reloading doesn't repeat them. Waits while disconnected, since
     /// the lines chosen depend on the seed (see <see cref="ParrotHuntClueText"/>). Swaps the PET to the conversation
@@ -227,15 +227,17 @@ internal sealed class ParrotHuntSync
             .Select(info.PartRevealedAt)
             .OfType<string>()
             .ToList();
-        string message = revealed.Count > 0
-            ? string.Join(" ", revealed.Select(text.Clue))
-            : text.RedHerring(clues);
+        List<string> messages = revealed.Count > 0
+            ? revealed.Select(text.Clue).ToList()
+            : [text.RedHerring(clues)];
 
-        _ctx.Report.AppendServerLog($"CLIENT: {message}");
+        foreach (string message in messages)
+            _ctx.Report.AppendServerLog($"CLIENT: {message}");
         _ctx.Report.AppendServerLog($"CLIENT: Parrot Hunt clues: {info.DescribeProgress(clues)}");
         if (GameState.GetCurrentPetArea(_ctx.Mem, petControlAddr) != GameOffsets.PetAreaConversation)
             GameActions.SetPetAreaConversation(_ctx.Mem, petControlAddr);
-        _ctx.ShowPetMessage($"AP: {message}");
+        foreach (string message in messages)
+            _ctx.ShowPetMessage($"AP: {message}");
     }
 
     private void SendGoal()
