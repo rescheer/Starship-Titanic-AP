@@ -130,23 +130,25 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         Has("Magazine")
         & CanReachRegion("Embarkation Lobby")
     )
-    world.set_rule(
-        world.get_location("DeskBot - 2nd Class Upgrade (Event)"),
-        Has("Magazine")
-        & CanReachRegion("Embarkation Lobby")
-    )
+    if not world.class_upgrades_locked:  # not created when locked (regions.py)
+        world.set_rule(
+            world.get_location("DeskBot - 2nd Class Upgrade (Event)"),
+            Has("Magazine")
+            & CanReachRegion("Embarkation Lobby")
+        )
     world.set_rule(
         world.get_location("DeskBot - 1st Class Upgrade"),
         Has(SECOND_CLASS_UPGRADE_EVENT)
         & CanReachRegion("Sculpture Chamber")
         & CanReachRegion("Embarkation Lobby")
     )
-    world.set_rule(
-        world.get_location("DeskBot - 1st Class Upgrade (Event)"),
-        Has(SECOND_CLASS_UPGRADE_EVENT)
-        & CanReachRegion("Sculpture Chamber")
-        & CanReachRegion("Embarkation Lobby")
-    )
+    if not world.class_upgrades_locked:
+        world.set_rule(
+            world.get_location("DeskBot - 1st Class Upgrade (Event)"),
+            Has(SECOND_CLASS_UPGRADE_EVENT)
+            & CanReachRegion("Sculpture Chamber")
+            & CanReachRegion("Embarkation Lobby")
+        )
 
     # ---------------------------------------------------------------- #
     # Top of the Well

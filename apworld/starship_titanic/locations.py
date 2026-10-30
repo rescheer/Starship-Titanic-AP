@@ -34,11 +34,8 @@ location_table: Dict[str, STLocationData] = {
     # Item
     # Puzzle
     "DeskBot - 2nd Class Upgrade": STLocationData("Embarkation Lobby"),
-    # Event-only shadow of the check above, fired by the client alongside it - exists purely so
-    # "DeskBot - 1st Class Upgrade" can gate on the 2nd Class Upgrade having actually happened (Has("2nd Class
-    # Upgrade")) rather than on holding enough Progressive Passenger Class Upgrade items, which the client can't
-    # guarantee arrive in the same order the real check does. Keeps the real check above eligible for the
-    # multiworld's own item pool instead of being consumed as an event.
+    # Event-only shadow of the check above
+    # Not created under vanilla class upgrades, where the real check holds the upgrade (CLASS_UPGRADE_CHECKS).
     "DeskBot - 2nd Class Upgrade (Event)": STLocationData("Embarkation Lobby", "2nd Class Upgrade"),
     "DeskBot - 1st Class Upgrade": STLocationData("Embarkation Lobby"),
     # Other
@@ -87,8 +84,7 @@ location_table: Dict[str, STLocationData] = {
     # Item
     # Puzzle
     "Titania's Room - Repair Titania": STLocationData("Titania's Room"),
-    # Event-only shadow of the check above, fired by the client alongside it - the Bridge entrance gates on
-    # Has("Titania Repaired"), and this keeps the real check above eligible for the multiworld's own item pool.
+    # Event-only shadow of the check above
     "Titania's Room - Repair Titania (Event)": STLocationData("Titania's Room", "Titania Repaired"),
     # Other
 
@@ -249,7 +245,7 @@ location_table: Dict[str, STLocationData] = {
     # Late additions appended so earlier location IDs stay stable
     # ---------------------------------------------------------------- #
     # Event-only shadow of "DeskBot - 1st Class Upgrade", fired by the client alongside it. grants 1st Class (and
-    # the 1st Class Stateroom) under the vanilla class/stateroom options.
+    # the 1st Class Stateroom) under the vanilla class/stateroom options. Not created under vanilla class upgrades.
     "DeskBot - 1st Class Upgrade (Event)": STLocationData("Embarkation Lobby", "1st Class Upgrade"),
     # Parrot Hunt goal. region depends on the chosen stateroom's class, so regions.py places it in the 2nd
     # or 1st Class stateroom rather than the region given here
@@ -261,3 +257,11 @@ location_name_to_id: Dict[str, int] = {
 }
 
 event_location_names = {name for name, data in location_table.items() if data.event_item is not None}
+
+# Under vanilla class upgrades these checks hold the upgrade itself, in place of their event-only shadows
+# Fix for Universal Tracker logic
+CLASS_UPGRADE_CHECKS: Dict[str, str] = {
+    "DeskBot - 2nd Class Upgrade": "2nd Class Upgrade",
+    "DeskBot - 1st Class Upgrade": "1st Class Upgrade",
+}
+CLASS_UPGRADE_EVENT_LOCATIONS = {f"{name} (Event)" for name in CLASS_UPGRADE_CHECKS}

@@ -61,6 +61,9 @@ class StarshipTitanicWorld(World):
     options_dataclass = StarshipTitanicOptions
     options: StarshipTitanicOptions
     access_cards: List[str]  # the Access Cards this slot requires (options.py)
+    # Whether the DeskBot's upgrade checks hold the upgrades themselves (locations.py): vanilla class upgrades only,
+    # and only on seeds generated since that arrangement was added
+    class_upgrades_locked: bool
     # Parrot Hunt goal only (parrot_hunt.py): the parrot's stateroom ("elevator", "floor", "room", "class"), and the
     # order its clues reveal those parts
     parrot_room: Dict[str, int]
@@ -84,6 +87,7 @@ class StarshipTitanicWorld(World):
             self.apply_slot_data(re_gen_passthrough[self.game])
         else:
             self.access_cards = enabled_access_cards(self.options, self.random)
+            self.class_upgrades_locked = self.is_vanilla_class()
             # Only rolled under this goal, so other goals' seeds keep the same random stream
             if self.is_parrot_hunt():
                 classes = {
@@ -108,6 +112,7 @@ class StarshipTitanicWorld(World):
             options.item_delivery_method.value = ItemDeliveryMethod.options[slot_data["item_delivery_method"]]
         options.easy_music_room_puzzle.value = int(slot_data.get("easy_music_room_puzzle", False))
         self.access_cards = list(slot_data.get("room_access_cards", []))
+        self.class_upgrades_locked = slot_data.get("class_upgrades_locked", False)
         if self.is_parrot_hunt():
             options.parrot_hunt_stateroom_class.value = ParrotHuntStateroomClass.options[
                 slot_data["parrot_hunt_stateroom_class"]]
@@ -199,6 +204,7 @@ class StarshipTitanicWorld(World):
             "room_access_cards": self.access_cards,  # the client only locks the rooms of these cards
             "item_delivery_method": self.options.item_delivery_method.current_key,  # "succubus" or "direct_to_inventory"
             "easy_music_room_puzzle": bool(self.options.easy_music_room_puzzle),
+            "class_upgrades_locked": self.class_upgrades_locked,
         }
         if self.is_parrot_hunt():
             clues = self.options.parrot_hunt_clues.value

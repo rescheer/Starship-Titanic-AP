@@ -63,6 +63,15 @@ _progressive_clue_items: Dict[str, int] = {
 }
 
 # --------------------------------------------------------------------------
+# Class Upgrade Records - locked to the DeskBot's upgrade checks under vanilla class upgrades (locations.py), never
+# in the pool. Otherwise these names are plain events with no ID (create_event)
+# --------------------------------------------------------------------------
+_class_upgrade_records: Dict[str, int] = {
+    "2nd Class Upgrade": 47,
+    "1st Class Upgrade": 48,
+}
+
+# --------------------------------------------------------------------------
 # Titania Parts
 # --------------------------------------------------------------------------
 _titania_parts: Dict[str, int] = {
@@ -162,8 +171,6 @@ _trap_items: Dict[str, int] = {
 # Events
 # --------------------------------------------------------------------------
 _event_items: Set[str] = {
-    "2nd Class Upgrade",
-    "1st Class Upgrade",
     "Titania's Auditory Center",
     "Titania Repaired",
     "Parrot Released",
@@ -193,6 +200,9 @@ for name, offset in _progressive_room_items.items():
 
 for name, offset in _progressive_clue_items.items():
     item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, "Progressive", quantity=0)
+
+for name, offset in _class_upgrade_records.items():
+    item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, quantity=0)
 
 for name, offset in _titania_parts.items():
     item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.progression, "Titania Part")

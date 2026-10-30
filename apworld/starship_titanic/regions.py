@@ -5,7 +5,7 @@ from typing import Dict, List
 
 from BaseClasses import Region # pyright: ignore[reportMissingImports]
 
-from .locations import location_table, StarshipTitanicLocation
+from .locations import CLASS_UPGRADE_CHECKS, CLASS_UPGRADE_EVENT_LOCATIONS, location_table, StarshipTitanicLocation
 from .options import Goal
 from .parrot_hunt import PARROT_HUNT_GOAL_LOCATION, PARROT_HUNT_REMOVED_LOCATIONS, STATEROOM_REGIONS
 
@@ -89,10 +89,14 @@ def create_regions(world) -> None:
                 continue
             if loc_name == PARROT_HUNT_GOAL_LOCATION:
                 continue  # created below, in the chosen stateroom's region
+            if world.class_upgrades_locked and loc_name in CLASS_UPGRADE_EVENT_LOCATIONS:
+                continue
             code = None if loc_data.event_item else world.location_name_to_id[loc_name]
             location = StarshipTitanicLocation(player, loc_name, code, region)
             if loc_data.event_item:
                 location.place_locked_item(world.create_event(loc_data.event_item))
+            elif world.class_upgrades_locked and loc_name in CLASS_UPGRADE_CHECKS:
+                location.place_locked_item(world.create_item(CLASS_UPGRADE_CHECKS[loc_name]))
             region.locations.append(location)
         regions[region_name] = region
         multiworld.regions.append(region)
