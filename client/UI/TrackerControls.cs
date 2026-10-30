@@ -46,38 +46,95 @@ internal abstract class TrackerControl : Control
     }
 }
 
-/// <summary>What a room tile shows. Without checks (<paramref name="Total"/> 0) it's just a name and tag.</summary>
-/// <param name="InLogic">How many of the room's unchecked checks can be done right now.</param>
+/// <summary>Where a check stands, in the order a room tile's dots show them.</summary>
+internal enum CheckStatus { Checked, InLogic, Locked }
+
+/// <summary>One of a room's checks.</summary>
+/// <param name="Requires">What's still missing for a locked check, where that's known. Compared by reference, so reuse
+/// the same array while it hasn't changed.</param>
+internal readonly record struct CheckPip(string Name, CheckStatus Status, string[] Requires);
+
+/// <summary>What a room tile shows. Without <paramref name="Checks"/> it's just a name and tag.</summary>
+/// <param name="Checks">The room's checks, in the order to draw them.</param>
 /// <param name="IsLocked">Whether something's missing to enter the room, which dims the tile.</param>
 /// <param name="IsHere">Whether the player's in this room, which highlights the tile.</param>
-internal readonly record struct RoomTileState(string Name, int Checked, int InLogic, int Total, string Tag, bool IsLocked, bool IsHere, string ToolTip = "");
+internal readonly record struct RoomTileState(string Name, CheckPip[] Checks, string Tag, bool IsLocked, bool IsHere);
 
 /// <summary>One room: its name, a dot per check, and a line on where it stands.</summary>
 internal sealed class RoomTile : TrackerControl
 {
-    private RoomTileState _state;
+    private RoomTileState _state = new("", Array.Empty<CheckPip>(), "", false, false);
+    private int _hoveredIndex = -1;
+    private CheckPip? _hoveredPip;
+
+    /// <summary>The dot under the mouse changed: the tile, its check (null for none) and its bounds in the tile.</summary>
+    public event Action<RoomTile, CheckPip?, Rectangle>? PipHoverChanged;
 
     public RoomTileState State
     {
         get => _state;
         set
         {
-            if (value == _state)
+            if (value with { Checks = _state.Checks } == _state && value.Checks.SequenceEqual(_state.Checks))
                 return;
             _state = value;
             Invalidate();
+            if (_hoveredIndex >= 0)
+                UpdateHover(PointToClient(Cursor.Position));
         }
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        UpdateHover(e.Location);
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        UpdateHover(new Point(-1, -1));
+    }
+
+    private void UpdateHover(Point mouse)
+    {
+        int index = PipAt(mouse);
+        CheckPip? pip = index >= 0 ? _state.Checks[index] : null;
+        if (index == _hoveredIndex && pip == _hoveredPip)
+            return;
+        _hoveredIndex = index;
+        _hoveredPip = pip;
+        PipHoverChanged?.Invoke(this, pip, index >= 0 ? PipBounds(index) : Rectangle.Empty);
+    }
+
+    /// <summary>The check at a point, counting the gaps around a dot as part of it, since the dots are small.</summary>
+    private int PipAt(Point point)
+    {
+        for (int i = 0; i < _state.Checks.Length; i++)
+        {
+            if (Rectangle.Inflate(PipBounds(i), S(3), S(3)).Contains(point))
+                return i;
+        }
+        return -1;
+    }
+
+    private Rectangle PipBounds(int index)
+    {
+        int left = S(6), pip = S(8), pitch = pip + S(3);
+        int perRow = Math.Max(1, (Width - S(2) - left + S(3)) / pitch);
+        return new Rectangle(left + index % perRow * pitch, S(22) + index / perRow * pitch, pip, pip);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        bool complete = _state.Total > 0 && _state.Checked == _state.Total;
+        bool hasChecks = _state.Checks.Length > 0;
+        bool complete = hasChecks && _state.Checks.All(check => check.Status == CheckStatus.Checked);
         Color fill = _state.IsHere ? TrackerTheme.AccentFill : complete ? TrackerTheme.Surface : TrackerTheme.Background;
         Color border = true switch
         {
             _ when _state.IsHere => TrackerTheme.Accent,
             _ when _state.IsLocked => TrackerTheme.LineDim,
-            _ when _state.Total == 0 => TrackerTheme.Line,
+            _ when !hasChecks => TrackerTheme.Line,
             _ => TrackerTheme.LineStrong,
         };
         Color nameColor = _state.IsLocked ? TrackerTheme.TextMuted : TrackerTheme.Text;
@@ -87,25 +144,107 @@ internal sealed class RoomTile : TrackerControl
         TextRenderer.DrawText(e.Graphics, _state.Name, TrackerTheme.TileNameFont, new Rectangle(left, S(4), Width - left - S(2), S(16)),
             nameColor, SingleLine | TextFormatFlags.EndEllipsis);
 
-        int pip = S(8), gap = S(3), x = left, y = S(22);
-        for (int i = 0; i < _state.Total; i++)
+        for (int i = 0; i < _state.Checks.Length; i++)
         {
-            if (x + pip > Width - S(2))
-            {
-                x = left;
-                y += pip + gap;
-            }
-            if (i < _state.Checked)
-                DrawPip(e.Graphics, x, y, pip, TrackerTheme.Accent, filled: true);
-            else if (i < _state.Checked + _state.InLogic)
-                DrawPip(e.Graphics, x, y, pip, TrackerTheme.Accent, filled: false);
-            else
-                DrawPip(e.Graphics, x, y, pip, TrackerTheme.PipLocked, filled: false);
-            x += pip + gap;
+            Rectangle pip = PipBounds(i);
+            CheckStatus status = _state.Checks[i].Status;
+            DrawPip(e.Graphics, pip.X, pip.Y, pip.Width, status == CheckStatus.Locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, status == CheckStatus.Checked);
         }
 
         TextRenderer.DrawText(e.Graphics, _state.Tag, TrackerTheme.CaptionFont, new Rectangle(left, Height - S(17), Width - left - S(2), S(14)),
             TrackerTheme.TextMuted, SingleLine | TextFormatFlags.EndEllipsis);
+    }
+}
+
+/// <summary>Names the check under the mouse and where it stands or, if it's locked, what it still requires. Drawn over its siblings in the
+/// main window, rather than as a Windows tooltip, so it can match the window and appear at once.</summary>
+internal sealed class CheckPopup : TrackerControl
+{
+    private const int Inset = 7;
+    private const int CaptionGap = 6;
+    private const int WmNcHitTest = 0x84;
+    private static readonly IntPtr HtTransparent = new(-1);
+
+    private CheckPip _check;
+
+    public CheckPopup()
+    {
+        Visible = false;
+    }
+
+    /// <summary>Shows a check beside <paramref name="anchor"/> (in the parent's coordinates), inside the parent.</summary>
+    public void ShowFor(CheckPip check, Rectangle anchor)
+    {
+        _check = check;
+
+        int margin = S(4);
+        Size parent = Parent!.ClientSize;
+        Size nameSize = Measure(check.Name, TrackerTheme.TileNameFont);
+        int width = nameSize.Width, height = nameSize.Height;
+        if (Caption(check) is { } caption)
+        {
+            Size captionSize = Measure(caption, TrackerTheme.CaptionFont);
+            width = Math.Max(width, captionSize.Width);
+            height += S(CaptionGap) + captionSize.Height;
+            foreach (string item in check.Requires)
+            {
+                Size size = Measure(item, TrackerTheme.TileNameFont);
+                width = Math.Max(width, size.Width);
+                height += size.Height;
+            }
+        }
+        width = Math.Min(width + S(Inset) * 2, parent.Width - margin * 2);
+        height += S(Inset) * 2;
+
+        int x = Math.Clamp(anchor.Left - S(Inset), margin, parent.Width - width - margin);
+        int y = anchor.Bottom + margin;
+        if (y + height > parent.Height - margin)
+            y = Math.Max(margin, anchor.Top - margin - height);
+
+        SetBounds(x, y, width, height);
+        Visible = true;
+        Invalidate();
+    }
+
+    /// <summary>The line under the name. A locked check without known requirements has none.</summary>
+    private static string? Caption(CheckPip check) => check.Status switch
+    {
+        CheckStatus.Checked => "COMPLETED",
+        CheckStatus.InLogic => "IN LOGIC",
+        _ => check.Requires.Length > 0 ? "REQUIRES" : null,
+    };
+
+    private static Size Measure(string text, Font font) => TextRenderer.MeasureText(text, font, Size.Empty, SingleLine);
+
+    /// <summary>Lets the mouse through to the dots underneath, so the popup can't take the hover away from them.</summary>
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == WmNcHitTest)
+            m.Result = HtTransparent;
+        else
+            base.WndProc(ref m);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        FillTile(e.Graphics, TrackerTheme.Surface, _check.Status == CheckStatus.Locked ? TrackerTheme.PipLocked : TrackerTheme.Accent);
+
+        int x = S(Inset), y = S(Inset);
+        y = DrawLine(e.Graphics, _check.Name, TrackerTheme.TileNameFont, TrackerTheme.Text, x, y);
+        if (Caption(_check) is not { } caption)
+            return;
+
+        y = DrawLine(e.Graphics, caption, TrackerTheme.CaptionFont, TrackerTheme.TextMuted, x, y + S(CaptionGap));
+        foreach (string item in _check.Requires)
+            y = DrawLine(e.Graphics, item, TrackerTheme.TileNameFont, TrackerTheme.Text, x, y);
+    }
+
+    /// <summary>Draws a line of text and returns where the next one goes.</summary>
+    private int DrawLine(Graphics g, string text, Font font, Color color, int x, int y)
+    {
+        int height = Measure(text, font).Height;
+        TextRenderer.DrawText(g, text, font, new Rectangle(x, y, Width - x * 2, height), color, SingleLine | TextFormatFlags.EndEllipsis);
+        return y + height;
     }
 }
 

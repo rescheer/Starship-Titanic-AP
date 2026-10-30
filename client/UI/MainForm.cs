@@ -14,8 +14,8 @@ public sealed class MainForm : Form
     // Each room's location names in this slot, and the seed's logic, rebuilt on each connection state change
     private readonly Dictionary<RoomDefinition, string[]> _roomLocationNames = new();
     private SlotLogic? _logic;
-    private HashSet<string> _reachableLocations = new();
-    private int _reachableForItemCount = -1;
+    private SlotLogic.Evaluation? _evaluation;
+    private int _evaluatedItemCount = -1;
 
     public MainForm()
     {
@@ -134,7 +134,7 @@ public sealed class MainForm : Form
     private void RebuildSlotData()
     {
         _logic = SlotLogic.TryRead(_session.Ap.SlotData);
-        _reachableForItemCount = -1;
+        _evaluatedItemCount = -1;
         _roomLocationNames.Clear();
 
         string[] allLocations = _session.Ap.GetAllLocationNames();
@@ -156,10 +156,10 @@ public sealed class MainForm : Form
         int? passengerClass = CurrentPassengerClass(connected, receivedItems);
         bool titaniaRepaired = connected && _session.Ap.IsLocationCheckedOrQueued(ClassSync.TitaniaRepairedLocation);
 
-        if (connected && _logic is not null && _reachableForItemCount != receivedItems.Length)
+        if (connected && _logic is not null && _evaluatedItemCount != receivedItems.Length)
         {
-            _reachableLocations = _logic.GetReachableLocations(receivedItems);
-            _reachableForItemCount = receivedItems.Length;
+            _evaluation = _logic.Evaluate(receivedItems);
+            _evaluatedItemCount = receivedItems.Length;
         }
 
         (string apValue, Color apColor, bool apError) = _session.Ap.State switch
@@ -239,13 +239,12 @@ public sealed class MainForm : Form
     {
         bool isHere = room.LocationPrefixes.Contains(CurrentRoomLocationPrefix(), StringComparer.Ordinal);
         if (!connected || !_roomLocationNames.TryGetValue(room, out string[]? locations))
-            return new RoomTileState(room.Name, 0, 0, 0, "", false, isHere);
+            return new RoomTileState(room.Name, Array.Empty<CheckPip>(), "", false, isHere);
 
-        string[] unchecked_ = locations.Where(location => !_session.Ap.IsLocationChecked(location)).ToArray();
-        int total = locations.Length;
-        int checkedCount = total - unchecked_.Length;
-        int inLogic = _logic is null ? 0 : unchecked_.Count(_reachableLocations.Contains);
-        string toolTip = string.Join(Environment.NewLine, unchecked_);
+        CheckPip[] checks = locations.Select(BuildCheck).OrderBy(check => check.Status).ToArray();
+        int total = checks.Length;
+        int checkedCount = checks.Count(check => check.Status == CheckStatus.Checked);
+        int inLogic = checks.Count(check => check.Status == CheckStatus.InLogic);
 
         HashSet<string> requiredCards = RoomKeys.GetRequiredCards(_session.Ap.SlotData);
         bool hasCard = room.Card is null || !requiredCards.Contains(room.Card) || receivedItems.Contains(room.Card, StringComparer.OrdinalIgnoreCase);
@@ -274,7 +273,19 @@ public sealed class MainForm : Form
             _ when _logic is null => $"{checkedCount}/{total}", // an older seed, without logic to go by
             _ => $"{inLogic} in logic",
         };
-        return new RoomTileState(room.Name, checkedCount, inLogic, total, tag, lockReason is not null, isHere, toolTip);
+        return new RoomTileState(room.Name, checks, tag, lockReason is not null, isHere);
+    }
+
+    /// <summary>A check's dot. Every unchecked check is locked on an older seed, without logic to go by.</summary>
+    private CheckPip BuildCheck(string location)
+    {
+        if (_session.Ap.IsLocationChecked(location))
+            return new CheckPip(location, CheckStatus.Checked, Array.Empty<string>());
+        if (_logic is null || _evaluation is null)
+            return new CheckPip(location, CheckStatus.Locked, Array.Empty<string>());
+        if (_evaluation.Reachable.Contains(location))
+            return new CheckPip(location, CheckStatus.InLogic, Array.Empty<string>());
+        return new CheckPip(location, CheckStatus.Locked, _evaluation.MissingItems.GetValueOrDefault(location, Array.Empty<string>()));
     }
 
     /// <summary>The location-name prefix of the room the player's in, or "" while that's not known.</summary>

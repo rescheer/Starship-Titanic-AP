@@ -66,7 +66,8 @@ internal sealed class TrackerView : TrackerControl
         ("Locked", TrackerTheme.PipLocked, false));
     private readonly Label[] _deckLabels;
     private readonly RoomTile[][] _roomTiles;
-    private readonly ToolTip _roomToolTip = new() { AutoPopDelay = 30000, InitialDelay = 300 };
+    private readonly CheckPopup _checkPopup = new();
+    private RoomTile? _popupTile;
 
     private static readonly (string Text, Color? Pip, bool PipFilled)[] TitaniaMailLegend =
     {
@@ -118,12 +119,15 @@ internal sealed class TrackerView : TrackerControl
         TrackerTheme.StyleTextBox(_chatInput);
         TrackerTheme.StyleButton(_chatSend);
 
+        Controls.Add(_checkPopup); // added first, so it's on top of everything else
         Controls.AddRange(new Control[] { _gameTile, _apTile, _mailTile, _classTile, _saveSeedBanner, _roomsHeader, _titaniaHeader, _parrotHeader, _clueBar, _log, _chatInput, _chatSend, _recentHeader, _recent });
         Controls.AddRange(_deckLabels);
         Controls.AddRange(_roomTiles.SelectMany(row => row).ToArray<Control>());
         Controls.AddRange(_partTiles.ToArray<Control>());
         Controls.AddRange(_parrotTiles.ToArray<Control>());
 
+        foreach (RoomTile tile in _roomTiles.SelectMany(row => row))
+            tile.PipHoverChanged += OnPipHoverChanged;
         _gameTile.Button.Click += (_, _) => AttachButtonClicked?.Invoke();
         _apTile.Button.Click += (_, _) => ApButtonClicked?.Invoke();
         _chatSend.Click += (_, _) => SubmitChat();
@@ -154,11 +158,7 @@ internal sealed class TrackerView : TrackerControl
 
             for (int room = 0; room < _roomTiles[deck].Length; room++)
             {
-                RoomTile tile = _roomTiles[deck][room];
-                RoomTileState roomState = state.Decks[deck].Rooms[room];
-                if (tile.State.ToolTip != roomState.ToolTip)
-                    _roomToolTip.SetToolTip(tile, roomState.ToolTip);
-                tile.State = roomState;
+                _roomTiles[deck][room].State = state.Decks[deck].Rooms[room];
             }
         }
 
@@ -177,6 +177,23 @@ internal sealed class TrackerView : TrackerControl
         ApplyGoal(state.Goal);
         if (layoutChanged)
             PerformLayout();
+    }
+
+    /// <summary>Moving between tiles can bring the new tile's hover before the old tile's leave, so a tile can only
+    /// hide the popup while it's the one showing it.</summary>
+    private void OnPipHoverChanged(RoomTile tile, CheckPip? check, Rectangle bounds)
+    {
+        if (check is { } shown)
+        {
+            _popupTile = tile;
+            bounds.Offset(tile.Location);
+            _checkPopup.ShowFor(shown, bounds);
+        }
+        else if (_popupTile == tile)
+        {
+            _popupTile = null;
+            _checkPopup.Visible = false;
+        }
     }
 
     private void ApplyGoal(GoalState goal)
