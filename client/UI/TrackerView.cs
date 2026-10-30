@@ -33,7 +33,8 @@ internal sealed record TrackerState(
 internal sealed class TrackerView : TrackerControl
 {
     private const int CommandBarHeight = 62;
-    private const int BannerHeight = 34;
+    private const int BannerHeight = 52;
+    private const int BannerTextHeight = 28;
     private const int TrackerHeight = 330;
     private const int GoalWidth = 420;
     private const int ChatRowHeight = 33;
@@ -46,6 +47,7 @@ internal sealed class TrackerView : TrackerControl
     public event Action? AttachButtonClicked;
     public event Action? ApButtonClicked;
     public event Action<string>? ChatSubmitted;
+    public event Action? ForceSeedClicked;
 
     private readonly ConnectionTile _gameTile = new("STARSHIP TITANIC");
     private readonly ConnectionTile _apTile = new("ARCHIPELAGO");
@@ -55,10 +57,22 @@ internal sealed class TrackerView : TrackerControl
     private readonly Label _saveSeedBanner = new()
     {
         Text = "Save seed does not match server seed! AP sync paused",
-        TextAlign = ContentAlignment.MiddleCenter,
+        TextAlign = ContentAlignment.BottomCenter,
         Font = new Font(TrackerTheme.BodyFont, FontStyle.Bold),
         BackColor = TrackerTheme.Error,
         ForeColor = TrackerTheme.Background,
+        Visible = false,
+    };
+    private readonly LinkLabel _forceSeedLink = new()
+    {
+        Text = "Use this save with this seed anyway",
+        TextAlign = ContentAlignment.TopCenter,
+        Font = TrackerTheme.BodyFont,
+        BackColor = TrackerTheme.Error,
+        LinkColor = TrackerTheme.Background,
+        ActiveLinkColor = TrackerTheme.Background,
+        VisitedLinkColor = TrackerTheme.Background,
+        LinkBehavior = LinkBehavior.AlwaysUnderline,
         Visible = false,
     };
 
@@ -126,7 +140,7 @@ internal sealed class TrackerView : TrackerControl
         TrackerTheme.StyleButton(_chatSend);
 
         Controls.Add(_checkPopup); // added first, so it's on top of everything else
-        Controls.AddRange(new Control[] { _gameTile, _apTile, _mailTile, _classTile, _saveSeedBanner, _roomsHeader, _titaniaHeader, _parrotHeader, _clueBar, _log, _chatInput, _chatSend, _hereHeader, _here, _recentHeader, _recent });
+        Controls.AddRange(new Control[] { _gameTile, _apTile, _mailTile, _classTile, _saveSeedBanner, _forceSeedLink, _roomsHeader, _titaniaHeader, _parrotHeader, _clueBar, _log, _chatInput, _chatSend, _hereHeader, _here, _recentHeader, _recent });
         Controls.AddRange(_deckLabels);
         Controls.AddRange(_roomTiles.SelectMany(row => row).ToArray<Control>());
         Controls.AddRange(_partTiles.ToArray<Control>());
@@ -137,6 +151,7 @@ internal sealed class TrackerView : TrackerControl
         _here.CheckHoverChanged += OnCheckHoverChanged;
         _gameTile.Button.Click += (_, _) => AttachButtonClicked?.Invoke();
         _apTile.Button.Click += (_, _) => ApButtonClicked?.Invoke();
+        _forceSeedLink.LinkClicked += (_, _) => ForceSeedClicked?.Invoke();
         _chatSend.Click += (_, _) => SubmitChat();
         _chatInput.KeyDown += (_, e) =>
         {
@@ -175,6 +190,7 @@ internal sealed class TrackerView : TrackerControl
         if (_saveSeedBanner.Visible != state.SaveSeedMismatch)
         {
             _saveSeedBanner.Visible = state.SaveSeedMismatch;
+            _forceSeedLink.Visible = state.SaveSeedMismatch;
             layoutChanged = true;
         }
         bool showParrot = state.Goal is GoalState.Parrot;
@@ -293,7 +309,8 @@ internal sealed class TrackerView : TrackerControl
         int top = barHeight;
         if (_saveSeedBanner.Visible)
         {
-            _saveSeedBanner.SetBounds(0, top, width, S(BannerHeight));
+            _saveSeedBanner.SetBounds(0, top, width, S(BannerTextHeight));
+            _forceSeedLink.SetBounds(0, _saveSeedBanner.Bottom, width, S(BannerHeight) - S(BannerTextHeight));
             top += S(BannerHeight);
         }
 

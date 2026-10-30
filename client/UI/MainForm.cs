@@ -59,6 +59,7 @@ public sealed class MainForm : Form
         _view.AttachButtonClicked += DoToggleAttach;
         _view.ApButtonClicked += DoToggleApConnection;
         _view.ChatSubmitted += DoSendChatMessage;
+        _view.ForceSeedClicked += () => _session.SubmitChat("/force_seed");
 
         _session.Start();
     }
