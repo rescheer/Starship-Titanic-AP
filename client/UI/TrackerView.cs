@@ -25,6 +25,7 @@ internal sealed record TrackerState(
     string ClassValue,
     bool SaveSeedMismatch,
     DeckState[] Decks,
+    HereState Here,
     GoalState Goal);
 
 /// <summary>The main window's contents. Lays everything out by hand, so it all scales with the monitor's DPI. Knows
@@ -36,6 +37,7 @@ internal sealed class TrackerView : TrackerControl
     private const int TrackerHeight = 330;
     private const int GoalWidth = 420;
     private const int ChatRowHeight = 33;
+    private const int HerePanelHeight = 106; // the room's name and four rows of checks, enough for the Restaurant's seven
 
     private const string InMailMark = "✉";
     private const string InHandMark = "✔";
@@ -99,6 +101,10 @@ internal sealed class TrackerView : TrackerControl
     };
     private readonly TextBox _chatInput = new() { Font = TrackerTheme.LogFont, PlaceholderText = "Message or /command" };
     private readonly Button _chatSend = new() { Text = "Send" };
+    private readonly SectionHeader _hereHeader = new("YOU ARE HERE",
+        ("In logic", TrackerTheme.Accent, false),
+        ("Locked", TrackerTheme.PipLocked, false));
+    private readonly HerePanel _here = new();
     private readonly SectionHeader _recentHeader = new("RECENT");
     private readonly RecentPanel _recent = new();
 
@@ -120,7 +126,7 @@ internal sealed class TrackerView : TrackerControl
         TrackerTheme.StyleButton(_chatSend);
 
         Controls.Add(_checkPopup); // added first, so it's on top of everything else
-        Controls.AddRange(new Control[] { _gameTile, _apTile, _mailTile, _classTile, _saveSeedBanner, _roomsHeader, _titaniaHeader, _parrotHeader, _clueBar, _log, _chatInput, _chatSend, _recentHeader, _recent });
+        Controls.AddRange(new Control[] { _gameTile, _apTile, _mailTile, _classTile, _saveSeedBanner, _roomsHeader, _titaniaHeader, _parrotHeader, _clueBar, _log, _chatInput, _chatSend, _hereHeader, _here, _recentHeader, _recent });
         Controls.AddRange(_deckLabels);
         Controls.AddRange(_roomTiles.SelectMany(row => row).ToArray<Control>());
         Controls.AddRange(_partTiles.ToArray<Control>());
@@ -161,6 +167,8 @@ internal sealed class TrackerView : TrackerControl
                 _roomTiles[deck][room].State = state.Decks[deck].Rooms[room];
             }
         }
+
+        _here.State = state.Here;
 
         bool layoutChanged = false;
         if (_saveSeedBanner.Visible != state.SaveSeedMismatch)
@@ -291,7 +299,7 @@ internal sealed class TrackerView : TrackerControl
         LayoutRooms(top, width - S(GoalWidth), margin, gap);
         LayoutGoal(top, width - S(GoalWidth) + margin, width - margin, gap);
 
-        // Log and chat on the left, Recent on the right. The log's padding is painted around it (see OnPaint)
+        // Log and chat on the left, You Are Here over Recent on the right. The log's padding is painted around it (see OnPaint)
         int bottomTop = top + S(TrackerHeight);
         int logWidth = width - S(GoalWidth);
         int chatTop = height - S(ChatRowHeight);
@@ -301,7 +309,9 @@ internal sealed class TrackerView : TrackerControl
         _chatInput.SetBounds(S(4), rowTop + (rowHeight - _chatInput.Height) / 2, _chatSend.Left - S(8), _chatInput.Height);
 
         int recentLeft = logWidth + margin, recentWidth = S(GoalWidth) - margin * 2;
-        _recentHeader.SetBounds(recentLeft, bottomTop + S(8), recentWidth, S(17));
+        _hereHeader.SetBounds(recentLeft, bottomTop + S(8), recentWidth, S(17));
+        _here.SetBounds(recentLeft, _hereHeader.Bottom + S(6), recentWidth, S(HerePanelHeight));
+        _recentHeader.SetBounds(recentLeft, _here.Bottom + S(8), recentWidth, S(17));
         _recent.SetBounds(recentLeft, _recentHeader.Bottom + S(6), recentWidth, height - _recentHeader.Bottom - S(14));
 
         Invalidate();

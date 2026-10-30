@@ -510,6 +510,54 @@ internal sealed class ClueBar : TrackerControl
     }
 }
 
+/// <summary>What the You Are Here panel shows.</summary>
+/// <param name="Checks">The room's uncompleted checks, named without the room, in the order to draw them.</param>
+/// <param name="Message">Stands in for the list while <paramref name="Checks"/> is empty.</param>
+internal readonly record struct HereState(string RoomName, CheckPip[] Checks, string Message);
+
+/// <summary>The room the player's in and the checks still to get there, row by row across two columns.</summary>
+internal sealed class HerePanel : TrackerControl
+{
+    private HereState _state = new("", Array.Empty<CheckPip>(), "");
+
+    public HereState State
+    {
+        set
+        {
+            if (value with { Checks = _state.Checks } == _state && value.Checks.SequenceEqual(_state.Checks))
+                return;
+            _state = value;
+            Invalidate();
+        }
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        FillTile(e.Graphics, TrackerTheme.AccentFill, TrackerTheme.Accent);
+
+        int left = S(8), top = S(28), rowHeight = S(18), pip = S(8), textOffset = pip + S(5);
+        int columnWidth = (Width - left * 2) / 2;
+        TextRenderer.DrawText(e.Graphics, _state.RoomName, TrackerTheme.BodyFont, new Rectangle(left, S(6), Width - left * 2, S(19)),
+            TrackerTheme.Text, SingleLine | TextFormatFlags.EndEllipsis);
+
+        if (_state.Checks.Length == 0)
+        {
+            TextRenderer.DrawText(e.Graphics, _state.Message, TrackerTheme.TileNameFont, new Rectangle(left, top, Width - left * 2, rowHeight),
+                TrackerTheme.TextMuted, SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            return;
+        }
+
+        for (int i = 0; i < _state.Checks.Length; i++)
+        {
+            int x = left + i % 2 * columnWidth, y = top + i / 2 * rowHeight;
+            bool locked = _state.Checks[i].Status == CheckStatus.Locked;
+            DrawPip(e.Graphics, x, y + (rowHeight - pip) / 2, pip, locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, filled: false);
+            TextRenderer.DrawText(e.Graphics, _state.Checks[i].Name, TrackerTheme.TileNameFont, new Rectangle(x + textOffset, y, columnWidth - textOffset - S(4), rowHeight),
+                locked ? TrackerTheme.TextMuted : TrackerTheme.Text, SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        }
+    }
+}
+
 /// <summary>The latest AP lines involving this slot, newest first, so they aren't lost when the log floods.</summary>
 internal sealed class RecentPanel : TrackerControl
 {

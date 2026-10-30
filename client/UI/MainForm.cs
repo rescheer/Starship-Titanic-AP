@@ -190,6 +190,7 @@ public sealed class MainForm : Form
             PassengerClassLabel(passengerClass),
             _session.Options.EnforceSaveSeedGuard && _session.SaveSeedGuardState == SaveSeedGuardState.Blocked,
             RoomTiles.Decks.Select(deck => BuildDeck(deck, connected, receivedItems, passengerClass, titaniaRepaired)).ToArray(),
+            BuildHere(connected),
             BuildGoal(attached, connected, receivedItems)));
     }
 
@@ -304,6 +305,39 @@ public sealed class MainForm : Form
         string prefix = LocationChecks.GetReadableRoomName(roomName);
         _hereRoom = RoomTiles.Decks.SelectMany(deck => deck.Rooms)
             .FirstOrDefault(room => room.LocationPrefixes.Contains(prefix, StringComparer.Ordinal)) ?? _hereRoom;
+    }
+
+    /// <summary>The highlighted tile's room and the checks still to get there.</summary>
+    private HereState BuildHere(bool connected)
+    {
+        if (_hereRoom is null)
+            return new HereState("Unknown", Array.Empty<CheckPip>(), "Waiting for the game");
+        if (!connected || !_roomLocationNames.TryGetValue(_hereRoom, out string[]? locations))
+            return new HereState(_hereRoom.Name, Array.Empty<CheckPip>(), "Not connected to AP");
+
+        CheckPip[] checks = locations
+            .Select(location => BuildCheck(location) with { Name = ShortCheckName(location, locations) })
+            .Where(check => check.Status != CheckStatus.Checked)
+            .OrderBy(check => check.Status)
+            .ToArray();
+        return new HereState(_hereRoom.Name, checks, locations.Length == 0 ? "No checks here" : "All checks complete");
+    }
+
+    /// <summary>A check's name without its room. Tiles can cover more than one room, so a name that's used twice under
+    /// the tile keeps the last word of its room, like "Lobby - Visited".</summary>
+    private static string ShortCheckName(string location, string[] tileLocations)
+    {
+        const string separator = " - ";
+        int split = location.IndexOf(separator, StringComparison.Ordinal);
+        if (split < 0)
+            return location;
+
+        string name = location[(split + separator.Length)..];
+        if (tileLocations.Count(other => other.EndsWith(separator + name, StringComparison.Ordinal)) < 2)
+            return name;
+
+        string room = location[..split];
+        return room[(room.LastIndexOf(' ') + 1)..] + separator + name;
     }
 
     private GoalState BuildGoal(bool attached, bool connected, string[] receivedItems)
