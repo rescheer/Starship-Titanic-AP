@@ -273,7 +273,12 @@ internal abstract class HoverPopup : TrackerControl
 /// <summary>Names the check under the mouse and where it stands or, if it's locked, what it still requires.</summary>
 internal sealed class CheckPopup : HoverPopup
 {
+    private const int MaxItemsPerColumn = 20; // short enough to fit above or below anything at the minimum window size
+    private const int ColumnGap = 14;
+
     private CheckPip _check;
+    private int _columnWidth;
+    private int _itemHeight;
 
     /// <summary>Shows a check beside <paramref name="anchor"/> (in the parent's coordinates), inside the parent.</summary>
     public void ShowFor(CheckPip check, Rectangle anchor)
@@ -287,12 +292,18 @@ internal sealed class CheckPopup : HoverPopup
             Size captionSize = Measure(caption, TrackerTheme.CaptionFont);
             width = Math.Max(width, captionSize.Width);
             height += S(CaptionGap) + captionSize.Height;
+
+            _columnWidth = 0;
             foreach (string item in check.Requires)
             {
                 Size size = Measure(item, TrackerTheme.TileNameFont);
-                width = Math.Max(width, size.Width);
-                height += size.Height;
+                _columnWidth = Math.Max(_columnWidth, size.Width);
+                _itemHeight = size.Height;
             }
+            int columns = (check.Requires.Length + MaxItemsPerColumn - 1) / MaxItemsPerColumn;
+            if (columns > 0)
+                width = Math.Max(width, columns * _columnWidth + (columns - 1) * S(ColumnGap));
+            height += Math.Min(check.Requires.Length, MaxItemsPerColumn) * _itemHeight;
         }
         ShowBeside(anchor, width, height);
     }
@@ -315,8 +326,11 @@ internal sealed class CheckPopup : HoverPopup
             return;
 
         y = DrawLine(e.Graphics, caption, TrackerTheme.CaptionFont, TrackerTheme.TextMuted, x, y + S(CaptionGap));
-        foreach (string item in _check.Requires)
-            y = DrawLine(e.Graphics, item, TrackerTheme.TileNameFont, TrackerTheme.Text, x, y);
+        for (int i = 0; i < _check.Requires.Length; i++)
+        {
+            var bounds = new Rectangle(x + i / MaxItemsPerColumn * (_columnWidth + S(ColumnGap)), y + i % MaxItemsPerColumn * _itemHeight, _columnWidth, _itemHeight);
+            TextRenderer.DrawText(e.Graphics, _check.Requires[i], TrackerTheme.TileNameFont, bounds, TrackerTheme.Text, SingleLine | TextFormatFlags.EndEllipsis);
+        }
     }
 }
 
@@ -427,6 +441,26 @@ internal sealed class StatusTile : TrackerControl
     private string _label = "";
     private string _value = "";
     private bool _highlighted;
+
+    /// <summary>Whether the mouse is over the tile.</summary>
+    public bool IsHovered { get; private set; }
+
+    /// <summary>The mouse moved onto or off the tile.</summary>
+    public event Action? HoverChanged;
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        base.OnMouseEnter(e);
+        IsHovered = true;
+        HoverChanged?.Invoke();
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        IsHovered = false;
+        HoverChanged?.Invoke();
+    }
 
     public void Set(string label, string value, bool highlighted)
     {

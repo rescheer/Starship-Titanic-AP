@@ -195,6 +195,7 @@ public sealed class MainForm : Form
             _session.Ap.State != ApConnectionState.Connecting,
             goMode switch { true => "Yes", false => "No", null => "-" },
             goMode == true,
+            goMode == false ? _evaluation!.GoalMissingItems : Array.Empty<string>(),
             directToInventory ? "ITEM DELIVERY MODE" : "SUCC-U-BUS",
             directToInventory ? "Direct" : $"{mailCount} waiting",
             !directToInventory && mailCount > 0,

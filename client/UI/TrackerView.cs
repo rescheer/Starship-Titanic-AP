@@ -22,7 +22,7 @@ internal abstract record GoalState
 internal sealed record TrackerState(
     string GameValue, bool GameHasError, string GameButton,
     string ApValue, Color ApValueColor, bool ApValueClickable, bool ApHasError, string ApButton, bool ApButtonEnabled,
-    string GoModeValue, bool GoModeHighlighted,
+    string GoModeValue, bool GoModeHighlighted, string[] GoModeRequires,
     string MailLabel, string MailValue, bool MailHighlighted,
     string ClassValue,
     bool SaveSeedMismatch,
@@ -55,6 +55,7 @@ internal sealed class TrackerView : TrackerControl
     private readonly ConnectionTile _gameTile = new("STARSHIP TITANIC");
     private readonly ConnectionTile _apTile = new("ARCHIPELAGO");
     private readonly StatusTile _goModeTile = new();
+    private string[] _goModeRequires = Array.Empty<string>();
     private readonly StatusTile _mailTile = new();
     private readonly StatusTile _classTile = new();
 
@@ -155,6 +156,7 @@ internal sealed class TrackerView : TrackerControl
         foreach (RoomTile tile in _roomTiles.SelectMany(row => row))
             tile.PipHoverChanged += OnCheckHoverChanged;
         _here.CheckHoverChanged += OnCheckHoverChanged;
+        _goModeTile.HoverChanged += UpdateGoModePopup;
         _clueBar.ClueHoverChanged += OnClueHoverChanged;
         _gameTile.Button.Click += (_, _) => AttachButtonClicked?.Invoke();
         _apTile.Button.Click += (_, _) => ApButtonClicked?.Invoke();
@@ -178,6 +180,11 @@ internal sealed class TrackerView : TrackerControl
         _gameTile.Set(state.GameValue, state.GameHasError ? TrackerTheme.Error : TrackerTheme.Text, state.GameHasError, state.GameButton, buttonEnabled: true);
         _apTile.Set(state.ApValue, state.ApValueColor, state.ApHasError, state.ApButton, state.ApButtonEnabled, state.ApValueClickable);
         _goModeTile.Set("GO MODE", state.GoModeValue, state.GoModeHighlighted);
+        if (!ReferenceEquals(_goModeRequires, state.GoModeRequires))
+        {
+            _goModeRequires = state.GoModeRequires;
+            UpdateGoModePopup();
+        }
         _mailTile.Set(state.MailLabel, state.MailValue, state.MailHighlighted);
         _classTile.Set("PASSENGER CLASS", state.ClassValue, highlighted: false);
 
@@ -228,6 +235,13 @@ internal sealed class TrackerView : TrackerControl
             _popupSource = null;
             _checkPopup.Visible = false;
         }
+    }
+
+    /// <summary>Lists what's still missing for the goal while the mouse is over the tile.</summary>
+    private void UpdateGoModePopup()
+    {
+        CheckPip? check = _goModeTile.IsHovered && _goModeRequires.Length > 0 ? new CheckPip("Go mode", CheckStatus.Locked, _goModeRequires) : null;
+        OnCheckHoverChanged(_goModeTile, check, new Rectangle(Point.Empty, _goModeTile.Size));
     }
 
     private void OnClueHoverChanged(ClueEntry? clue, Rectangle bounds)

@@ -14,6 +14,14 @@ public sealed class SlotLogic
     private const string RepairTitaniaGoalEvent = "Titania Repaired";
     private const string ParrotHuntGoalEvent = "Parrot Released";
 
+    // Items locked to a check of their own (regions.py), so they come from that check rather than the multiworld
+    private static readonly Dictionary<string, string> LockedItemLocations = new(StringComparer.Ordinal)
+    {
+        ["Titania's Auditory Center"] = "1st Class Restaurant - Titania's Auditory Center",
+        ["2nd Class Upgrade"] = "DeskBot - 2nd Class Upgrade",
+        ["1st Class Upgrade"] = "DeskBot - 1st Class Upgrade",
+    };
+
     /// <summary>What a rule can see: the items collected so far and the regions reached so far.</summary>
     private sealed class State
     {
@@ -78,10 +86,12 @@ public sealed class SlotLogic
     /// <summary>Where a set of received items leaves the slot's locations, checked or not.</summary>
     /// <param name="Reachable">The names of the locations reachable with these items.</param>
     /// <param name="MissingItems">For the rest, what's still needed, described for the player (progressive class and
-    /// stateroom items as the tier they lead to). Events are followed through to the items behind them, and where a rule
-    /// has alternatives this is the one needing the fewest items. Empty if nothing can open it.</param>
+    /// stateroom items as the tier they lead to). Events are followed through to the items behind them, as are items
+    /// locked to a check, which are listed along with them. Where a rule has alternatives this is the one needing the
+    /// fewest items. Empty if nothing can open it.</param>
     /// <param name="GoalReachable">Whether these items are enough to complete the slot's goal.</param>
-    public sealed record Evaluation(HashSet<string> Reachable, Dictionary<string, string[]> MissingItems, bool GoalReachable);
+    /// <param name="GoalMissingItems">What's still needed to complete the goal, described the same way and sorted by name.</param>
+    public sealed record Evaluation(HashSet<string> Reachable, Dictionary<string, string[]> MissingItems, bool GoalReachable, string[] GoalMissingItems);
 
     /// <summary>Works out an <see cref="Evaluation"/>. Pass duplicates for items received more than once.</summary>
     public Evaluation Evaluate(IEnumerable<string> receivedItems)
@@ -123,9 +133,10 @@ public sealed class SlotLogic
             if (state.Regions.Contains(location.Region) && IsMet(location.Rule, state))
                 reachable.Add(location.Name);
             else
-                missingItems[location.Name] = DescribeMissing(location, state);
+                missingItems[location.Name] = DescribeMissing(InRegion(location.Region, location.Rule), state);
         }
-        return new Evaluation(reachable, missingItems, state.Has(_goalEvent, 1));
+        string[] goalMissing = DescribeMissing(new Rule.Has(_goalEvent, 1), state).Order(StringComparer.Ordinal).ToArray();
+        return new Evaluation(reachable, missingItems, state.Has(_goalEvent, 1), goalMissing);
     }
 
     private static bool IsMet(Rule rule, State state) => rule switch
@@ -138,9 +149,9 @@ public sealed class SlotLogic
         _ => false,
     };
 
-    private string[] DescribeMissing(Spot location, State state)
+    private string[] DescribeMissing(Rule rule, State state)
     {
-        Dictionary<string, int>? missing = FindMissing(InRegion(location.Region, location.Rule), state, new HashSet<string>(StringComparer.Ordinal));
+        Dictionary<string, int>? missing = FindMissing(rule, state, new HashSet<string>(StringComparer.Ordinal));
         if (missing is null)
             return Array.Empty<string>();
         return missing.Select(item => DescribeItem(item.Key, item.Value, state)).ToArray();
@@ -173,7 +184,15 @@ public sealed class SlotLogic
                 Rule[] eventRoutes = _events.Where(e => e.Name == has.Item).Select(e => InRegion(e.Region, e.Rule)).ToArray();
                 if (eventRoutes.Length > 0)
                     return FindCheapestRoute($"item {has.Item}", eventRoutes, state, visiting);
-                return new Dictionary<string, int>(StringComparer.Ordinal) { [has.Item] = has.Count };
+                Rule[] checkRoutes = LockedItemLocations.TryGetValue(has.Item, out string? lockedAt)
+                    ? _locations.Where(l => l.Name == lockedAt).Select(l => InRegion(l.Region, l.Rule)).ToArray()
+                    : Array.Empty<Rule>();
+                if (checkRoutes.Length == 0)
+                    return new Dictionary<string, int>(StringComparer.Ordinal) { [has.Item] = has.Count };
+                Dictionary<string, int>? behindCheck = FindCheapestRoute($"item {has.Item}", checkRoutes, state, visiting);
+                if (behindCheck is not null)
+                    behindCheck[has.Item] = has.Count;
+                return behindCheck;
 
             case Rule.Region region when state.Regions.Contains(region.Name):
                 return new Dictionary<string, int>(StringComparer.Ordinal);
