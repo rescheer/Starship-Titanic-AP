@@ -247,12 +247,20 @@ internal sealed class ConnectionTile : TrackerControl
 internal sealed class SectionHeader : TrackerControl
 {
     private readonly string _title;
-    private readonly (string Text, Color? Pip, bool PipFilled)[] _legend;
+    private (string Text, Color? Pip, bool PipFilled)[] _legend;
 
     public SectionHeader(string title, params (string Text, Color? Pip, bool PipFilled)[] legend)
     {
         _title = title;
         _legend = legend;
+    }
+
+    public void SetLegend((string Text, Color? Pip, bool PipFilled)[] legend)
+    {
+        if (ReferenceEquals(legend, _legend))
+            return;
+        _legend = legend;
+        Invalidate();
     }
 
     protected override void OnPaint(PaintEventArgs e)

@@ -301,6 +301,9 @@ public sealed class MainForm : Form
             _ when _session.TitaniaPartsInHand.Contains(part.ApItemName) => PartState.InHand,
             _ => PartState.InMail,
         }).ToArray();
-        return new GoalState.Titania(parts, connected && attached ? parts.Count(p => p == PartState.InHand) : null);
+        return new GoalState.Titania(
+            parts,
+            connected && attached ? parts.Count(p => p == PartState.InHand) : null,
+            !ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData));
     }
 }

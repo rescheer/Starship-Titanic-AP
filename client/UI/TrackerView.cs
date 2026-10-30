@@ -10,7 +10,8 @@ internal enum PartState { NotReceived, InMail, InHand }
 internal abstract record GoalState
 {
     /// <param name="InHandCount">Null while it can't be known.</param>
-    public sealed record Titania(PartState[] Parts, int? InHandCount) : GoalState;
+    /// <param name="UsesMail">False under Direct To Inventory, which has no use for the "in the mail" legend entry.</param>
+    public sealed record Titania(PartState[] Parts, int? InHandCount, bool UsesMail) : GoalState;
 
     /// <param name="Elevator">Each part of the address is null until revealed.</param>
     public sealed record Parrot(int? Elevator, int? Floor, int? Room, int CluesFound, int CluesTotal) : GoalState;
@@ -67,10 +68,19 @@ internal sealed class TrackerView : TrackerControl
     private readonly RoomTile[][] _roomTiles;
     private readonly ToolTip _roomToolTip = new() { AutoPopDelay = 30000, InitialDelay = 300 };
 
-    private readonly SectionHeader _titaniaHeader = new("TITANIA",
+    private static readonly (string Text, Color? Pip, bool PipFilled)[] TitaniaMailLegend =
+    {
         ($"{InHandMark} In hand", null, false),
         ($"{InMailMark} In the mail", null, false),
-        ($"{UnknownMark} Not received", null, false));
+        ($"{UnknownMark} Not received", null, false),
+    };
+    private static readonly (string Text, Color? Pip, bool PipFilled)[] TitaniaDirectLegend =
+    {
+        ($"{InHandMark} In hand", null, false),
+        ($"{UnknownMark} Not received", null, false),
+    };
+
+    private readonly SectionHeader _titaniaHeader = new("TITANIA", TitaniaMailLegend);
     private readonly GoalTile[] _partTiles; // the parts total first, then each part
     private readonly SectionHeader _parrotHeader = new("THE PARROT");
     private readonly GoalTile[] _parrotTiles = { new(), new(), new() };
@@ -174,6 +184,7 @@ internal sealed class TrackerView : TrackerControl
         switch (goal)
         {
             case GoalState.Titania titania:
+                _titaniaHeader.SetLegend(titania.UsesMail ? TitaniaMailLegend : TitaniaDirectLegend);
                 string total = $"{(titania.InHandCount?.ToString() ?? "-")}/{TitaniaParts.All.Length}";
                 _partTiles[0].Set("PARTS", total, GoalTileStyle.Total, TrackerTheme.PartCountFont);
                 for (int i = 0; i < TitaniaParts.All.Length; i++)
