@@ -89,8 +89,8 @@ public sealed class ParrotHuntClueText
         return order[(number - 1) % order.Length];
     }
 
-    /// <summary>A generator seeded from the slot and <paramref name="purpose"/>. Hashed with FNV-1a since
-    /// string.GetHashCode differs every run; a seeded Random keeps its legacy algorithm across .NET versions.</summary>
+    /// <summary>A generator seeded from the slot and <paramref name="purpose"/>. Ensures line picks are unique and
+    /// consistent across a run.</summary>
     private Random RandomFor(string purpose)
     {
         uint hash = 2166136261;

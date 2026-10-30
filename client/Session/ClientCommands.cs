@@ -176,7 +176,7 @@ internal sealed class ClientCommands
     /// Elevator numbers are the PET's, which in 2nd Class come from the corridor rather than the elevator ridden.</summary>
     private void PrintClues()
     {
-        if (ParrotHuntSync.DescribeClues(_ctx.Ap) is not { } clues)
+        if (ParrotHuntTracker.TryRead(_ctx.Ap.KnownSlotData) is not { } info)
         {
             ReportReturn(false, _ctx.Ap.KnownSlotData is null
                 ? "/clues failed: not connected to an AP server yet."
@@ -184,7 +184,8 @@ internal sealed class ClientCommands
             return;
         }
 
-        ReportReturn(true, $"/clues: {clues} (as the PET numbers them)");
+        int found = info.CountClues(_ctx.Ap.GetReceivedItemNames());
+        ReportReturn(true, $"/clues: {info.DescribeProgress(found)} (found {found} of {info.TotalClues} clues)");
     }
 
     private void ReportReturn(bool success, string message)

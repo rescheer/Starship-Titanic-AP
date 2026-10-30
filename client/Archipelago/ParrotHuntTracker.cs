@@ -9,9 +9,10 @@ namespace StarshipTitanicAp;
 /// <param name="Thresholds">The Progressive Clue count each clue in <paramref name="ClueOrder"/> is revealed at. The
 /// Progressive Clues in between only give flavor text (see <see cref="ParrotHuntClueText"/>), which players aren't told.</param>
 /// <param name="ClassIsFixed">Whether the seed's options only allowed one class, so the class isn't a secret.</param>
+/// <param name="TotalClues">How many Progressive Clues are in the seed's item pool.</param>
 public sealed record ParrotHuntInfo(
     string ClueItemName, int Elevator, int Floor, int Room, int PassengerClass, bool ClassIsFixed,
-    string[] ClueOrder, int[] Thresholds)
+    string[] ClueOrder, int[] Thresholds, int TotalClues)
 {
     /// <summary>The target stateroom's room flags, as the PET reports them while standing in it.</summary>
     public uint TargetRoomFlags => RoomFlags.Encode(Elevator, PassengerClass, Floor, Room);
@@ -83,7 +84,8 @@ public static class ParrotHuntTracker
                 (int)room["class"]!,
                 !string.Equals(slotData["parrot_hunt_stateroom_class"] as string, "either", StringComparison.Ordinal),
                 clueOrder,
-                thresholds);
+                thresholds,
+                Convert.ToInt32(slotData["parrot_hunt_clues"]));
         }
         catch
         {
