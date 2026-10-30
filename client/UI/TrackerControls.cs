@@ -632,30 +632,6 @@ internal sealed class ClueBar : TrackerControl
     }
 }
 
-/// <summary>How many staterooms could still be the parrot's, going by the clues so far.</summary>
-internal sealed class PossibleLocationsBar : TrackerControl
-{
-    private int _count;
-
-    public void Set(int count)
-    {
-        if (count == _count)
-            return;
-        _count = count;
-        Invalidate();
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        FillTile(e.Graphics, TrackerTheme.Background, TrackerTheme.Line);
-
-        string count = _count.ToString();
-        int countWidth = TextRenderer.MeasureText(e.Graphics, count, TrackerTheme.BodyFont, Size.Empty, SingleLine).Width;
-        TextRenderer.DrawText(e.Graphics, count, TrackerTheme.BodyFont, new Rectangle(S(12), 0, countWidth, Height), TrackerTheme.Text, SingleLine | TextFormatFlags.VerticalCenter);
-        TextRenderer.DrawText(e.Graphics, _count == 1 ? "Possible Location" : "Possible Locations", TrackerTheme.BodyFont, new Rectangle(S(12) + countWidth + S(5), 0, Width - S(24) - countWidth - S(5), Height), TrackerTheme.TextMuted, SingleLine | TextFormatFlags.VerticalCenter);
-    }
-}
-
 /// <summary>What the You Are Here panel shows.</summary>
 /// <param name="Checks">The room's uncompleted checks, named without the room, in the order to draw them.</param>
 /// <param name="Message">Stands in for the list while <paramref name="Checks"/> is empty.</param>

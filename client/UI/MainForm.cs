@@ -367,7 +367,6 @@ public sealed class MainForm : Form
                 info.IsRevealed("room", clues) ? info.Room : null,
                 clues,
                 info.TotalClues,
-                info.CountPossibleRooms(clues),
                 BuildClues(info, clues));
         }
 

@@ -14,9 +14,8 @@ internal abstract record GoalState
     public sealed record Titania(PartState[] Parts, int? InHandCount, bool UsesMail) : GoalState;
 
     /// <param name="Elevator">Each part of the address is null until revealed.</param>
-    /// <param name="PossibleLocations">How many staterooms the revealed parts still allow.</param>
     /// <param name="Clues">The clues found so far, in order. Empty while not connected, since their text depends on the seed.</param>
-    public sealed record Parrot(int? Elevator, int? Floor, int? Room, int CluesFound, int CluesTotal, int PossibleLocations, ClueEntry[] Clues) : GoalState;
+    public sealed record Parrot(int? Elevator, int? Floor, int? Room, int CluesFound, int CluesTotal, ClueEntry[] Clues) : GoalState;
 }
 
 /// <summary>Everything the main window shows, besides the log and Recent lines.</summary>
@@ -107,7 +106,6 @@ internal sealed class TrackerView : TrackerControl
     private readonly GoalTile[] _parrotTiles = { new(), new(), new() };
     private readonly ClueBar _clueBar = new();
     private readonly CluePopup _cluePopup = new();
-    private readonly PossibleLocationsBar _possibleLocationsBar = new();
 
     private readonly RichTextBox _log = new()
     {
@@ -147,7 +145,7 @@ internal sealed class TrackerView : TrackerControl
 
         Controls.Add(_checkPopup); // the popups are added first, so they're on top of everything else
         Controls.Add(_cluePopup);
-        Controls.AddRange(new Control[] { _gameTile, _apTile, _goModeTile, _mailTile, _classTile, _saveSeedBanner, _forceSeedLink, _roomsHeader, _titaniaHeader, _parrotHeader, _clueBar, _possibleLocationsBar, _log, _chatInput, _chatSend, _hereHeader, _here, _recentHeader, _recent });
+        Controls.AddRange(new Control[] { _gameTile, _apTile, _goModeTile, _mailTile, _classTile, _saveSeedBanner, _forceSeedLink, _roomsHeader, _titaniaHeader, _parrotHeader, _clueBar, _log, _chatInput, _chatSend, _hereHeader, _here, _recentHeader, _recent });
         Controls.AddRange(_deckLabels);
         Controls.AddRange(_roomTiles.SelectMany(row => row).ToArray<Control>());
         Controls.AddRange(_partTiles.ToArray<Control>());
@@ -268,7 +266,6 @@ internal sealed class TrackerView : TrackerControl
                 SetParrotTile(1, "FLOOR", parrot.Floor);
                 SetParrotTile(2, "ROOM", parrot.Room);
                 _clueBar.Set(parrot.CluesFound, parrot.CluesTotal, parrot.Clues);
-                _possibleLocationsBar.Set(parrot.PossibleLocations);
                 break;
         }
     }
@@ -402,8 +399,6 @@ internal sealed class TrackerView : TrackerControl
         }
         _clueBar.Visible = _showParrot;
         _clueBar.SetBounds(left, gridTop + parrotHeight + gap, width, S(90));
-        _possibleLocationsBar.Visible = _showParrot;
-        _possibleLocationsBar.SetBounds(left, _clueBar.Bottom + gap, width, S(36));
     }
 
     protected override void OnPaint(PaintEventArgs e)
