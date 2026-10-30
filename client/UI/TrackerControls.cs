@@ -135,7 +135,7 @@ internal sealed class RoomTile : TrackerControl
         Color fill = _state.IsHere ? TrackerTheme.AccentFill : complete ? TrackerTheme.CompleteFill : TrackerTheme.Background;
         Color border = true switch
         {
-            _ when _state.IsHere || complete => TrackerTheme.Accent,
+            _ when _state.IsHere => TrackerTheme.Accent,
             _ when _state.IsLocked => TrackerTheme.LineDim,
             _ when !hasChecks => TrackerTheme.Line,
             _ => TrackerTheme.LineStrong,
