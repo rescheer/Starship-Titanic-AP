@@ -14,6 +14,7 @@ public sealed class ConnectDialog : Form
     public ConnectDialog(string server, string slot, string password)
     {
         Text = "Connect to Archipelago";
+        Icon = AppInfo.AppIcon;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;

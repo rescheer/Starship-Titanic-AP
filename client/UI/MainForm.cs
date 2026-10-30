@@ -24,6 +24,7 @@ public sealed class MainForm : Form
     {
         _session = new ClientSession();
         Text = AppInfo.TitleBarText;
+        Icon = AppInfo.AppIcon;
         ClientSize = new Size(LogicalToDeviceUnits(1200), LogicalToDeviceUnits(750));
         MinimumSize = new Size(LogicalToDeviceUnits(1120), LogicalToDeviceUnits(640));
         StartPosition = FormStartPosition.CenterScreen;
