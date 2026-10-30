@@ -259,14 +259,12 @@ public sealed class MainForm : Form
             RoomRequirement.FirstClass => passengerClass is (int)PassengerClass.First,
             _ => true,
         };
-        string classNeeded = room.Requirement == RoomRequirement.FirstClass ? "1st Class" : "2nd Class";
 
         string? lockReason = true switch
         {
             _ when room.Requirement == RoomRequirement.TitaniaRepaired && !titaniaRepaired => "Needs Titania",
-            _ when !hasCard && !classMet => $"Card + {classNeeded}",
-            _ when !hasCard => "Needs card",
-            _ when !classMet => $"Needs {classNeeded}",
+            _ when !hasCard => "Locked",
+            _ when !classMet => "", // the deck's row already shows the class it needs
             _ => null,
         };
 
