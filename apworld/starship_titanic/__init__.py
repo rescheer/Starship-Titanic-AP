@@ -61,16 +61,16 @@ class StarshipTitanicWorld(World):
     web = StarshipTitanicWeb()
     options_dataclass = StarshipTitanicOptions
     options: StarshipTitanicOptions
-    access_cards: List[str]  # the Access Cards this slot requires (options.py)
-    # Whether the DeskBot's upgrade checks hold the upgrades themselves (locations.py): vanilla class upgrades only,
+    access_cards: List[str]  # the Access Cards this slot requires
+    # Whether the DeskBot's upgrade checks hold the upgrades themselves: vanilla class upgrades only,
     # and only on seeds generated since that arrangement was added
     class_upgrades_locked: bool
-    # Whether the Auditory Center is a real check holding a record of itself (items.py): only on seeds generated since
+    # Whether the Auditory Center is a real check holding a record of itself: only on seeds generated since
     # that arrangement was added
     auditory_center_locked: bool
     # Every rule set on this slot, by location or entrance name, for export_logic
     logic_rules: Dict[str, Any]
-    # Parrot Hunt goal only (parrot_hunt.py): the parrot's stateroom ("elevator", "floor", "room", "class"), and the
+    # Parrot Hunt goal only: the parrot's stateroom ("elevator", "floor", "room", "class"), and the
     # order its clues reveal those parts
     parrot_room: Dict[str, int]
     clue_order: List[str]
@@ -219,7 +219,7 @@ class StarshipTitanicWorld(World):
             "easy_music_room_puzzle": bool(self.options.easy_music_room_puzzle),
             "class_upgrades_locked": self.class_upgrades_locked,
             "auditory_center_locked": self.auditory_center_locked,
-            "logic": export_logic(self),  # the client's tracker reads this (logic_export.py)
+            "logic": export_logic(self),  # the client's tracker reads this
         }
         if self.is_parrot_hunt():
             clues = self.options.parrot_hunt_clues.value

@@ -119,7 +119,7 @@ def set_all_entrance_rules(world: StarshipTitanicWorld) -> None:
 
 
 def set_all_location_rules(world: StarshipTitanicWorld) -> None:
-    # Not created under this goal (regions.py)
+    # Not created under this goal
     parrot_hunt = world.options.goal == Goal.option_parrot_hunt
 
     # ---------------------------------------------------------------- #
