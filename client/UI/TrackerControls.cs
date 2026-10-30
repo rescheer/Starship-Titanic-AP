@@ -57,12 +57,15 @@ internal readonly record struct CheckPip(string Name, CheckStatus Status, string
 /// <summary>What a room tile shows. Without <paramref name="Checks"/> it's just a name and tag.</summary>
 /// <param name="Checks">The room's checks, in the order to draw them.</param>
 /// <param name="IsLocked">Whether something's missing to enter the room, which dims the tile.</param>
-/// <param name="IsHere">Whether the player's in this room, which highlights the tile.</param>
+/// <param name="IsHere">Whether the player's in this room, which highlights the tile and adds a map pin.</param>
 internal readonly record struct RoomTileState(string Name, CheckPip[] Checks, string Tag, bool IsLocked, bool IsHere);
 
 /// <summary>One room: its name, a dot per check, and a line on where it stands.</summary>
 internal sealed class RoomTile : TrackerControl
 {
+    private const int HerePinSize = 12;
+    private const int HerePinInset = 5;
+
     private RoomTileState _state = new("", Array.Empty<CheckPip>(), "", false, false);
     private int _hoveredIndex = -1;
     private CheckPip? _hoveredPip;
@@ -151,8 +154,34 @@ internal sealed class RoomTile : TrackerControl
             DrawPip(e.Graphics, pip.X, pip.Y, pip.Width, status == CheckStatus.Locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, status == CheckStatus.Checked);
         }
 
-        TextRenderer.DrawText(e.Graphics, _state.Tag, TrackerTheme.CaptionFont, new Rectangle(left, Height - S(17), Width - left - S(2), S(14)),
+        // A tag stops short of the pin
+        int tagRight = _state.IsHere ? Width - S(HerePinInset + HerePinSize + 3) : Width - S(2);
+        TextRenderer.DrawText(e.Graphics, _state.Tag, TrackerTheme.CaptionFont, new Rectangle(left, Height - S(17), tagRight - left, S(14)),
             TrackerTheme.TextMuted, SingleLine | TextFormatFlags.EndEllipsis);
+
+        if (_state.IsHere)
+            DrawHerePin(e.Graphics);
+    }
+
+    /// <summary>Draws the map pin in the lower right corner, from a <see cref="HerePinSize"/> square design.</summary>
+    private void DrawHerePin(Graphics g)
+    {
+        using var pin = new GraphicsPath();
+        pin.AddArc(1.7f, 0.3f, 8.6f, 8.6f, 180f, 180f);
+        pin.AddBezier(10.3f, 4.6f, 10.3f, 7.6f, 6f, 11.7f, 6f, 11.7f);
+        pin.AddBezier(6f, 11.7f, 6f, 11.7f, 1.7f, 7.6f, 1.7f, 4.6f);
+        pin.CloseFigure();
+        pin.AddEllipse(4.6f, 3.2f, 2.8f, 2.8f); // the hole, by the path's alternate fill
+
+        using var transform = new Matrix();
+        transform.Translate(Width - S(HerePinInset + HerePinSize), Height - S(HerePinInset + HerePinSize));
+        transform.Scale(S(HerePinSize) / (float)HerePinSize, S(HerePinSize) / (float)HerePinSize);
+        pin.Transform(transform);
+
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using var brush = new SolidBrush(TrackerTheme.Accent);
+        g.FillPath(brush, pin);
+        g.SmoothingMode = SmoothingMode.Default;
     }
 }
 
