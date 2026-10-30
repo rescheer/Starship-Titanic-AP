@@ -104,12 +104,6 @@ internal sealed class ParrotHuntSync
         }
     }
 
-    /// <summary>/clues and the client's clue panel: the clues revealed so far, or null when the goal isn't Parrot Hunt.</summary>
-    public static string? DescribeClues(ArchipelagoConnection ap) =>
-        ParrotHuntTracker.TryRead(ap.KnownSlotData) is { } info
-            ? info.DescribeProgress(info.CountClues(ap.GetReceivedItemNames()))
-            : null;
-
     private long? ResolveCarryParrot(long project)
     {
         if (_carryParrotAddr is not null)

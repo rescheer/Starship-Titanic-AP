@@ -38,6 +38,8 @@ internal sealed class ItemSync
     /// TryUnrestoreItemsLeavingRnv).</summary>
     private readonly List<(string ItemName, long ItemAddress, int DueTick)> _pendingUnrestoreChecks = new();
 
+    private HashSet<string> _titaniaPartsInHand = new(StringComparer.Ordinal);
+
     public ItemSync(SessionContext ctx)
     {
         _ctx = ctx;
@@ -48,6 +50,35 @@ internal sealed class ItemSync
     {
         _pendingUnrestoreChecks.Clear();
         _eatenMagazineAddr = null;
+        ClearTitaniaPartsInHand();
+    }
+
+    /// <summary>The AP item names of the Titania parts that have reached the inventory in this save.</summary>
+    public IReadOnlySet<string> TitaniaPartsInHand => _titaniaPartsInHand;
+
+    /// <summary>Forgets <see cref="TitaniaPartsInHand"/>, which can't be read again until the next reconcile.</summary>
+    public void ClearTitaniaPartsInHand()
+    {
+        if (_titaniaPartsInHand.Count == 0)
+            return;
+        _titaniaPartsInHand = new HashSet<string>(StringComparer.Ordinal);
+        _ctx.Report.NotifyTitaniaPartsChanged();
+    }
+
+    private void UpdateTitaniaPartsInHand(List<CarryItemLocation> items)
+    {
+        var inHand = new HashSet<string>(StringComparer.Ordinal);
+        foreach (TitaniaPart part in TitaniaParts.All)
+        {
+            if (FindByName(items, part.ItemName) is { } item
+                && GameActions.ReadItemPersistedState(_ctx.Mem, item.Address).HasBeenInInventory)
+                inHand.Add(part.ApItemName);
+        }
+
+        if (inHand.SetEquals(_titaniaPartsInHand))
+            return;
+        _titaniaPartsInHand = inHand;
+        _ctx.Report.NotifyTitaniaPartsChanged();
     }
 
     /// <summary>Re-marks the whole tree dirty once a scheduled reassert is due (see ScheduleDirtyReassert).</summary>
@@ -262,6 +293,8 @@ internal sealed class ItemSync
 
         // After the loop above, so it never acts on the Magazine's stale pre-return parent this pass.
         TryReturnEatenMagazine(items, gameManager);
+
+        UpdateTitaniaPartsInHand(items);
     }
 
     /// <summary>CMagazine's hand-off to an active DeskBot hides it and parks it at this position, whether or not the

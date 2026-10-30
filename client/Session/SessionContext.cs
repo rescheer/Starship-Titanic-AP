@@ -14,6 +14,9 @@ internal interface ISessionReporter
 
     /// <summary>The mail system's contents were changed; re-read them on the next poll.</summary>
     void NotifyMailChanged();
+
+    /// <summary>The set of Titania parts that have reached the inventory changed.</summary>
+    void NotifyTitaniaPartsChanged();
 }
 
 /// <summary>What a session feature needs from its <see cref="ClientSession"/>: the game and AP handles, the

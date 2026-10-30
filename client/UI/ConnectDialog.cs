@@ -22,6 +22,11 @@ public sealed class ConnectDialog : Form
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
         Padding = new Padding(10);
+        BackColor = TrackerTheme.Background;
+        ForeColor = TrackerTheme.Text;
+        TrackerTheme.StyleTextBox(_txtServer);
+        TrackerTheme.StyleTextBox(_txtSlot);
+        TrackerTheme.StyleTextBox(_txtPassword);
 
         _txtServer.Text = server;
         _txtSlot.Text = slot;
@@ -42,6 +47,8 @@ public sealed class ConnectDialog : Form
 
         var btnConnect = new Button { Text = "Connect", DialogResult = DialogResult.OK, Width = 90 };
         var btnCancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 90 };
+        TrackerTheme.StyleButton(btnConnect);
+        TrackerTheme.StyleButton(btnCancel);
         var buttonRow = new FlowLayoutPanel
         {
             AutoSize = true,
@@ -64,5 +71,11 @@ public sealed class ConnectDialog : Form
 
         AcceptButton = btnConnect;
         CancelButton = btnCancel;
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        TrackerTheme.UseDarkTitleBar(this);
     }
 }

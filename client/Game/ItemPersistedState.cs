@@ -31,6 +31,12 @@ public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFire
 {
     public static readonly ItemPersistedState None = new(ItemStage.None, false, ItemPulledFrom.None);
 
+    /// <summary>Whether the item has reached the inventory. Stays true once it has, including while the item is pulled
+    /// back to its home spot for a natural pickup, or has since been used somewhere (an item at Stage.Inventory isn't
+    /// rewritten when it leaves).</summary>
+    public bool HasBeenInInventory => Stage == ItemStage.Inventory
+        || (Stage == ItemStage.Restored && PulledFrom == ItemPulledFrom.Inventory);
+
     public static ItemPersistedState Decode(int raw) => new(
         (ItemStage)(raw & 0xFF),
         ((raw >> 8) & 1) != 0,
