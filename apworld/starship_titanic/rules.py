@@ -21,7 +21,9 @@ from .items import (
     SGT_STATEROOM_TIER,
     SECOND_STATEROOM_TIER,
     FIRST_STATEROOM_TIER,
+    PROGRESSIVE_CLUE,
 )
+from .parrot_hunt import PARROT_HUNT_GOAL_LOCATION, PARROT_RELEASED_EVENT
 
 if TYPE_CHECKING:
     from . import StarshipTitanicWorld
@@ -117,6 +119,9 @@ def set_all_entrance_rules(world: StarshipTitanicWorld) -> None:
 
 
 def set_all_location_rules(world: StarshipTitanicWorld) -> None:
+    # Not created under this goal (regions.py)
+    parrot_hunt = world.options.goal == Goal.option_parrot_hunt
+
     # ---------------------------------------------------------------- #
     # Embarkation Lobby
     # ---------------------------------------------------------------- #
@@ -172,25 +177,27 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # ---------------------------------------------------------------- #
     # Parrot Lobby
     # ---------------------------------------------------------------- #
-    world.set_rule(
-        world.get_location("Parrot Lobby - Feather"),
-        CanReachRegion("Parrot Lobby")
-        & CanReachRegion("Top of the Well")
-    )
-    
+    if not parrot_hunt:
+        world.set_rule(
+            world.get_location("Parrot Lobby - Feather"),
+            CanReachRegion("Parrot Lobby")
+            & CanReachRegion("Top of the Well")
+        )
+
     world.set_rule(
         world.get_location("Parrot Lobby - Titania's Nose"),
         Has("Hose")
         & CanReachRegion("Parrot Lobby")
     )
 
-    world.set_rule(
-        world.get_location("Parrot Lobby - Titania's Core"),
-        HasAll("Napkin", "Yellow Fuse")
-        & CanReachRegion("Titania's Room")
-        & CanReachRegion("SGT Class Lobby")
-        & CanReachRegion("Parrot Lobby")
-    )
+    if not parrot_hunt:
+        world.set_rule(
+            world.get_location("Parrot Lobby - Titania's Core"),
+            HasAll("Napkin", "Yellow Fuse")
+            & CanReachRegion("Titania's Room")
+            & CanReachRegion("SGT Class Lobby")
+            & CanReachRegion("Parrot Lobby")
+        )
 
     # ---------------------------------------------------------------- #
     # Bilge Room
@@ -367,21 +374,35 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # ---------------------------------------------------------------- #
     # 2nd Class Stateroom
     # ---------------------------------------------------------------- #
-    world.set_rule(
-        # Any 2nd Class Stateroom works, not just the assigned one
-        world.get_location("2nd Class Stateroom - Titania's Ear (Pistachio Bowl)"),
-        CanReachRegion("Parrot Lobby")
-        & CanReachRegion("2nd Class Stateroom")
-    )
+    if not parrot_hunt:
+        world.set_rule(
+            # Any 2nd Class Stateroom works, not just the assigned one
+            world.get_location("2nd Class Stateroom - Titania's Ear (Pistachio Bowl)"),
+            CanReachRegion("Parrot Lobby")
+            & CanReachRegion("2nd Class Stateroom")
+        )
 
     # ---------------------------------------------------------------- #
     # SGT Class Stateroom
     # ---------------------------------------------------------------- #
     # (no location rules)
 
+    # ---------------------------------------------------------------- #
+    # Parrot Hunt
+    # ---------------------------------------------------------------- #
+    if parrot_hunt:
+        # In the chosen stateroom's region (regions.py), whose entrances already cover the class and Access Card
+        world.set_rule(
+            # Event
+            world.get_location(PARROT_HUNT_GOAL_LOCATION),
+            Has(PROGRESSIVE_CLUE, count=world.options.parrot_hunt_clues.value)
+        )
+
 
 def set_completion_condition(world: StarshipTitanicWorld) -> None:
     if world.options.goal == Goal.option_repair_titania:
         world.set_completion_rule(Has("Titania Repaired"))
+    elif world.options.goal == Goal.option_parrot_hunt:
+        world.set_completion_rule(Has(PARROT_RELEASED_EVENT))
     else:
         world.set_completion_rule(Has("Victory"))

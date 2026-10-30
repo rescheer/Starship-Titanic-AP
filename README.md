@@ -29,6 +29,9 @@ Requires [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/
   - **/return \<item\>** - [experimental] Returns an item to your inventory. Only works with items already received from the multiworld. Recommended only as a bug recovery tool
   - **/getmail** - [experimental] Moves all the pending granted AP items from the mail system straight into your inventory. Skip listening to the Succ-U-Bus vomiting sounds! (after 170 hours of testing, I am overjoyed)
   - **/loc** - prints your current location data
+  - **/clues** - shows the Parrot Hunt clues revealed so far
+### Parrot Hunt goal: 
+Oh no! The parrot has gotten himself stuck in a random 2nd or 1st Class Stateroom's Succ-U-Bus! Find Progressive Clues in the multiworld. Some of them reveal the stateroom's elevator, floor or room number. Once you know all three (or before, if you have a guess!), go to that stateroom's Succ-U-Bus terminal and save the parrot from its clutches!
  
 ## FAQ
 - Why only the Steam version of the game? What about GOG? Can I use my original discs?

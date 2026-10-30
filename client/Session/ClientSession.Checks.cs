@@ -7,6 +7,9 @@ internal sealed partial class ClientSession
     {
         if (!LocationChecks.TryGetLocationName(roomName, out string locationName))
             return;
+        // Returning home doesn't complete the Parrot Hunt goal (see ParrotHuntSync)
+        if (locationName == LocationChecks.GoalLocationName && LocationChecks.IsParrotHuntGoal(_apConnection.KnownSlotData))
+            return;
 
         if (!_sentRoomVisitChecks.Add(roomName))
             return;

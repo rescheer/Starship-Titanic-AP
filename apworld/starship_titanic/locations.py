@@ -251,6 +251,9 @@ location_table: Dict[str, STLocationData] = {
     # Event-only shadow of "DeskBot - 1st Class Upgrade", fired by the client alongside it. grants 1st Class (and
     # the 1st Class Stateroom) under the vanilla class/stateroom options.
     "DeskBot - 1st Class Upgrade (Event)": STLocationData("Embarkation Lobby", "1st Class Upgrade"),
+    # Parrot Hunt goal. region depends on the chosen stateroom's class, so regions.py places it in the 2nd
+    # or 1st Class stateroom rather than the region given here
+    "Parrot Hunt - Release the Parrot": STLocationData("2nd Class Stateroom", "Parrot Released"),
 }
 
 location_name_to_id: Dict[str, int] = {

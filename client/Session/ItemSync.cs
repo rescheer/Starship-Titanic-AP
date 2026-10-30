@@ -73,6 +73,8 @@ internal sealed class ItemSync
 
         SyncLiftEyeGate(items, receivedItems);
         TryHideOrDeliverFeather(items, receivedItems, gameManager);
+        // Under this goal CarryParrot's persisted state belongs to ParrotHuntSync, and the Feather check isn't in the seed
+        bool parrotHunt = LocationChecks.IsParrotHuntGoal(_ctx.Ap.KnownSlotData);
 
         foreach (CarryItemLocation item in items)
         {
@@ -83,6 +85,9 @@ internal sealed class ItemSync
                 || ItemTracking.IsOneDirectionalItem(item.Name)
                 || ItemTracking.IsFullStateMachineItem(item.Name);
             if (!isTracked)
+                continue;
+
+            if (isCarryParrot && parrotHunt)
                 continue;
 
             if (isCarryParrot)
@@ -573,6 +578,10 @@ internal sealed class ItemSync
         {
             if (ItemTracking.IsRestorationExcluded(name))
                 continue;
+            // Its pickup can't be done under the Parrot Hunt goal, so a restored item would just vanish until left behind
+            if (LocationChecks.TryGetItemPickupLocationName(name, out string pickupLocationName)
+                && ParrotHuntTracker.IsRemovedLocation(_ctx.Ap.KnownSlotData, pickupLocationName))
+                continue;
 
             items ??= GameState.FindAllCarryItems(_ctx.Mem, project);
             if (FindByName(items, name) is not { } item)
@@ -1037,6 +1046,8 @@ internal sealed class ItemSync
     private void SendItemPickupCheck(string itemName)
     {
         if (!LocationChecks.TryGetItemPickupLocationName(itemName, out string locationName))
+            return;
+        if (ParrotHuntTracker.IsRemovedLocation(_ctx.Ap.KnownSlotData, locationName))
             return;
 
         bool handedOff = _ctx.Ap.SendLocationCheck(locationName);

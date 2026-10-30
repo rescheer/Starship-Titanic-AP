@@ -12,6 +12,7 @@ public static class LocationChecks
     /// <summary>Slot data key for the player's Goal option ("return_home" or "repair_titania").</summary>
     private const string GoalSlotDataKey = "goal";
     private const string RepairTitaniaGoal = "repair_titania";
+    private const string ParrotHuntGoal = "parrot_hunt";
 
     // engine room name (RoomNames.cs) -> AP location name (locations.py)
     private static readonly Dictionary<string, string> RoomToLocationName = new(StringComparer.OrdinalIgnoreCase)
@@ -104,6 +105,12 @@ public static class LocationChecks
         slotData is not null
         && slotData.TryGetValue(GoalSlotDataKey, out object? raw)
         && string.Equals(raw as string, RepairTitaniaGoal, StringComparison.Ordinal);
+
+    /// <summary>Whether the slot's goal is completed by finding and releasing the mailed parrot.</summary>
+    public static bool IsParrotHuntGoal(IReadOnlyDictionary<string, object>? slotData) =>
+        slotData is not null
+        && slotData.TryGetValue(GoalSlotDataKey, out object? raw)
+        && string.Equals(raw as string, ParrotHuntGoal, StringComparison.Ordinal);
 
     /// <summary>Human-readable display name for an engine room name, for UI purposes only.</summary>
     public static string GetReadableRoomName(string roomName)

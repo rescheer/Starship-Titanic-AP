@@ -422,6 +422,43 @@ public static class GameActions
     public static bool IsItemMusicSolved(MemoryReader mem, long itemAddr) =>
         mem.ReadInt64(itemAddr + GameOffsets.GameObjectUnused2Offset) is long raw && BitConverter.Int64BitsToDouble(raw) == 1.0;
 
+    /// <summary>Reads how many Progressive Clues have been announced, recorded on CarryParrot's _unused2 (a double
+    /// the save format round-trips through a 32-bit float, which keeps small integers exact). 0 when unset.</summary>
+    public static int ReadCluesAnnounced(MemoryReader mem, long carryParrotAddr)
+    {
+        if (mem.ReadInt64(carryParrotAddr + GameOffsets.GameObjectUnused2Offset) is not long raw)
+            return 0;
+        double value = BitConverter.Int64BitsToDouble(raw);
+        return double.IsFinite(value) && value >= 0 && value <= 1000 ? (int)value : 0;
+    }
+
+    /// <summary>Records how many Progressive Clues have been announced (see ReadCluesAnnounced).</summary>
+    public static bool WriteCluesAnnounced(MemoryReader mem, long carryParrotAddr, int count) =>
+        mem.WriteInt64(carryParrotAddr + GameOffsets.GameObjectUnused2Offset, BitConverter.DoubleToInt64Bits(count));
+
+    /// <summary>Reads CParrot::_state (see GameOffsets.ParrotStateStatic).</summary>
+    public static int? ReadParrotState(MemoryReader mem) =>
+        mem.ReadInt32(mem.ModuleBase + GameOffsets.ParrotStateStatic);
+
+    /// <summary>Writes CParrot::_state (see GameOffsets.ParrotStateStatic).</summary>
+    public static bool SetParrotState(MemoryReader mem, int state) =>
+        mem.WriteInt32(mem.ModuleBase + GameOffsets.ParrotStateStatic, state);
+
+    /// <summary>Sends a CActMsg to the Parrot Lobby controller by calling its handler directly (see
+    /// GameOffsets.ParrotLobbyControllerActMsgFunc). The handler only reads _action, so the vtable slot stays zero.</summary>
+    public static bool SendParrotLobbyAction(MemoryReader mem, long controllerAddr, string action)
+    {
+        long msg = RemoteCaller.AllocateAndWrite(mem, new byte[GameOffsets.ActMsgSize]);
+        if (msg == 0)
+            return false;
+
+        bool ok = ConstructCString(mem, msg + GameOffsets.ActMsgActionOffset, action)
+            && RemoteCaller.Call(mem, mem.ModuleBase + GameOffsets.ParrotLobbyControllerActMsgFunc, rcx: controllerAddr, rdx: msg);
+
+        RemoteCaller.FreeRemoteMemory(mem, msg);
+        return ok;
+    }
+
     /// <summary>True if the Phonograph ear has already had its one-time CPETGainedObjectMsg, so the game has shown the
     /// Replacement Phonograph Ear and won't show it again.</summary>
     public static bool HasPhonographEarShownReplacement(MemoryReader mem, long earAddr) =>

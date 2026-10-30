@@ -7,6 +7,7 @@ from BaseClasses import Region # pyright: ignore[reportMissingImports]
 
 from .locations import location_table, StarshipTitanicLocation
 from .options import Goal
+from .parrot_hunt import PARROT_HUNT_GOAL_LOCATION, PARROT_HUNT_REMOVED_LOCATIONS, STATEROOM_REGIONS
 
 # (region_name, [location_names_in_this_region])
 _regions_and_locations: Dict[str, List[str]] = {}
@@ -74,6 +75,8 @@ def create_regions(world) -> None:
 
     # The Repair Titania goal completes before the Bridge opens, so keep items out of it
     skip_bridge_checks = world.options.goal == Goal.option_repair_titania
+    # The parrot stays in the mail under the Parrot Hunt goal, so the locations that need it can't be completed
+    parrot_hunt = world.options.goal == Goal.option_parrot_hunt
 
     regions: Dict[str, Region] = {}
     for region_name in ALL_REGIONS:
@@ -82,6 +85,10 @@ def create_regions(world) -> None:
             loc_data = location_table[loc_name]
             if skip_bridge_checks and region_name == "Bridge" and not loc_data.event_item:
                 continue
+            if parrot_hunt and loc_name in PARROT_HUNT_REMOVED_LOCATIONS:
+                continue
+            if loc_name == PARROT_HUNT_GOAL_LOCATION:
+                continue  # created below, in the chosen stateroom's region
             code = None if loc_data.event_item else world.location_name_to_id[loc_name]
             location = StarshipTitanicLocation(player, loc_name, code, region)
             if loc_data.event_item:
@@ -89,6 +96,12 @@ def create_regions(world) -> None:
             region.locations.append(location)
         regions[region_name] = region
         multiworld.regions.append(region)
+
+    if parrot_hunt:
+        region = regions[STATEROOM_REGIONS[world.parrot_room["class"]]]
+        location = StarshipTitanicLocation(player, PARROT_HUNT_GOAL_LOCATION, None, region)
+        location.place_locked_item(world.create_event(location_table[PARROT_HUNT_GOAL_LOCATION].event_item))
+        region.locations.append(location)
 
     for from_region, to_region in REGION_CONNECTIONS:
         regions[from_region].connect(regions[to_region], f"{from_region} -> {to_region}")
