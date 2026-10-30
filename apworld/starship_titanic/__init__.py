@@ -19,6 +19,7 @@ from .items import (
 from .locations import (
     location_name_to_id,
 )
+from .logic_export import export_logic
 from .parrot_hunt import CLUE_PARTS, choose_room, clue_thresholds
 from .regions import create_regions as _create_regions
 from .rules import set_rules as _set_rules
@@ -64,6 +65,8 @@ class StarshipTitanicWorld(World):
     # Whether the DeskBot's upgrade checks hold the upgrades themselves (locations.py): vanilla class upgrades only,
     # and only on seeds generated since that arrangement was added
     class_upgrades_locked: bool
+    # Every rule set on this slot, by location or entrance name, for export_logic
+    logic_rules: Dict[str, Any]
     # Parrot Hunt goal only (parrot_hunt.py): the parrot's stateroom ("elevator", "floor", "room", "class"), and the
     # order its clues reveal those parts
     parrot_room: Dict[str, int]
@@ -82,6 +85,7 @@ class StarshipTitanicWorld(World):
         return StarshipTitanicItem(name, ItemClassification.progression, None, self.player)
 
     def generate_early(self) -> None:
+        self.logic_rules = {}
         re_gen_passthrough = getattr(self.multiworld, "re_gen_passthrough", {})
         if self.game in re_gen_passthrough:
             self.apply_slot_data(re_gen_passthrough[self.game])
@@ -185,6 +189,10 @@ class StarshipTitanicWorld(World):
     def set_rules(self) -> None:
         _set_rules(self)
 
+    def set_rule(self, spot: Any, rule: Any) -> None:
+        self.logic_rules[spot.name] = rule
+        super().set_rule(spot, rule)
+
     def get_filler_item_name(self) -> str:
         return self.random.choice(filler_item_names)
 
@@ -205,6 +213,7 @@ class StarshipTitanicWorld(World):
             "item_delivery_method": self.options.item_delivery_method.current_key,  # "succubus" or "direct_to_inventory"
             "easy_music_room_puzzle": bool(self.options.easy_music_room_puzzle),
             "class_upgrades_locked": self.class_upgrades_locked,
+            "logic": export_logic(self),  # the client's tracker reads this (logic_export.py)
         }
         if self.is_parrot_hunt():
             clues = self.options.parrot_hunt_clues.value
