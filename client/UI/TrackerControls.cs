@@ -129,10 +129,10 @@ internal sealed class RoomTile : TrackerControl
     {
         bool hasChecks = _state.Checks.Length > 0;
         bool complete = hasChecks && _state.Checks.All(check => check.Status == CheckStatus.Checked);
-        Color fill = _state.IsHere ? TrackerTheme.AccentFill : complete ? TrackerTheme.Surface : TrackerTheme.Background;
+        Color fill = _state.IsHere ? TrackerTheme.AccentFill : complete ? TrackerTheme.CompleteFill : TrackerTheme.Background;
         Color border = true switch
         {
-            _ when _state.IsHere => TrackerTheme.Accent,
+            _ when _state.IsHere || complete => TrackerTheme.Accent,
             _ when _state.IsLocked => TrackerTheme.LineDim,
             _ when !hasChecks => TrackerTheme.Line,
             _ => TrackerTheme.LineStrong,

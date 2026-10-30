@@ -7,6 +7,7 @@ internal static class TrackerTheme
 {
     public static readonly Color Background = ColorTranslator.FromHtml("#16181C");
     public static readonly Color Surface = ColorTranslator.FromHtml("#1D2025");
+    public static readonly Color CompleteFill = ColorTranslator.FromHtml("#24282E");
     public static readonly Color LogBackground = ColorTranslator.FromHtml("#0E0F12");
     public static readonly Color Line = ColorTranslator.FromHtml("#363A42");
     public static readonly Color LineDim = ColorTranslator.FromHtml("#2E3238");
