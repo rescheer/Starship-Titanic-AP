@@ -103,6 +103,13 @@ public static class GameActions
         return RemoteCaller.Call(mem, funcAddr, rcx: petControlAddr, rdx: 0, r8: 0);
     }
 
+    /// <summary>Calls CPetControl::setArea() with area=PET_CONVERSATION.</summary>
+    public static bool SetPetAreaConversation(MemoryReader mem, long petControlAddr)
+    {
+        long funcAddr = mem.ModuleBase + GameOffsets.SetAreaFunc;
+        return RemoteCaller.Call(mem, funcAddr, rcx: petControlAddr, rdx: GameOffsets.PetAreaConversation, r8: 0);
+    }
+
     /// <summary>Runs the full refresh sequence so a CPetControl's visible glyph list picks up whatever changed
     /// underneath it. Only forces the visible area to Inventory if that's already what's showing.</summary>
     public static bool RefreshPetControl(MemoryReader mem, long petControlAddr, long gameManager)

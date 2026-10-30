@@ -50,7 +50,7 @@ internal sealed class ParrotHuntSync
         if (ResolveCarryParrot(project) is not { } parrot)
             return;
 
-        AnnounceClues(info, parrot);
+        AnnounceClues(info, parrot, petControlAddr);
 
         ItemPersistedState persisted = GameActions.ReadItemPersistedState(_ctx.Mem, parrot);
         if (persisted.CheckFired)
@@ -211,8 +211,9 @@ internal sealed class ParrotHuntSync
     /// <summary>Shows a PET message for the Progressive Clues not announced yet: the real clue at each of the seed's
     /// thresholds, or a red herring when none of them hit one. The count announced is saved on CarryParrot, so
     /// reconnecting (which re-receives every item) or reloading doesn't repeat them. Waits while disconnected, since
-    /// the lines chosen depend on the seed (see <see cref="ParrotHuntClueText"/>).</summary>
-    private void AnnounceClues(ParrotHuntInfo info, long parrot)
+    /// the lines chosen depend on the seed (see <see cref="ParrotHuntClueText"/>). Swaps the PET to the conversation
+    /// tab first, since a message shown on any other tab can be overwritten before it's read.</summary>
+    private void AnnounceClues(ParrotHuntInfo info, long parrot, long petControlAddr)
     {
         int clues = info.CountClues(_ctx.Ap.GetReceivedItemNames());
         int announced = GameActions.ReadCluesAnnounced(_ctx.Mem, parrot);
@@ -232,6 +233,8 @@ internal sealed class ParrotHuntSync
 
         _ctx.Report.AppendServerLog($"CLIENT: {message}");
         _ctx.Report.AppendServerLog($"CLIENT: Parrot Hunt clues: {info.DescribeProgress(clues)}");
+        if (GameState.GetCurrentPetArea(_ctx.Mem, petControlAddr) != GameOffsets.PetAreaConversation)
+            GameActions.SetPetAreaConversation(_ctx.Mem, petControlAddr);
         _ctx.ShowPetMessage($"AP: {message}");
     }
 
