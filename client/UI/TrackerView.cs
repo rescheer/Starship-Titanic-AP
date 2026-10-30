@@ -21,6 +21,7 @@ internal abstract record GoalState
 internal sealed record TrackerState(
     string GameValue, bool GameHasError, string GameButton,
     string ApValue, Color ApValueColor, bool ApHasError, string ApButton, bool ApButtonEnabled,
+    string GoModeValue, bool GoModeHighlighted,
     string MailLabel, string MailValue, bool MailHighlighted,
     string ClassValue,
     bool SaveSeedMismatch,
@@ -51,6 +52,7 @@ internal sealed class TrackerView : TrackerControl
 
     private readonly ConnectionTile _gameTile = new("STARSHIP TITANIC");
     private readonly ConnectionTile _apTile = new("ARCHIPELAGO");
+    private readonly StatusTile _goModeTile = new();
     private readonly StatusTile _mailTile = new();
     private readonly StatusTile _classTile = new();
 
@@ -140,7 +142,7 @@ internal sealed class TrackerView : TrackerControl
         TrackerTheme.StyleButton(_chatSend);
 
         Controls.Add(_checkPopup); // added first, so it's on top of everything else
-        Controls.AddRange(new Control[] { _gameTile, _apTile, _mailTile, _classTile, _saveSeedBanner, _forceSeedLink, _roomsHeader, _titaniaHeader, _parrotHeader, _clueBar, _log, _chatInput, _chatSend, _hereHeader, _here, _recentHeader, _recent });
+        Controls.AddRange(new Control[] { _gameTile, _apTile, _goModeTile, _mailTile, _classTile, _saveSeedBanner, _forceSeedLink, _roomsHeader, _titaniaHeader, _parrotHeader, _clueBar, _log, _chatInput, _chatSend, _hereHeader, _here, _recentHeader, _recent });
         Controls.AddRange(_deckLabels);
         Controls.AddRange(_roomTiles.SelectMany(row => row).ToArray<Control>());
         Controls.AddRange(_partTiles.ToArray<Control>());
@@ -169,6 +171,7 @@ internal sealed class TrackerView : TrackerControl
     {
         _gameTile.Set(state.GameValue, state.GameHasError ? TrackerTheme.Error : TrackerTheme.Text, state.GameHasError, state.GameButton, buttonEnabled: true);
         _apTile.Set(state.ApValue, state.ApValueColor, state.ApHasError, state.ApButton, state.ApButtonEnabled);
+        _goModeTile.Set("GO MODE", state.GoModeValue, state.GoModeHighlighted);
         _mailTile.Set(state.MailLabel, state.MailValue, state.MailHighlighted);
         _classTile.Set("PASSENGER CLASS", state.ClassValue, highlighted: false);
 
@@ -305,6 +308,7 @@ internal sealed class TrackerView : TrackerControl
         _apTile.SetBounds(_gameTile.Right + gap, tileTop, S(370), tileHeight);
         _classTile.SetBounds(width - margin - S(136), tileTop, S(136), tileHeight);
         _mailTile.SetBounds(_classTile.Left - gap - S(136), tileTop, S(136), tileHeight);
+        _goModeTile.SetBounds(_mailTile.Left - gap - S(136), tileTop, S(136), tileHeight);
 
         int top = barHeight;
         if (_saveSeedBanner.Visible)

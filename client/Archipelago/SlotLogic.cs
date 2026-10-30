@@ -9,6 +9,11 @@ public sealed class SlotLogic
 {
     private const string StartRegion = "Menu";
 
+    // The events each goal's completion condition asks for (rules.py)
+    private const string ReturnHomeGoalEvent = "Victory";
+    private const string RepairTitaniaGoalEvent = "Titania Repaired";
+    private const string ParrotHuntGoalEvent = "Parrot Released";
+
     /// <summary>What a rule can see: the items collected so far and the regions reached so far.</summary>
     private sealed class State
     {
@@ -35,12 +40,14 @@ public sealed class SlotLogic
     private readonly Entrance[] _entrances;
     private readonly Spot[] _locations;
     private readonly Spot[] _events; // Name is the event's item
+    private readonly string _goalEvent;
 
-    private SlotLogic(Entrance[] entrances, Spot[] locations, Spot[] events)
+    private SlotLogic(Entrance[] entrances, Spot[] locations, Spot[] events, string goalEvent)
     {
         _entrances = entrances;
         _locations = locations;
         _events = events;
+        _goalEvent = goalEvent;
     }
 
     /// <summary>The slot's logic, or null for older seeds and malformed slot data.</summary>
@@ -54,7 +61,13 @@ public sealed class SlotLogic
             return new SlotLogic(
                 logic["entrances"]!.Select(e => new Entrance((string)e[0]!, (string)e[1]!, ParseRule(e[2]!))).ToArray(),
                 ParseSpots(logic["locations"]!),
-                ParseSpots(logic["events"]!));
+                ParseSpots(logic["events"]!),
+                true switch
+                {
+                    _ when LocationChecks.IsRepairTitaniaGoal(slotData) => RepairTitaniaGoalEvent,
+                    _ when LocationChecks.IsParrotHuntGoal(slotData) => ParrotHuntGoalEvent,
+                    _ => ReturnHomeGoalEvent,
+                });
         }
         catch (Exception ex) when (ex is FormatException or InvalidCastException or ArgumentException or NullReferenceException)
         {
@@ -67,7 +80,8 @@ public sealed class SlotLogic
     /// <param name="MissingItems">For the rest, what's still needed, described for the player (progressive class and
     /// stateroom items as the tier they lead to). Events are followed through to the items behind them, and where a rule
     /// has alternatives this is the one needing the fewest items. Empty if nothing can open it.</param>
-    public sealed record Evaluation(HashSet<string> Reachable, Dictionary<string, string[]> MissingItems);
+    /// <param name="GoalReachable">Whether these items are enough to complete the slot's goal.</param>
+    public sealed record Evaluation(HashSet<string> Reachable, Dictionary<string, string[]> MissingItems, bool GoalReachable);
 
     /// <summary>Works out an <see cref="Evaluation"/>. Pass duplicates for items received more than once.</summary>
     public Evaluation Evaluate(IEnumerable<string> receivedItems)
@@ -111,7 +125,7 @@ public sealed class SlotLogic
             else
                 missingItems[location.Name] = DescribeMissing(location, state);
         }
-        return new Evaluation(reachable, missingItems);
+        return new Evaluation(reachable, missingItems, state.Has(_goalEvent, 1));
     }
 
     private static bool IsMet(Rule rule, State state) => rule switch

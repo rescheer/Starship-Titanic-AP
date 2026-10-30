@@ -174,6 +174,7 @@ public sealed class MainForm : Form
         };
         bool directToInventory = ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData);
         int mailCount = attached ? _mailCount : 0;
+        bool? goMode = connected && _logic is not null ? _evaluation?.GoalReachable : null; // null without logic to go by
         UpdateHereRoom();
 
         _view.Apply(new TrackerState(
@@ -185,6 +186,8 @@ public sealed class MainForm : Form
             apError,
             _session.Ap.State is ApConnectionState.Connected or ApConnectionState.Connecting ? "Disconnect" : "Connect to AP...",
             _session.Ap.State != ApConnectionState.Connecting,
+            goMode switch { true => "Yes", false => "No", null => "-" },
+            goMode == true,
             directToInventory ? "ITEM DELIVERY MODE" : "SUCC-U-BUS",
             directToInventory ? "Direct" : $"{mailCount} waiting",
             !directToInventory && mailCount > 0,
