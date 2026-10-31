@@ -57,10 +57,7 @@ Oh no! The parrot has gotten himself stuck in a random 2nd or 1st Class Stateroo
 - Access Cards for all ship areas that must be acquired from the multiworld (Optional, default off)
 
 ## Generative AI Use Disclosure
-### Client
-- GenAI was used moderately in the development of the client, especially for reverse engineering, finding memory offsets, and building hooks to manipulate game logic. Generated code was reviewed and tested by hand.
-- For general client logic, GenAI was used minimally. Small parts of this code are AI authored, but it was mostly was written by hand.
-- GenAI has been consulted for hunting down bugs and looking for edge cases I may have missed.
-
-### apworld
-- GenAI was not used in the creation or maintenance of the apworld side of this implementation. The design and features of the randomizer were made without creative input from AI. Code was written and tested by hand.
+- Claude Code was used moderately in the development of this AP integration, especially for reverse engineering, finding memory offsets, and building hooks to manipulate game logic
+- The majority of the apworld code was written by hand
+- All generated code was reviewed, edited, and tested by hand
+- The design and features of this integration were made without creative input from AI
