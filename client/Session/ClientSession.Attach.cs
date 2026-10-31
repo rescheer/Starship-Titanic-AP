@@ -167,7 +167,6 @@ internal sealed partial class ClientSession
         _parrotHuntSync.Reset();
         _itemSync.ClearTitaniaPartsInHand();
         _saveSeedGuard.Reset();
-        GameActions.ClearHiddenRoomAddressCache();
         GameState.ClearClassNameCache();
     }
 }

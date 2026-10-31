@@ -5,7 +5,13 @@ public readonly record struct RoomNodeView(int Room, int Node, int View);
 public readonly record struct InventoryItem(long Address, string? Name);
 
 /// <summary>One resolved carryable item, wherever it currently is in the game's tree.</summary>
-public readonly record struct CarryItemLocation(string Name, long Address, long? ParentAddress, string? ParentName);
+public readonly record struct CarryItemLocation(string Name, long Address, long? ParentAddress, string? ParentName)
+{
+    public const string HiddenRoomName = "HiddenRoom";
+
+    /// <summary>Whether the item is parked directly under the hidden room.</summary>
+    public bool IsInHiddenRoom => string.Equals(ParentName, HiddenRoomName, StringComparison.OrdinalIgnoreCase);
+}
 
 public enum PassengerClass
 {

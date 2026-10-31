@@ -49,21 +49,11 @@ public static class GameActions
             arg6: arg6);
     }
 
-    /// <summary>The hidden room's own tree address, cached after the first successful move there this session.</summary>
-    public static long? HiddenRoomAddress { get; private set; }
-
-    public static void ClearHiddenRoomAddressCache() => HiddenRoomAddress = null;
-
     /// <summary>Stashes an item under the hidden room via CGameObject::petMoveToHiddenRoom().</summary>
     public static bool MoveItemToHiddenRoom(MemoryReader mem, long itemAddr)
     {
         long funcAddr = mem.ModuleBase + GameOffsets.PetMoveToHiddenRoomFunc;
-        bool ok = RemoteCaller.Call(mem, funcAddr, rcx: itemAddr);
-
-        if (ok && HiddenRoomAddress is null)
-            HiddenRoomAddress = mem.ReadInt64(itemAddr + GameOffsets.Parent);
-
-        return ok;
+        return RemoteCaller.Call(mem, funcAddr, rcx: itemAddr);
     }
 
     /// <summary>Adds an item to the PET inventory via CGameObject::petAddToInventory(), the same call a natural pickup

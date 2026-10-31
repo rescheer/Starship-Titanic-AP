@@ -10,7 +10,6 @@ internal sealed class ParrotHuntSync
     private const string ParrotLobbyRoomName = "ParrotLobby";
     private const string PerchedParrotName = "PerchedParrot";
     private const string ParrotLobbyControllerName = "ParrotLobbyController";
-    private const string HiddenRoomName = "HiddenRoom";
 
     /// <summary>How far up from CarryParrot's parent to look for the stateroom it was released into. A release moves it
     /// under the tray's view first, then under the room, so a poll can land in between.</summary>
@@ -70,7 +69,7 @@ internal sealed class ParrotHuntSync
         if (_ctx.Mem.ReadInt64(parrot + GameOffsets.Parent) is not { } parent)
             return;
         bool inMail = parent == mailManAddr;
-        bool parked = !inMail && GameState.TryReadName(_ctx.Mem, parent) == HiddenRoomName;
+        bool parked = !inMail && GameState.TryReadName(_ctx.Mem, parent) == CarryItemLocation.HiddenRoomName;
         bool inTarget = IsPlayerInTargetRoom(info, petControlAddr);
 
         // Out of the mail since it was put there: taken from the Succ-U-Bus tray, which releases it into the room.

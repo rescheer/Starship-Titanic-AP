@@ -22,7 +22,6 @@ internal sealed partial class ClientSession
         _movers = null; // scanned from the old tree
         _conversationsAddrShown = false;
         _saveSeedGuard.Reset();
-        GameActions.ClearHiddenRoomAddressCache();
         TextCommandHook.ResetConversationsAddr(_mem);
         ReportAddress("Player Inventory (CPetControl)", null);
         ReportAddress("Conversations (CPetConversations)", null);

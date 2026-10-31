@@ -159,7 +159,7 @@ internal sealed class ItemSync
             if (isServerGranted)
             {
                 bool itemGranted = receivedItems.Contains(serverGrantedApItemName!, StringComparer.OrdinalIgnoreCase);
-                bool serverGrantedInHidden = GameActions.HiddenRoomAddress is { } serverGrantedHiddenAddr && item.ParentAddress == serverGrantedHiddenAddr;
+                bool serverGrantedInHidden = item.IsInHiddenRoom;
 
                 if (itemGranted)
                 {
@@ -197,7 +197,7 @@ internal sealed class ItemSync
                 && receivedItems.Contains(apItemName, StringComparer.OrdinalIgnoreCase);
 
             bool inInventory = item.ParentAddress == _ctx.InventoryRoom.Value;
-            bool inHiddenRoom = GameActions.HiddenRoomAddress is { } hiddenAddr && item.ParentAddress == hiddenAddr;
+            bool inHiddenRoom = item.IsInHiddenRoom;
             bool inMail = item.ParentAddress == _ctx.MailManRoom.Value;
 
             if (inInventory)
@@ -362,7 +362,7 @@ internal sealed class ItemSync
     {
         if (magazine.ParentAddress == petControlAddr || magazine.ParentAddress == mailManAddr)
             return false;
-        if (GameActions.HiddenRoomAddress is { } hiddenAddr && magazine.ParentAddress == hiddenAddr)
+        if (magazine.IsInHiddenRoom)
             return false;
 
         byte[]? visible = _ctx.Mem.ReadBytes(magazine.Address + GameOffsets.GameObjectVisibleOffset, 1);
