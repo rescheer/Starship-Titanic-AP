@@ -180,6 +180,7 @@ public sealed class MainForm : Form
         };
         bool directToInventory = ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData);
         int mailCount = attached ? _mailCount : 0;
+        bool goalComplete = connected && _session.Ap.IsGoalComplete;
         bool? goMode = connected && _logic is not null ? _evaluation?.GoalReachable : null; // null without logic to go by
         int? inLogicChecks = connected && _logic is not null ? _evaluation?.Reachable.Count(location => !_session.Ap.IsLocationChecked(location)) : null;
         bool inBk = inLogicChecks == 0 && !_evaluation!.MissingItems.Keys.All(_session.Ap.IsLocationChecked); // nothing to do, but checks are left
@@ -197,9 +198,9 @@ public sealed class MainForm : Form
             _session.Ap.State != ApConnectionState.Connecting,
             inBk ? "BK" : inLogicChecks?.ToString() ?? "-",
             inBk,
-            goMode switch { true => "Yes", false => "No", null => "-" },
-            goMode == true,
-            goMode == false ? _evaluation!.GoalMissingItems : Array.Empty<string>(),
+            goalComplete ? "Goal Complete!" : goMode switch { true => "Yes", false => "No", null => "-" },
+            goalComplete || goMode == true,
+            !goalComplete && goMode == false ? _evaluation!.GoalMissingItems : Array.Empty<string>(),
             directToInventory ? "ITEM DELIVERY MODE" : "SUCC-U-BUS",
             directToInventory ? "Direct" : $"{mailCount} waiting",
             !directToInventory && mailCount > 0,

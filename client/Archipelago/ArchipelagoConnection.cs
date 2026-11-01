@@ -107,6 +107,12 @@ public sealed class ArchipelagoConnection : IDisposable
         return seedName is not null && _checkQueue.Contains(locationName, seedName);
     }
 
+    /// <summary>Whether this slot's goal is complete: the server says so (which also covers a goal completed in an
+    /// earlier session), it's been sent this session, or it's queued to be sent.</summary>
+    public bool IsGoalComplete => _goalComplete || IsLocationCheckedOrQueued(LocationChecks.GoalLocationName);
+
+    private volatile bool _goalComplete;
+
     /// <summary>Drops every queued-but-unsent location check without sending it.</summary>
     public void ClearPendingChecks() => _checkQueue.Clear();
 
@@ -151,7 +157,8 @@ public sealed class ArchipelagoConnection : IDisposable
     /// <summary>Fires once per item as it's received.</summary>
     public event Action<string>? ItemReceived;
 
-    /// <summary>Fires when the server reports more of this slot's locations as checked, whoever checked them.</summary>
+    /// <summary>Fires when the server reports more of this slot's locations as checked, whoever checked them, or the
+    /// slot's goal as complete.</summary>
     public event Action? CheckedLocationsChanged;
 
     /// <summary>Fires when a location check is newly added to the pending-check queue.</summary>
@@ -176,6 +183,7 @@ public sealed class ArchipelagoConnection : IDisposable
             _receivedItemNames.Clear();
             _seenItemLocationPairs.Clear();
         }
+        _goalComplete = false;
 
         RaiseState(ApConnectionState.Connecting, $"Connecting to {server}...");
 
@@ -244,6 +252,13 @@ public sealed class ArchipelagoConnection : IDisposable
             _lastSeedName = SeedName;
             _lastSlotData = SlotData;
             session.MessageLog.OnMessageReceived += message => MessageReceived?.Invoke(message);
+            session.DataStorage.TrackClientStatus(status =>
+            {
+                if (status != ArchipelagoClientState.ClientGoal || !ReferenceEquals(_session, session))
+                    return;
+                _goalComplete = true;
+                CheckedLocationsChanged?.Invoke();
+            });
 
             RaiseState(ApConnectionState.Connected, $"Connected as {slot}");
         }
@@ -292,7 +307,7 @@ public sealed class ArchipelagoConnection : IDisposable
     {
         bool ok;
         if (string.Equals(locationName, LocationChecks.GoalLocationName, StringComparison.Ordinal))
-            ok = await TrySendAsync(session, () => session.SetGoalAchieved());
+            ok = await TrySendGoalAsync(session);
         else
         {
             long? locationId = ResolveLocationId(locationName);
@@ -331,7 +346,7 @@ public sealed class ArchipelagoConnection : IDisposable
 
             bool ok;
             if (string.Equals(check.LocationName, LocationChecks.GoalLocationName, StringComparison.Ordinal))
-                ok = await TrySendAsync(session, () => session.SetGoalAchieved());
+                ok = await TrySendGoalAsync(session);
             else
             {
                 long id = session.Locations.GetLocationIdFromName(GameName, check.LocationName);
@@ -345,6 +360,14 @@ public sealed class ArchipelagoConnection : IDisposable
 
             _checkQueue.Remove(check.LocationName);
         }
+    }
+
+    private async Task<bool> TrySendGoalAsync(ArchipelagoSession session)
+    {
+        bool ok = await TrySendAsync(session, () => session.SetGoalAchieved());
+        if (ok)
+            _goalComplete = true; // set before it leaves the queue, so IsGoalComplete doesn't wait on the server's reply
+        return ok;
     }
 
     /// <summary>Runs a blocking send on a background thread with a bounded timeout.</summary>
