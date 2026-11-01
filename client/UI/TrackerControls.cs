@@ -435,12 +435,13 @@ internal sealed class GoalTile : TrackerControl
     }
 }
 
-/// <summary>A small labeled value in the command bar, highlighted when it needs attention.</summary>
+/// <summary>A small labeled value in the command bar, highlighted when it needs attention, or in red when it's a problem.</summary>
 internal sealed class StatusTile : TrackerControl
 {
     private string _label = "";
     private string _value = "";
     private bool _highlighted;
+    private bool _alert;
 
     /// <summary>Whether the mouse is over the tile.</summary>
     public bool IsHovered { get; private set; }
@@ -462,23 +463,30 @@ internal sealed class StatusTile : TrackerControl
         HoverChanged?.Invoke();
     }
 
-    public void Set(string label, string value, bool highlighted)
+    public void Set(string label, string value, bool highlighted, bool alert = false)
     {
-        if (label == _label && value == _value && highlighted == _highlighted)
+        if (label == _label && value == _value && highlighted == _highlighted && alert == _alert)
             return;
         _label = label;
         _value = value;
         _highlighted = highlighted;
+        _alert = alert;
         Invalidate();
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        FillTile(e.Graphics, _highlighted ? TrackerTheme.AccentFill : TrackerTheme.Background, _highlighted ? TrackerTheme.Accent : TrackerTheme.Line);
+        (Color fill, Color border, Color valueColor) = true switch
+        {
+            _ when _alert => (TrackerTheme.ErrorFill, TrackerTheme.Error, TrackerTheme.Error),
+            _ when _highlighted => (TrackerTheme.AccentFill, TrackerTheme.Accent, TrackerTheme.Accent),
+            _ => (TrackerTheme.Background, TrackerTheme.Line, TrackerTheme.Text),
+        };
+        FillTile(e.Graphics, fill, border);
         TextRenderer.DrawText(e.Graphics, _label, TrackerTheme.CaptionFont, new Rectangle(0, S(6), Width, S(14)),
             TrackerTheme.TextMuted, SingleLine | TextFormatFlags.HorizontalCenter);
         TextRenderer.DrawText(e.Graphics, _value, TrackerTheme.BodyFont, new Rectangle(0, S(21), Width, S(19)),
-            _highlighted ? TrackerTheme.Accent : TrackerTheme.Text, SingleLine | TextFormatFlags.HorizontalCenter);
+            valueColor, SingleLine | TextFormatFlags.HorizontalCenter);
     }
 }
 

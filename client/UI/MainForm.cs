@@ -181,6 +181,8 @@ public sealed class MainForm : Form
         bool directToInventory = ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData);
         int mailCount = attached ? _mailCount : 0;
         bool? goMode = connected && _logic is not null ? _evaluation?.GoalReachable : null; // null without logic to go by
+        int? inLogicChecks = connected && _logic is not null ? _evaluation?.Reachable.Count(location => !_session.Ap.IsLocationChecked(location)) : null;
+        bool inBk = inLogicChecks == 0 && !_evaluation!.MissingItems.Keys.All(_session.Ap.IsLocationChecked); // nothing to do, but checks are left
         UpdateHereRoom();
 
         _view.Apply(new TrackerState(
@@ -193,13 +195,14 @@ public sealed class MainForm : Form
             apError,
             _session.Ap.State is ApConnectionState.Connected or ApConnectionState.Connecting ? "Disconnect" : "Connect to AP...",
             _session.Ap.State != ApConnectionState.Connecting,
+            inBk ? "BK" : inLogicChecks?.ToString() ?? "-",
+            inBk,
             goMode switch { true => "Yes", false => "No", null => "-" },
             goMode == true,
             goMode == false ? _evaluation!.GoalMissingItems : Array.Empty<string>(),
             directToInventory ? "ITEM DELIVERY MODE" : "SUCC-U-BUS",
             directToInventory ? "Direct" : $"{mailCount} waiting",
             !directToInventory && mailCount > 0,
-            PassengerClassLabel(passengerClass),
             _session.Options.EnforceSaveSeedGuard && _session.SaveSeedGuardState == SaveSeedGuardState.Blocked,
             RoomTiles.Decks.Select(deck => BuildDeck(deck, connected, receivedItems, passengerClass, titaniaRepaired)).ToArray(),
             BuildHere(connected),
@@ -231,14 +234,6 @@ public sealed class MainForm : Form
         }
         return null;
     }
-
-    private static string PassengerClassLabel(int? passengerClass) => passengerClass switch
-    {
-        (int)PassengerClass.First => "1st Class",
-        (int)PassengerClass.Second => "2nd Class",
-        (int)PassengerClass.Third => "SGT Class",
-        _ => "-",
-    };
 
     private DeckState BuildDeck(DeckDefinition deck, bool connected, string[] receivedItems, int? passengerClass, bool titaniaRepaired)
     {

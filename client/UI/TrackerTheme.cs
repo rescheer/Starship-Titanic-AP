@@ -19,6 +19,7 @@ internal static class TrackerTheme
     public static readonly Color Accent = ColorTranslator.FromHtml("#D2B06A");
     public static readonly Color AccentFill = ColorTranslator.FromHtml("#2A2620");
     public static readonly Color Error = ColorTranslator.FromHtml("#FF8A80");
+    public static readonly Color ErrorFill = ColorTranslator.FromHtml("#2E2021");
 
     // Ships with Windows 10 and later
     private static readonly string UiFamily = FontFamily.Families.Any(f => f.Name == "Bahnschrift") ? "Bahnschrift" : "Segoe UI";
