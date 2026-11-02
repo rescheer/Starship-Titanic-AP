@@ -7,6 +7,9 @@ public static class GameOffsets
     public const long Step2 = 0xD0;
     public const long GameManager = 0x28;
 
+    // CMainGameWindow::_pendingLoadSlot, relative to step2 (the window)
+    public const long PendingLoadSlot = 0x10;
+
     // --- Room/node/view, relative to CGameManager ---
     private const long NodeViewBase = 0xE728 + 0x8;
     public const long RoomFromGameManager = NodeViewBase + 0x10;
@@ -20,8 +23,16 @@ public static class GameOffsets
     // after Titania's repair (class 4) only while this is 1
     public const long PriorClass = 0xE774;
 
+    // --- CGameState::_mode, relative to CGameManager ---
+    public const long GameMode = 0xE778;
+    public const int GameModeInteractive = 1;
+    public const int GameModePendingLoad = 6;
+
     // --- PET active flag, relative to CGameManager ---
     public const long PetActive = 0xE780;
+
+    // CCDROMTray::_insertedCD, a CString
+    public const long CdRomTrayInsertedCdOffset = 0x128;
 
     // --- Inventory tree, relative to CGameManager ---
     public const long Project = 0xE718;

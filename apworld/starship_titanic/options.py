@@ -74,6 +74,12 @@ class EasyMusicRoomPuzzle(Toggle):
     display_name = "Easy Music Room Puzzle"
 
 
+class QuickStart(Toggle):
+    """Skips the intro. Starting a new game while connected puts you in the Embarkation Lobby, ready to check in,
+    with the PET on and the Photograph in your inventory."""
+    display_name = "Quick Start"
+
+
 class RoomAccessCardsMode(Choice):
     """Enabled: Requires a matching Access Card item from the multiworld to access any room.
     Count: Enables a number of Access Cards picked at random at generation, set by Room Access Cards Count.
@@ -211,6 +217,7 @@ class StarshipTitanicOptions(PerGameCommonOptions):
     stateroom_assignment: StateroomAssignment
     item_delivery_method: ItemDeliveryMethod
     easy_music_room_puzzle: EasyMusicRoomPuzzle
+    quick_start: QuickStart
     room_access_cards_mode: RoomAccessCardsMode
     room_access_cards_count: RoomAccessCardsCount
     require_access_cards_all_rooms: RequireAccessCardsAllRooms

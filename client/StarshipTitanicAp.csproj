@@ -19,6 +19,7 @@
   <ItemGroup>
     <PackageReference Include="Archipelago.MultiClient.Net" Version="6.7.1" />
     <EmbeddedResource Include="app.ico" LogicalName="app.ico" />
+    <EmbeddedResource Include="Resources\QuickStartPatch.gz" LogicalName="QuickStartPatch.gz" />
   </ItemGroup>
 
 </Project>

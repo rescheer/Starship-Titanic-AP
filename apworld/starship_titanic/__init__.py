@@ -119,6 +119,7 @@ class StarshipTitanicWorld(World):
         if "item_delivery_method" in slot_data:
             options.item_delivery_method.value = ItemDeliveryMethod.options[slot_data["item_delivery_method"]]
         options.easy_music_room_puzzle.value = int(slot_data.get("easy_music_room_puzzle", False))
+        options.quick_start.value = int(slot_data.get("quick_start", False))
         self.access_cards = list(slot_data.get("room_access_cards", []))
         self.class_upgrades_locked = slot_data.get("class_upgrades_locked", False)
         self.auditory_center_locked = slot_data.get("auditory_center_locked", False)
@@ -217,6 +218,7 @@ class StarshipTitanicWorld(World):
             "room_access_cards": self.access_cards,  # the client only locks the rooms of these cards
             "item_delivery_method": self.options.item_delivery_method.current_key,  # "succubus" or "direct_to_inventory"
             "easy_music_room_puzzle": bool(self.options.easy_music_room_puzzle),
+            "quick_start": bool(self.options.quick_start),
             "class_upgrades_locked": self.class_upgrades_locked,
             "auditory_center_locked": self.auditory_center_locked,
             "logic": export_logic(self),  # the client's tracker reads this
