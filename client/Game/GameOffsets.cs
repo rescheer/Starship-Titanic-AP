@@ -332,6 +332,11 @@ public static class GameOffsets
     // CProjectItem::getGameManager's address). SaveLoadHook's stub rebuilds it as an absolute mov.
     public const long ProjectPostLoadLeaTarget = 0x23A4720;
 
+    // Events::pollEvents() (titanic/events.cpp) - entered once per pass of the game's main loop and of every nested
+    // one, before that pass's events and drawing. Its prologue (6 pushes + sub rsp,0x78 + xor r12d,r12d = 15 bytes)
+    // has no RIP-relative operands; GameThreadHook replays it.
+    public const long EventsPollEventsFunc = 0x246B080;
+
     // CGameState::changeView(CViewItem *newView, CMovieClip *clip) (titanic/game_state.cpp) - every walking link,
     // scripted mover and cutscene-deferred move funnels through it, and its leaveView/preEnterView/enterView calls
     // all happen inside it. rcx = CGameState* (embedded in CGameManager at GameStateFromGameManager). Its prologue

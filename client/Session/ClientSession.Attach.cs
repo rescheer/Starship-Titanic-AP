@@ -65,6 +65,11 @@ internal sealed partial class ClientSession
 
     private void InstallHooks()
     {
+        bool gameThreadHookOk = GameThreadHook.Install(_mem);
+        ReportAction(gameThreadHookOk, "Install game thread call hook");
+        if (!gameThreadHookOk)
+            AppendLog("GameThreadHook: install failed (unexpected scummvm.exe build?) - calls into the game will run on a remote thread alongside the game, which can crash it");
+
         ReportAction(TextCommandHook.Install(_mem), "Install PET command hook");
         ReportAction(ClassUpgradeHook.Install(_mem), "Install class upgrade lock");
         ReportAction(MaitreDHook.Install(_mem), "Install Maitre'D table lock");
@@ -147,6 +152,10 @@ internal sealed partial class ClientSession
         if (SaveLoadHook.IsInstalled)
         {
             SaveLoadHook.Uninstall(_mem);
+        }
+        if (GameThreadHook.IsInstalled)
+        {
+            GameThreadHook.Uninstall(_mem);
         }
     }
 
