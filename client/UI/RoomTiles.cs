@@ -12,10 +12,15 @@ internal enum RoomRequirement { None, SecondClass, FirstClass, TitaniaRepaired }
 internal sealed record RoomDefinition(string Name, string? Card, RoomRequirement Requirement, params string[] LocationPrefixes);
 
 /// <summary>One row of the deck plan.</summary>
-internal sealed record DeckDefinition(string Label, RoomDefinition[] Rooms);
+/// <param name="Items">The progressive items its class's upgrade and stateroom take (items.py's tiers), with how many
+/// copies in total, for hinting from the row's label.</param>
+internal sealed record DeckDefinition(string Label, RoomDefinition[] Rooms, params (string Item, int Required)[] Items);
 
 internal static class RoomTiles
 {
+    public const string ClassItem = "Progressive Passenger Class Upgrade";
+    public const string StateroomItem = "Progressive Stateroom";
+
     public static readonly DeckDefinition[] Decks =
     {
         new("BRIDGE", new RoomDefinition[]
@@ -27,7 +32,7 @@ internal static class RoomTiles
             new("Arboretum", "Arboretum Access Card", RoomRequirement.FirstClass, "Arboretum"),
             new("Restaurant", "1st Class Restaurant Access Card", RoomRequirement.FirstClass, "1st Class Restaurant"),
             new("1st Staterooms", "1st Class Staterooms Access Card", RoomRequirement.FirstClass, "1st Class Lobby", "1st Class Stateroom"),
-        }),
+        }, (ClassItem, 2), (StateroomItem, 3)),
         new("2ND", new RoomDefinition[]
         {
             new("Creator's Chamber", "Creator's Chamber Access Card", RoomRequirement.SecondClass, "Creator's Chamber"),
@@ -36,14 +41,14 @@ internal static class RoomTiles
             new("Bar", "Bar Access Card", RoomRequirement.SecondClass, "Bar"),
             new("Music Room", "Music Room Access Card", RoomRequirement.SecondClass, "Music Room"),
             new("2nd Staterooms", "2nd Class Staterooms Access Card", RoomRequirement.SecondClass, "2nd Class Lobby", "2nd Class Stateroom", "Broken Elevator"),
-        }),
+        }, (ClassItem, 1), (StateroomItem, 2)),
         new("SGT", new RoomDefinition[]
         {
             new("Top of the Well", "Top of the Well Access Card", RoomRequirement.None, "Top of the Well"),
             new("Parrot Lobby", "Parrot Lobby Access Card", RoomRequirement.None, "Parrot Lobby"),
             new("Titania's Room", "Titania's Room Access Card", RoomRequirement.None, "Titania's Room", "Bomb Room"),
             new("SGT Staterooms", "SGT Class Staterooms Access Card", RoomRequirement.None, "SGT Class Lobby", "SGT Class Stateroom"),
-        }),
+        }, (StateroomItem, 1)),
         new("LOWER", new RoomDefinition[]
         {
             new("Embarkation", null, RoomRequirement.None, "Embarkation Lobby", "DeskBot"),

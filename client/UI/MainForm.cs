@@ -24,6 +24,7 @@ public sealed class MainForm : Form
     // tick, so these are only rebuilt when something they depend on has changed (see ResetHintCachesIfStale)
     private readonly Dictionary<string, (CheckPip Check, bool IsChecked, bool IsSent)> _checkCache = new();
     private readonly Dictionary<string, HintTarget?> _hintTargetCache = new();
+    private readonly Dictionary<DeckDefinition, CheckPip?> _deckItemsCache = new();
     private (SlotLogic.Evaluation? Evaluation, int HintRevision, int HintCost, int ItemCount) _hintCacheKey;
     private string[] _receivedItems = Array.Empty<string>();
 
@@ -161,6 +162,7 @@ public sealed class MainForm : Form
         _roomLocationNames.Clear();
         _checkCache.Clear();
         _hintTargetCache.Clear();
+        _deckItemsCache.Clear();
 
         string[] allLocations = _session.Ap.GetAllLocationNames();
         foreach (RoomDefinition room in RoomTiles.Decks.SelectMany(deck => deck.Rooms))
@@ -255,6 +257,7 @@ public sealed class MainForm : Form
         _hintCacheKey = key;
         _checkCache.Clear();
         _hintTargetCache.Clear();
+        _deckItemsCache.Clear();
     }
 
     /// <summary>An item as something to request, or null if everything needed is received, hinted or being requested.</summary>
@@ -299,6 +302,34 @@ public sealed class MainForm : Form
         return target;
     }
 
+    /// <summary>The progressive items still needed for a deck's class, with their unfound hints and what's left to request,
+    /// listed like a locked check's requirements. Null if there are none, including on seeds that leave them to the DeskBot.</summary>
+    private CheckPip? DeckItems(DeckDefinition deck)
+    {
+        if (_deckItemsCache.TryGetValue(deck, out CheckPip? cached))
+            return cached;
+
+        IReadOnlyDictionary<string, object>? slotData = _session.Ap.SlotData;
+        var lines = new List<RequirementLine>();
+        var options = new List<HintOption>();
+        foreach ((string item, int required) in deck.Items)
+        {
+            int received = _receivedItems.Count(name => string.Equals(name, item, StringComparison.OrdinalIgnoreCase));
+            bool vanilla = item == RoomTiles.ClassItem ? ClassUpgradeTracker.IsVanilla(slotData) : StateroomAssignTracker.IsVanilla(slotData);
+            if (vanilla || received >= required)
+                continue;
+
+            lines.Add(new RequirementLine(required > 1 ? $"{item} ({received}/{required})" : item, _session.Ap.Hints.HintsFor(item).Select(HintText.Where).ToArray()));
+            if (ItemHintOption(item, required) is { } option)
+                options.Add(option);
+        }
+
+        string title = $"{deck.Label} CLASS";
+        CheckPip? items = lines.Count > 0 ? new CheckPip(title, title, CheckStatus.Locked, lines.ToArray(), options.ToArray(), null) : null;
+        _deckItemsCache[deck] = items;
+        return items;
+    }
+
     /// <summary>The player's class: what AP says while connected (the game's own value can be spoofed for a room), or
     /// else what the game says, while attached. Null if neither knows.</summary>
     private int? CurrentPassengerClass(bool connected, string[] receivedItems)
@@ -334,7 +365,7 @@ public sealed class MainForm : Form
             "2ND" => passengerClass is (int)PassengerClass.First or (int)PassengerClass.Second,
             _ => passengerClass is not null,
         };
-        return new DeckState(isReached, deck.Rooms.Select(room => BuildRoom(room, connected, receivedItems, passengerClass, titaniaRepaired)).ToArray());
+        return new DeckState(isReached, deck.Rooms.Select(room => BuildRoom(room, connected, receivedItems, passengerClass, titaniaRepaired)).ToArray(), connected ? DeckItems(deck) : null);
     }
 
     /// <summary>A room's dots and tag. Just its name while not connected, since nothing about the seed is known.</summary>

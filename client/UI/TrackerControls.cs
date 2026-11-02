@@ -355,6 +355,68 @@ internal sealed class RoomTile : TrackerControl
     }
 }
 
+/// <summary>A deck row's label, which also shows and requests hints for the progressive items its class takes.</summary>
+internal sealed class DeckHeader : TrackerControl
+{
+    private readonly string _label;
+    private Color _color = TrackerTheme.TextMuted;
+    private CheckPip? _items;
+    private bool _hovered;
+
+    /// <summary>The mouse moved onto or off the label: the label, what to show (null for nothing) and its bounds.</summary>
+    public event Action<DeckHeader, CheckPip?, Rectangle>? ItemsHoverChanged;
+
+    public DeckHeader(string label)
+    {
+        _label = label;
+    }
+
+    /// <param name="items">The items still needed, listed as a locked check's requirements. Null if there are none.</param>
+    public void Set(Color color, CheckPip? items)
+    {
+        if (color != _color)
+        {
+            _color = color;
+            Invalidate();
+        }
+        if (items == _items)
+            return;
+        _items = items;
+        if (_hovered)
+            UpdateHover();
+    }
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        base.OnMouseEnter(e);
+        _hovered = true;
+        UpdateHover();
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        _hovered = false;
+        UpdateHover();
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        if (e.Button == MouseButtons.Left && _items is { } items)
+            RaiseHintClicked(items.HintOptions);
+    }
+
+    private void UpdateHover()
+    {
+        ShowHandCursor(_hovered && _items?.HintOptions.Length > 0);
+        ItemsHoverChanged?.Invoke(this, _hovered ? _items : null, ClientRectangle);
+    }
+
+    protected override void OnPaint(PaintEventArgs e) =>
+        TextRenderer.DrawText(e.Graphics, _label, TrackerTheme.CaptionFont, new Rectangle(0, S(5), Width, S(16)), _color, SingleLine);
+}
+
 /// <summary>Details on what's under the mouse. Drawn over its siblings in the main window, rather than as a Windows
 /// tooltip, so it can match the window and appear at once.</summary>
 internal abstract class HoverPopup : TrackerControl
