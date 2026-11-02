@@ -29,8 +29,23 @@ internal sealed partial class ClientSession
         RoomNodeViewChanged?.Invoke(null, "save loaded"); // so the main window clears its highlight before the new room is read
     }
 
+    /// <summary>Has nothing to do with the game, so it runs while detached too. The library has no event for its hint
+    /// points, and requests that go unanswered have nothing to end them but time.</summary>
+    private void PollHints()
+    {
+        bool requestsExpired = _apConnection.Hints.ExpireRequests();
+        int hintPoints = _apConnection.HintPoints;
+        if (!requestsExpired && hintPoints == _lastHintPoints)
+            return;
+
+        _lastHintPoints = hintPoints;
+        HintsChanged?.Invoke();
+    }
+
     private void OnTick()
     {
+        PollHints();
+
         if (!_mem.IsAttached)
             return;
 

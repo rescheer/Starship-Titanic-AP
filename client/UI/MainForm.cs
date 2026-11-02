@@ -1,4 +1,4 @@
-using Archipelago.MultiClient.Net.Colors;
+using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.MessageLog.Parts;
 
 namespace StarshipTitanicAp;
@@ -20,12 +20,19 @@ public sealed class MainForm : Form
     // The tile that's highlighted as the player's location
     private RoomDefinition? _hereRoom;
 
+    // What hints leave each check and item showing. The controls compare their arrays by reference and this runs every
+    // tick, so these are only rebuilt when something they depend on has changed (see ResetHintCachesIfStale)
+    private readonly Dictionary<string, (CheckPip Check, bool IsChecked, bool IsSent)> _checkCache = new();
+    private readonly Dictionary<string, HintTarget?> _hintTargetCache = new();
+    private (SlotLogic.Evaluation? Evaluation, int HintRevision, int HintCost, int ItemCount) _hintCacheKey;
+    private string[] _receivedItems = Array.Empty<string>();
+
     public MainForm()
     {
         _session = new ClientSession();
         Text = AppInfo.TitleBarText;
         Icon = AppInfo.AppIcon;
-        ClientSize = new Size(LogicalToDeviceUnits(1210), LogicalToDeviceUnits(750));
+        ClientSize = new Size(LogicalToDeviceUnits(1220), LogicalToDeviceUnits(750));
         MinimumSize = new Size(LogicalToDeviceUnits(1220), LogicalToDeviceUnits(640));
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = TrackerTheme.Background;
@@ -46,6 +53,7 @@ public sealed class MainForm : Form
         };
         _session.ItemReceived += RefreshView;
         _session.CheckedLocationsChanged += RefreshView;
+        _session.HintsChanged += RefreshView;
         _session.PendingChecksChanged += RefreshView; // every tick while playing, and picks up the Titania repair check
         _session.TitaniaPartsChanged += RefreshView;
         _session.PassengerClassChanged += _ => RefreshView();
@@ -66,6 +74,7 @@ public sealed class MainForm : Form
         };
         _view.ChatSubmitted += DoSendChatMessage;
         _view.ForceSeedClicked += () => _session.SubmitChat("/force_seed");
+        _view.HintRequested += DoRequestHints;
 
         _session.Start();
     }
@@ -74,6 +83,12 @@ public sealed class MainForm : Form
     {
         base.OnHandleCreated(e);
         TrackerTheme.UseDarkTitleBar(this);
+    }
+
+    protected override void OnDeactivate(EventArgs e)
+    {
+        base.OnDeactivate(e);
+        _view.CloseHintBox();
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -117,27 +132,25 @@ public sealed class MainForm : Form
             AppendServerLog("CLIENT: Not connected - message not sent", bold: false);
     }
 
+    private void DoRequestHints(HintOption[] options)
+    {
+        foreach (HintOption option in options)
+        {
+            if (option.IsLocation)
+                _session.Ap.RequestLocationHint(option.Target);
+            else
+                for (int copy = 0; copy < option.Copies; copy++)
+                    _session.Ap.RequestItemHint(option.Target);
+        }
+        RefreshView();
+    }
+
     private void AppendServerLog(string line, bool bold) => _view.AppendLog(new[] { (line, TrackerTheme.Text) }, bold);
 
     private static IEnumerable<(string Text, Color Color)> LogParts(MessagePart[] parts) =>
         parts.Select(part => (part.Text, LogColor(part)));
 
-    /// <summary>A message part's color, in the standard AP client's colors (Archipelago's data/client.kv). The library's
-    /// own palette differs from them, its green most of all. Plain text stays the normal text color.</summary>
-    private static Color LogColor(MessagePart part) => part.IsBackgroundColor ? TrackerTheme.Text : part.PaletteColor switch
-    {
-        PaletteColor.Black => ColorTranslator.FromHtml("#000000"),
-        PaletteColor.Red => ColorTranslator.FromHtml("#EE0000"),
-        PaletteColor.Green => ColorTranslator.FromHtml("#00FF7F"),
-        PaletteColor.Yellow => ColorTranslator.FromHtml("#FAFAD2"),
-        PaletteColor.Blue => ColorTranslator.FromHtml("#6495ED"),
-        PaletteColor.Magenta => ColorTranslator.FromHtml("#EE00EE"),
-        PaletteColor.Cyan => ColorTranslator.FromHtml("#00EEEE"),
-        PaletteColor.SlateBlue => ColorTranslator.FromHtml("#6D8BE8"),
-        PaletteColor.Plum => ColorTranslator.FromHtml("#AF99EF"),
-        PaletteColor.Salmon => ColorTranslator.FromHtml("#FA8072"),
-        _ => TrackerTheme.Text, // White or unspecified - plain text
-    };
+    private static Color LogColor(MessagePart part) => part.IsBackgroundColor ? TrackerTheme.Text : TrackerTheme.ApColor(part.PaletteColor);
 
     /// <summary>Sorts the slot's location names under their rooms by name prefix, and reads the seed's logic. Empty
     /// while not connected.</summary>
@@ -146,6 +159,8 @@ public sealed class MainForm : Form
         _logic = SlotLogic.TryRead(_session.Ap.SlotData);
         _evaluatedItemCount = -1;
         _roomLocationNames.Clear();
+        _checkCache.Clear();
+        _hintTargetCache.Clear();
 
         string[] allLocations = _session.Ap.GetAllLocationNames();
         foreach (RoomDefinition room in RoomTiles.Decks.SelectMany(deck => deck.Rooms))
@@ -171,6 +186,8 @@ public sealed class MainForm : Form
             _evaluation = _logic.Evaluate(receivedItems);
             _evaluatedItemCount = receivedItems.Length;
         }
+        _receivedItems = receivedItems;
+        ResetHintCachesIfStale();
 
         (string apValue, Color apColor, bool apError) = _session.Ap.State switch
         {
@@ -183,7 +200,8 @@ public sealed class MainForm : Form
         bool goalComplete = connected && _session.Ap.IsGoalComplete;
         bool? goMode = connected && _logic is not null ? _evaluation?.GoalReachable : null; // null without logic to go by
         int? inLogicChecks = connected && _logic is not null ? _evaluation?.Reachable.Count(location => !_session.Ap.IsLocationChecked(location)) : null;
-        bool inBk = inLogicChecks == 0 && !_evaluation!.MissingItems.Keys.All(_session.Ap.IsLocationChecked); // nothing to do, but checks are left
+        bool inBk = inLogicChecks is not null && IsInBk(_evaluation!);
+        int hintCost = _session.Ap.HintCost, hintPoints = _session.Ap.HintPoints;
         UpdateHereRoom();
 
         _view.Apply(new TrackerState(
@@ -196,6 +214,14 @@ public sealed class MainForm : Form
             apError,
             _session.Ap.State is ApConnectionState.Connected or ApConnectionState.Connecting ? "Disconnect" : "Connect to AP...",
             _session.Ap.State != ApConnectionState.Connecting,
+            true switch
+            {
+                _ when !connected => "-",
+                _ when hintCost == 0 => "Free",
+                _ => (Math.Max(0, hintPoints) / hintCost).ToString(),
+            },
+            hintCost,
+            hintPoints,
             inBk ? "BK" : inLogicChecks?.ToString() ?? "-",
             inBk,
             goalComplete ? "Goal Complete!" : goMode switch { true => "Yes", false => "No", null => "-" },
@@ -208,6 +234,69 @@ public sealed class MainForm : Form
             RoomTiles.Decks.Select(deck => BuildDeck(deck, connected, receivedItems, passengerClass, titaniaRepaired)).ToArray(),
             BuildHere(connected),
             BuildGoal(connected, receivedItems)));
+        _view.RefreshHintBox(option => connected ? ResolveHintOption(option) : null);
+    }
+
+    /// <summary>Nothing useful to do, but useful checks are left. A check the hints say to avoid doesn't count as either.</summary>
+    private bool IsInBk(SlotLogic.Evaluation evaluation)
+    {
+        bool IsUseful(string location) => !_session.Ap.IsLocationChecked(location) && _session.Ap.Hints.HintAt(location)?.Status != HintStatus.Avoid;
+
+        return !evaluation.Reachable.Any(IsUseful) && evaluation.MissingItems.Keys.Any(IsUseful);
+    }
+
+    private void ResetHintCachesIfStale()
+    {
+        var key = (_evaluation, _session.Ap.Hints.Revision, _session.Ap.HintCost, _receivedItems.Length);
+        if (ReferenceEquals(key.Item1, _hintCacheKey.Evaluation) && key.Item2 == _hintCacheKey.HintRevision
+            && key.Item3 == _hintCacheKey.HintCost && key.Item4 == _hintCacheKey.ItemCount)
+            return;
+
+        _hintCacheKey = key;
+        _checkCache.Clear();
+        _hintTargetCache.Clear();
+    }
+
+    /// <summary>An item as something to request, or null if everything needed is received, hinted or being requested.</summary>
+    private HintOption? ItemHintOption(string item, int required)
+    {
+        if (SlotLogic.IsLockedItem(item))
+            return null;
+
+        int left = required - _receivedItems.Count(received => string.Equals(received, item, StringComparison.OrdinalIgnoreCase)) - _session.Ap.Hints.CopiesCovered(item);
+        if (left <= 0)
+            return null;
+
+        // Free hints reveal every copy at once. Otherwise it takes a request for each
+        bool free = _session.Ap.HintCost == 0;
+        return new HintOption(left > 1 && !free ? $"{item} ({left} needed)" : item, item, false, required, free ? 1 : left);
+    }
+
+    /// <summary>A location's contents as something to request, or null if they're known or already being requested.</summary>
+    private HintOption? LocationHintOption(string location)
+    {
+        HintTracker hints = _session.Ap.Hints;
+        if (_session.Ap.IsLocationCheckedOrQueued(location) || hints.HintAt(location) is not null || hints.IsRequested(location)
+            || SlotLogic.HoldsFixedItem(_session.Ap.SlotData, location))
+            return null;
+
+        return new HintOption($"what's in {location}", location, true, 1, 1);
+    }
+
+    private HintOption? ResolveHintOption(HintOption option) =>
+        option.IsLocation ? LocationHintOption(option.Target) : ItemHintOption(option.Target, option.Required);
+
+    /// <summary>An item's unfound hints and what's left to request. Null if it has neither, so there's nothing to show.</summary>
+    private HintTarget? ItemHintTarget(string item, int required)
+    {
+        if (_hintTargetCache.TryGetValue(item, out HintTarget? cached))
+            return cached;
+
+        (string Text, Color Color)[][] hints = _session.Ap.Hints.HintsFor(item).Select(HintText.Where).ToArray();
+        HintOption[] options = ItemHintOption(item, required) is { } option ? new[] { option } : Array.Empty<HintOption>();
+        HintTarget? target = hints.Length > 0 || options.Length > 0 ? new HintTarget(item, hints, options) : null;
+        _hintTargetCache[item] = target;
+        return target;
     }
 
     /// <summary>The player's class: what AP says while connected (the game's own value can be spoofed for a room), or
@@ -253,7 +342,7 @@ public sealed class MainForm : Form
     {
         bool isHere = room == _hereRoom;
         if (!connected || !_roomLocationNames.TryGetValue(room, out string[]? locations))
-            return new RoomTileState(room.Name, Array.Empty<CheckPip>(), "", false, isHere, false);
+            return new RoomTileState(room.Name, Array.Empty<CheckPip>(), "", false, isHere, false, null);
 
         CheckPip[] checks = locations.Select(BuildCheck).OrderBy(check => check.Status).ToArray();
         int total = checks.Length;
@@ -285,19 +374,49 @@ public sealed class MainForm : Form
             _ when _logic is null => $"{checkedCount}/{total}", // an older seed, without logic to go by
             _ => $"{inLogic} in logic",
         };
-        return new RoomTileState(room.Name, checks, tag, lockReason is not null, isHere, !hasCard);
+        HintTarget? cardHint = !hasCard && checkedCount != total ? ItemHintTarget(room.Card!, 1) : null;
+        return new RoomTileState(room.Name, checks, tag, lockReason is not null, isHere, !hasCard, cardHint);
     }
 
-    /// <summary>A check's dot. Every unchecked check is locked on an older seed, without logic to go by.</summary>
     private CheckPip BuildCheck(string location)
     {
-        if (_session.Ap.IsLocationChecked(location))
-            return new CheckPip(location, CheckStatus.Checked, Array.Empty<string>());
-        if (_logic is null || _evaluation is null)
-            return new CheckPip(location, CheckStatus.Locked, Array.Empty<string>());
-        if (_evaluation.Reachable.Contains(location))
-            return new CheckPip(location, CheckStatus.InLogic, Array.Empty<string>());
-        return new CheckPip(location, CheckStatus.Locked, _evaluation.MissingItems.GetValueOrDefault(location, Array.Empty<string>()));
+        bool isChecked = _session.Ap.IsLocationChecked(location);
+        bool isSent = isChecked || _session.Ap.IsLocationCheckedOrQueued(location);
+        if (_checkCache.TryGetValue(location, out var cached) && cached.IsChecked == isChecked && cached.IsSent == isSent)
+            return cached.Check;
+
+        CheckPip check = ComposeCheck(location, isChecked);
+        _checkCache[location] = (check, isChecked, isSent);
+        return check;
+    }
+
+    /// <summary>A check's dot and hints. Every unchecked check is locked on an older seed, without logic to go by.</summary>
+    private CheckPip ComposeCheck(string location, bool isChecked)
+    {
+        if (isChecked)
+            return new CheckPip(location, location, CheckStatus.Checked, Array.Empty<RequirementLine>(), Array.Empty<HintOption>(), null);
+
+        bool inLogic = _logic is not null && _evaluation is not null && _evaluation.Reachable.Contains(location);
+        SlotLogic.MissingItem[] missing = _logic is not null && _evaluation is not null
+            ? _evaluation.MissingItems.GetValueOrDefault(location, Array.Empty<SlotLogic.MissingItem>())
+            : Array.Empty<SlotLogic.MissingItem>();
+
+        HintTracker hints = _session.Ap.Hints;
+        RequirementLine[] requires = missing
+            .Select(item => new RequirementLine(item.Display, hints.HintsFor(item.Item).Select(HintText.Where).ToArray()))
+            .ToArray();
+
+        var options = new List<HintOption>();
+        if (LocationHintOption(location) is { } contents)
+            options.Add(contents);
+        foreach (SlotLogic.MissingItem item in missing)
+        {
+            if (ItemHintOption(item.Item, item.Count) is { } option)
+                options.Add(option);
+        }
+
+        return new CheckPip(location, location, inLogic ? CheckStatus.InLogic : CheckStatus.Locked, requires, options.ToArray(),
+            hints.HintAt(location) is { } hint ? HintText.ForCheck(hint) : null);
     }
 
     /// <summary>Moves the highlight to the tile of the room the player's in. A room without a tile, like an elevator,
@@ -371,7 +490,8 @@ public sealed class MainForm : Form
                 info.IsRevealed("room", clues) ? info.Room : null,
                 clues,
                 info.TotalClues,
-                BuildClues(info, clues));
+                BuildClues(info, clues),
+                connected ? ItemHintTarget(info.ClueItemName, info.TotalClues) : null);
         }
 
         // In hand can only be read from a save, so until one's been read the server's word that a part was received has to do
@@ -395,6 +515,7 @@ public sealed class MainForm : Form
             parts,
             connected ? parts.Count(p => p == PartState.InHand) : null,
             usesMail,
-            fromServer);
+            fromServer,
+            TitaniaParts.All.Select(part => connected ? ItemHintTarget(part.ApItemName, 1) : null).ToArray());
     }
 }

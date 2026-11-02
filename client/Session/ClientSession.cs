@@ -29,6 +29,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     private RoomNodeView? _lastRoomNodeView;
     private uint? _lastRoomFlags;
     private int? _lastPassengerClass;
+    private int _lastHintPoints;
 
     /// <summary>Display-only cache of the last RNV reported through <see cref="RoomNodeViewChanged"/>, updated every
     /// tick regardless of the save/seed guard. <see cref="_lastRoomNodeView"/> only advances once the guard is Ok.</summary>
@@ -84,6 +85,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         _apConnection.MessageReceived += message => RunOnUiThread(() => OnApMessageReceived(message));
         _apConnection.ItemReceived += _ => RunOnUiThread(() => ItemReceived?.Invoke());
         _apConnection.CheckedLocationsChanged += () => RunOnUiThread(() => CheckedLocationsChanged?.Invoke());
+        _apConnection.HintsChanged += () => RunOnUiThread(() => HintsChanged?.Invoke());
         _apConnection.CheckQueued += name =>
         {
             if (_apConnection.State != ApConnectionState.Connected)
@@ -145,6 +147,10 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     internal event Action<ApConnectionState, string>? ApStateChanged;
     internal event Action? ItemReceived;
     internal event Action? CheckedLocationsChanged;
+
+    /// <summary>The hints, the requests for them or the hint points changed.</summary>
+    internal event Action? HintsChanged;
+
     internal event Action? PendingChecksChanged;
     internal event Action? TitaniaPartsChanged;
 
