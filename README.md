@@ -21,7 +21,7 @@ Requires [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/
    - If you have multiple items queued for delivery, simply press Receive again. Don't forget to take your item out of the tray after each arrives
    - With Item Delivery Method set to Direct To Inventory, received items go straight into your inventory instead
 - All Archipelago server messages including location checks and granted items will be routed to your PET on the Conversation tab
-- Hints: Click a check, a Titania part, the Parrot Hunt clues, the bottom of a locked room or a class's row label (for its Progressive Passenger Class Upgrades and Progressive Staterooms) in the client window to request a hint for it. Hovering shows any hints it already has, and checks with a hint on them change color
+- Hints: Click a check, a Titania part, the Parrot Hunt clues or the bottom of a locked room in the client window to request a hint for it. Hovering shows any hints it already has, and checks with a hint on them change color
 - Client commands - Usable in-game or in the client window:
   - **/help** - list all client commands
   - **/ap \<text\>** - sends \<text\> to the AP server from in game

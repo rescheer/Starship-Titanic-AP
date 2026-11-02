@@ -1,8 +1,7 @@
 namespace StarshipTitanicAp;
 
-/// <summary>One deck row's state: whether its label is lit, each of its rooms in <see cref="RoomTiles"/> order, and the
-/// progressive items still needed for its class, if any.</summary>
-internal sealed record DeckState(bool IsReached, RoomTileState[] Rooms, CheckPip? Items);
+/// <summary>One deck row's state: whether its label is lit, and each of its rooms in <see cref="RoomTiles"/> order.</summary>
+internal sealed record DeckState(bool IsReached, RoomTileState[] Rooms);
 
 /// <summary>One Titania part's state, in <see cref="TitaniaParts"/> order.</summary>
 internal enum PartState { NotReceived, InMail, InHand }
@@ -114,7 +113,7 @@ internal sealed class TrackerView : TrackerControl
             },
         },
     };
-    private readonly DeckHeader[] _deckLabels;
+    private readonly Label[] _deckLabels;
     private readonly RoomTile[][] _roomTiles;
     private readonly CheckPopup _checkPopup = new();
     private Control? _popupSource;
@@ -175,7 +174,9 @@ internal sealed class TrackerView : TrackerControl
     {
         TabStop = false;
 
-        _deckLabels = RoomTiles.Decks.Select(deck => new DeckHeader(deck.Label)).ToArray();
+        _deckLabels = RoomTiles.Decks
+            .Select(deck => new Label { Text = deck.Label, Font = TrackerTheme.CaptionFont, ForeColor = TrackerTheme.TextMuted, BackColor = TrackerTheme.Background, TextAlign = ContentAlignment.TopLeft })
+            .ToArray();
         _roomTiles = RoomTiles.Decks
             .Select(deck => deck.Rooms.Select(_ => new RoomTile()).ToArray())
             .ToArray();
@@ -189,19 +190,17 @@ internal sealed class TrackerView : TrackerControl
         Controls.Add(_cluePopup);
         Controls.Add(_hintPopup);
         Controls.AddRange(new Control[] { _gameTile, _apTile, _hintsTile, _inLogicTile, _goModeTile, _mailTile, _saveSeedBanner, _forceSeedLink, _roomsHeader, _roomsLegend, _titaniaHeader, _parrotHeader, _clueBar, _log, _chatInput, _chatSend, _hereHeader, _here, _recentHeader, _recent });
-        Controls.AddRange(_deckLabels.ToArray<Control>());
+        Controls.AddRange(_deckLabels);
         Controls.AddRange(_roomTiles.SelectMany(row => row).ToArray<Control>());
         Controls.AddRange(_partTiles.ToArray<Control>());
         Controls.AddRange(_parrotTiles.ToArray<Control>());
 
         foreach (RoomTile tile in _roomTiles.SelectMany(row => row))
             tile.PipHoverChanged += OnCheckHoverChanged;
-        foreach (DeckHeader label in _deckLabels)
-            label.ItemsHoverChanged += OnCheckHoverChanged;
         _here.CheckHoverChanged += OnCheckHoverChanged;
         _goModeTile.HoverChanged += UpdateGoModePopup;
         _clueBar.ClueHoverChanged += OnClueHoverChanged;
-        foreach (TrackerControl hintable in _roomTiles.SelectMany(row => row).Concat<TrackerControl>(_partTiles).Concat(_deckLabels).Append(_here).Append(_clueBar))
+        foreach (TrackerControl hintable in _roomTiles.SelectMany(row => row).Concat<TrackerControl>(_partTiles).Append(_here).Append(_clueBar))
         {
             hintable.HintClicked += OpenHintBox;
             hintable.HintHoverChanged += OnHintHoverChanged;
@@ -250,7 +249,9 @@ internal sealed class TrackerView : TrackerControl
 
         for (int deck = 0; deck < _roomTiles.Length; deck++)
         {
-            _deckLabels[deck].Set(state.Decks[deck].IsReached ? TrackerTheme.Accent : TrackerTheme.TextMuted, state.Decks[deck].Items);
+            Color labelColor = state.Decks[deck].IsReached ? TrackerTheme.Accent : TrackerTheme.TextMuted;
+            if (_deckLabels[deck].ForeColor != labelColor)
+                _deckLabels[deck].ForeColor = labelColor;
 
             for (int room = 0; room < _roomTiles[deck].Length; room++)
             {
@@ -515,7 +516,7 @@ internal sealed class TrackerView : TrackerControl
         int y = _roomsHeader.Bottom + gap;
         for (int deck = 0; deck < _roomTiles.Length; deck++)
         {
-            _deckLabels[deck].SetBounds(margin, y, labelWidth, tileHeight);
+            _deckLabels[deck].SetBounds(margin, y + S(5), labelWidth, S(16));
             for (int room = 0; room < _roomTiles[deck].Length; room++)
                 _roomTiles[deck][room].SetBounds(tilesLeft + room * (tileWidth + gap), y, tileWidth, tileHeight);
             y += tileHeight + gap;
