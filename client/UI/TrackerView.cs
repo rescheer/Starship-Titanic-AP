@@ -129,6 +129,7 @@ internal sealed class TrackerView : TrackerControl
     private readonly RecentPanel _recent = new();
 
     private bool _showParrot;
+    private bool _scrollLogWhenSized;
 
     public TrackerView()
     {
@@ -171,6 +172,13 @@ internal sealed class TrackerView : TrackerControl
             SubmitChat();
         };
         _log.HandleCreated += (_, _) => TrackerTheme.UseDarkScrollBars(_log);
+        _log.SizeChanged += (_, _) =>
+        {
+            if (!_scrollLogWhenSized || !LogHasSize)
+                return;
+            _scrollLogWhenSized = false;
+            ScrollLogToEnd();
+        };
     }
 
     public void ClearChatInput() => _chatInput.Clear();
@@ -292,16 +300,10 @@ internal sealed class TrackerView : TrackerControl
     /// <summary>Appends one line built from differently colored pieces, trimming the oldest lines past the cap.</summary>
     public void AppendLog(IEnumerable<(string Text, Color Color)> parts, bool bold)
     {
-        _log.SelectionStart = _log.TextLength;
-        _log.SelectionLength = 0;
-        _log.SelectionFont = bold ? TrackerTheme.LogBoldFont : TrackerTheme.LogFont;
+        Font font = bold ? TrackerTheme.LogBoldFont : TrackerTheme.LogFont;
         foreach ((string text, Color color) in parts)
-        {
-            _log.SelectionColor = color;
-            _log.AppendText(text);
-        }
-        _log.SelectionColor = TrackerTheme.Text;
-        _log.AppendText(Environment.NewLine);
+            AppendLogText(text, color, font);
+        AppendLogText(Environment.NewLine, TrackerTheme.Text, font);
 
         // Cut the oldest lines in place rather than reassigning Lines, which would drop every line's colors
         const int maxLines = 2000;
@@ -311,9 +313,30 @@ internal sealed class TrackerView : TrackerControl
             _log.Select(0, _log.GetFirstCharIndexFromLine(maxLines / 2));
             _log.SelectedText = "";
             _log.ReadOnly = true;
-            _log.SelectionStart = _log.TextLength;
         }
 
+        // Scrolling without a size would leave only the last line showing, so that waits for the window to come back
+        if (LogHasSize)
+            ScrollLogToEnd();
+        else
+            _scrollLogWhenSized = true;
+    }
+
+    /// <summary>While the window's minimized the log has no size, and AppendText then puts the selection back where it
+    /// was, so each piece has to move it to the end again to get its own format.</summary>
+    private void AppendLogText(string text, Color color, Font font)
+    {
+        _log.Select(_log.TextLength, 0);
+        _log.SelectionFont = font;
+        _log.SelectionColor = color;
+        _log.AppendText(text);
+    }
+
+    private bool LogHasSize => _log.Width > 0 && _log.Height > 0;
+
+    private void ScrollLogToEnd()
+    {
+        _log.Select(_log.TextLength, 0);
         _log.ScrollToCaret();
     }
 
