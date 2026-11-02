@@ -290,6 +290,7 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         & CanReachRegion("Bar")
         & CanReachRegion("Promenade Deck")
         & CanReachRegion("Titania's Room")  # the fuses go in the Fuse Box
+        & CanReachRegion("SGT Class Lobby")  # the puree comes from the sauce dispenser in the SGT restaurant
     )
 
     # ---------------------------------------------------------------- #
