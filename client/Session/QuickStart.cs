@@ -10,15 +10,15 @@ internal sealed class QuickStart
     private const int SaveSlot = 42;
 
     private const int HomeRoom = 3;
+    private const string HomeRoomName = "Home";
     private const string CdRomTrayName = "newTray";
     private const string CdRomTrayClass = "CCDROMTray";
     private const string NoCd = "None";
-    private const int LoadTimeoutTicks = 100; // 100 * 50ms = 5s
 
     private readonly SessionContext _ctx;
 
     private bool _decided;
-    private int? _loadRequestedTick;
+    private bool _loadRequested;
 
     public QuickStart(SessionContext ctx)
     {
@@ -29,7 +29,7 @@ internal sealed class QuickStart
     public void Reset()
     {
         _decided = false;
-        _loadRequestedTick = null;
+        _loadRequested = false;
     }
 
     /// <summary>Whether the seed has the Quick Start option on. False for seeds without the slot data key.</summary>
@@ -47,19 +47,12 @@ internal sealed class QuickStart
         }
     }
 
-    /// <summary>Starts the load if this tree qualifies. True while the load is pending, when nothing else should act on
-    /// a tree that's about to be replaced.</summary>
+    /// <summary>Starts the load if this tree qualifies. True once it's been requested and until the tree is rebuilt (see
+    /// <see cref="Reset"/>), when nothing else may walk a tree the game is about to free.</summary>
     public bool Update(long gameManager, RoomNodeView? rnv)
     {
-        if (_loadRequestedTick is { } requestedTick)
-        {
-            if (_ctx.TickCount - requestedTick < LoadTimeoutTicks)
-                return true;
-
-            _loadRequestedTick = null;
-            Fail("the game didn't load the save");
-            return false;
-        }
+        if (_loadRequested)
+            return true;
 
         if (_decided || !IsEnabled(_ctx.Ap.SlotData) || !SaveLoadHook.IsInstalled)
             return false;
@@ -72,7 +65,9 @@ internal sealed class QuickStart
 
         _decided = true;
 
-        if (GameState.FindDescendant(_ctx.Mem, project, CdRomTrayName, CdRomTrayClass) is not { } tray)
+        // Searched from the room, as the tree holds more objects than FindDescendant visits and Home is late in it.
+        if (GameState.FindRoomByName(_ctx.Mem, project, HomeRoomName) is not { } home
+            || GameState.FindDescendant(_ctx.Mem, home, CdRomTrayName, CdRomTrayClass) is not { } tray)
         {
             Fail("the CD tray wasn't found");
             return false;
@@ -111,26 +106,56 @@ internal sealed class QuickStart
             return false;
         }
 
+        if (!RefreshSaveList())
+        {
+            Fail("couldn't update the game's list of saves");
+            return false;
+        }
         if (!RequestLoad(gameManager))
         {
             Fail("couldn't ask the game to load the save");
             return false;
         }
 
-        _loadRequestedTick = _ctx.TickCount;
+        _loadRequested = true;
         _ctx.Report.ReportAction(true, "Quick Start: loading the Embarkation Lobby");
         return true;
     }
 
-    /// <summary>What CMainGameWindow::loadGame does, in the same order. The game picks it up on its own thread, after
-    /// drawing a frame. Called only in interactive mode, where setMode just sets the value.</summary>
+    /// <summary>ScummVM only opens saves on the list it made when it first looked in the folder, and the game aborts on
+    /// one it can't open, so a save new since then has to be listed first. Clears the cached folder path the way
+    /// DefaultSaveFileManager::updateSavefilesList does, which rebuilds the list the next time a save is opened.</summary>
+    private bool RefreshSaveList()
+    {
+        long? systemRef = _ctx.Mem.ReadInt64(_ctx.Mem.ModuleBase + GameOffsets.SystemPointerRef);
+        long? system = systemRef is null or 0 ? null : _ctx.Mem.ReadInt64(systemRef.Value);
+        long? manager = system is null or 0 ? null : _ctx.Mem.ReadInt64(system.Value + GameOffsets.SaveFileManager);
+        if (manager is null or 0
+            || _ctx.Mem.ReadInt64(manager.Value) != _ctx.Mem.ModuleBase + GameOffsets.SaveFileManagerVtable)
+            return false;
+
+        long directory = manager.Value + GameOffsets.CachedSaveDirectory;
+        long? text = _ctx.Mem.ReadInt64(directory + GameOffsets.CStringDataPtrOffset);
+        return text is not null && GameState.LooksLikeHeapPointer(text.Value)
+            && _ctx.Mem.WriteInt32(directory + GameOffsets.CStringSizeOffset, 0)
+            && _ctx.Mem.WriteByte(text.Value, 0);
+    }
+
+    /// <summary>What CMainGameWindow::loadGame does, in the same order. The game picks it up on its own thread the next
+    /// time it draws, which it only does once something on screen has changed, so the screen is marked as changed too.
+    /// Called only in interactive mode, where setMode just sets the value.</summary>
     private bool RequestLoad(long gameManager)
     {
         long? step1 = _ctx.Mem.ReadInt64(_ctx.Mem.ModuleBase + GameOffsets.Step1);
         long? window = step1 is null or 0 ? null : _ctx.Mem.ReadInt64(step1.Value + GameOffsets.Step2);
-        return window is not null and not 0
-            && _ctx.Mem.WriteInt32(window.Value + GameOffsets.PendingLoadSlot, SaveSlot)
-            && _ctx.Mem.WriteInt32(gameManager + GameOffsets.GameMode, GameOffsets.GameModePendingLoad);
+        if (window is null or 0
+            || !_ctx.Mem.WriteInt32(window.Value + GameOffsets.PendingLoadSlot, SaveSlot)
+            || !_ctx.Mem.WriteInt32(gameManager + GameOffsets.GameMode, GameOffsets.GameModePendingLoad))
+            return false;
+
+        // The load is requested now whatever this returns: without it, the next change on screen starts it instead.
+        GameActions.MarkAllDirty(_ctx.Mem, gameManager);
+        return true;
     }
 
     private void Fail(string reason)

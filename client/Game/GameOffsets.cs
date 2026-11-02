@@ -10,6 +10,13 @@ public static class GameOffsets
     // CMainGameWindow::_pendingLoadSlot, relative to step2 (the window)
     public const long PendingLoadSlot = 0x10;
 
+    // --- Save file manager: base -> &g_system -> g_system -> DefaultSaveFileManager ---
+    public const long SystemPointerRef = 0x53D9450;
+    public const long SaveFileManager = 0x20;
+    public const long SaveFileManagerVtable = 0x55095A0; // module-relative, to confirm what was found
+    // DefaultSaveFileManager::_cachedDirectory, a Common::Path laid out as a CString
+    public const long CachedSaveDirectory = 0x348;
+
     // --- Room/node/view, relative to CGameManager ---
     private const long NodeViewBase = 0xE728 + 0x8;
     public const long RoomFromGameManager = NodeViewBase + 0x10;
