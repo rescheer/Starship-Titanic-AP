@@ -124,7 +124,7 @@ internal sealed class RoomTile : TrackerControl
 
     private Rectangle PipBounds(int index)
     {
-        int left = S(6), pip = S(8), pitch = pip + S(3);
+        int left = S(6), pip = S(12), pitch = pip + S(3);
         int perRow = Math.Max(1, (Width - S(2) - left + S(3)) / pitch);
         return new Rectangle(left + index % perRow * pitch, S(22) + index / perRow * pitch, pip, pip);
     }
@@ -576,13 +576,21 @@ internal sealed class ConnectionTile : TrackerControl
 /// <summary>A section's title, with an optional legend on the right.</summary>
 internal sealed class SectionHeader : TrackerControl
 {
-    private readonly string _title;
+    private string _title;
     private (string Text, Color? Pip, bool PipFilled)[] _legend;
 
     public SectionHeader(string title, params (string Text, Color? Pip, bool PipFilled)[] legend)
     {
         _title = title;
         _legend = legend;
+    }
+
+    public void SetTitle(string title)
+    {
+        if (title == _title)
+            return;
+        _title = title;
+        Invalidate();
     }
 
     public void SetLegend((string Text, Color? Pip, bool PipFilled)[] legend)

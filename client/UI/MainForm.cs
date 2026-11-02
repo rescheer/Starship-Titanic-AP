@@ -25,8 +25,8 @@ public sealed class MainForm : Form
         _session = new ClientSession();
         Text = AppInfo.TitleBarText;
         Icon = AppInfo.AppIcon;
-        ClientSize = new Size(LogicalToDeviceUnits(1200), LogicalToDeviceUnits(750));
-        MinimumSize = new Size(LogicalToDeviceUnits(1120), LogicalToDeviceUnits(640));
+        ClientSize = new Size(LogicalToDeviceUnits(1210), LogicalToDeviceUnits(750));
+        MinimumSize = new Size(LogicalToDeviceUnits(1220), LogicalToDeviceUnits(640));
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = TrackerTheme.Background;
         Controls.Add(_view);
@@ -384,7 +384,14 @@ public sealed class MainForm : Form
             _ when fromServer || inHand!.Contains(part.ApItemName) => PartState.InHand,
             _ => usesMail ? PartState.InMail : PartState.NotReceived,
         }).ToArray();
+        string title = true switch
+        {
+            _ when _session.Ap.KnownSlotData is null => "TITANIA", // no seed yet, so no goal to name
+            _ when LocationChecks.IsRepairTitaniaGoal(_session.Ap.KnownSlotData) => "GOAL: REPAIR TITANIA",
+            _ => "GOAL: RETURN HOME",
+        };
         return new GoalState.Titania(
+            title,
             parts,
             connected ? parts.Count(p => p == PartState.InHand) : null,
             usesMail,
