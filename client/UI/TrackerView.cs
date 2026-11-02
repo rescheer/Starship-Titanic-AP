@@ -11,7 +11,8 @@ internal abstract record GoalState
 {
     /// <param name="InHandCount">Null while it can't be known.</param>
     /// <param name="UsesMail">False under Direct To Inventory, which has no use for the "in the mail" legend entry.</param>
-    public sealed record Titania(PartState[] Parts, int? InHandCount, bool UsesMail) : GoalState;
+    /// <param name="FromServer">Whether <see cref="PartState.InHand"/> only means the AP server says the part was received, while there's no game to ask.</param>
+    public sealed record Titania(PartState[] Parts, int? InHandCount, bool UsesMail, bool FromServer) : GoalState;
 
     /// <param name="Elevator">Each part of the address is null until revealed.</param>
     /// <param name="Clues">The clues found so far, in order. Empty while not connected, since their text depends on the seed.</param>
@@ -99,6 +100,11 @@ internal sealed class TrackerView : TrackerControl
     private static readonly (string Text, Color? Pip, bool PipFilled)[] TitaniaDirectLegend =
     {
         ($"{InHandMark} In hand", null, false),
+        ($"{UnknownMark} Not received", null, false),
+    };
+    private static readonly (string Text, Color? Pip, bool PipFilled)[] TitaniaServerLegend =
+    {
+        ($"{InHandMark} Received", null, false),
         ($"{UnknownMark} Not received", null, false),
     };
 
@@ -270,7 +276,7 @@ internal sealed class TrackerView : TrackerControl
         switch (goal)
         {
             case GoalState.Titania titania:
-                _titaniaHeader.SetLegend(titania.UsesMail ? TitaniaMailLegend : TitaniaDirectLegend);
+                _titaniaHeader.SetLegend(titania.FromServer ? TitaniaServerLegend : titania.UsesMail ? TitaniaMailLegend : TitaniaDirectLegend);
                 string total = $"{(titania.InHandCount?.ToString() ?? "-")}/{TitaniaParts.All.Length}";
                 _partTiles[0].Set("PARTS", total, GoalTileStyle.Total, TrackerTheme.PartCountFont);
                 for (int i = 0; i < TitaniaParts.All.Length; i++)

@@ -207,7 +207,7 @@ public sealed class MainForm : Form
             _session.Options.EnforceSaveSeedGuard && _session.SaveSeedGuardState == SaveSeedGuardState.Blocked,
             RoomTiles.Decks.Select(deck => BuildDeck(deck, connected, receivedItems, passengerClass, titaniaRepaired)).ToArray(),
             BuildHere(connected),
-            BuildGoal(attached, connected, receivedItems)));
+            BuildGoal(connected, receivedItems)));
     }
 
     /// <summary>The player's class: what AP says while connected (the game's own value can be spoofed for a room), or
@@ -360,7 +360,7 @@ public sealed class MainForm : Form
             .ToArray();
     }
 
-    private GoalState BuildGoal(bool attached, bool connected, string[] receivedItems)
+    private GoalState BuildGoal(bool connected, string[] receivedItems)
     {
         if (ParrotHuntTracker.TryRead(_session.Ap.KnownSlotData) is { } info)
         {
@@ -374,18 +374,20 @@ public sealed class MainForm : Form
                 BuildClues(info, clues));
         }
 
-        // In hand can only be read from the game, so until attached a received part stays "in the mail", or under
-        // Direct To Inventory, which has no mail to wait in, not received
+        // In hand can only be read from a save, so until one's been read the server's word that a part was received has to do
+        IReadOnlySet<string>? inHand = _session.TitaniaPartsInHand;
+        bool fromServer = connected && inHand is null;
         bool usesMail = !ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData);
         PartState[] parts = TitaniaParts.All.Select(part => true switch
         {
             _ when !connected || !receivedItems.Contains(part.ApItemName, StringComparer.OrdinalIgnoreCase) => PartState.NotReceived,
-            _ when _session.TitaniaPartsInHand.Contains(part.ApItemName) => PartState.InHand,
+            _ when fromServer || inHand!.Contains(part.ApItemName) => PartState.InHand,
             _ => usesMail ? PartState.InMail : PartState.NotReceived,
         }).ToArray();
         return new GoalState.Titania(
             parts,
-            connected && attached ? parts.Count(p => p == PartState.InHand) : null,
-            usesMail);
+            connected ? parts.Count(p => p == PartState.InHand) : null,
+            usesMail,
+            fromServer);
     }
 }

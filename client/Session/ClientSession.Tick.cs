@@ -60,6 +60,7 @@ internal sealed partial class ClientSession
 
         if (gameManager is null)
         {
+            _itemSync.ClearTitaniaPartsInHand();
             RoomNodeViewChanged?.Invoke(null, "menu / loading");
             ReportAddress("gameManager", null);
             return;

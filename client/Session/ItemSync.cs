@@ -38,7 +38,7 @@ internal sealed class ItemSync
     /// TryUnrestoreItemsLeavingRnv).</summary>
     private readonly List<(string ItemName, long ItemAddress, int DueTick)> _pendingUnrestoreChecks = new();
 
-    private HashSet<string> _titaniaPartsInHand = new(StringComparer.Ordinal);
+    private HashSet<string>? _titaniaPartsInHand;
 
     public ItemSync(SessionContext ctx)
     {
@@ -53,15 +53,16 @@ internal sealed class ItemSync
         ClearTitaniaPartsInHand();
     }
 
-    /// <summary>The AP item names of the Titania parts that have reached the inventory in this save.</summary>
-    public IReadOnlySet<string> TitaniaPartsInHand => _titaniaPartsInHand;
+    /// <summary>The AP item names of the Titania parts that have reached the inventory in this save, or null until
+    /// they've been read from it.</summary>
+    public IReadOnlySet<string>? TitaniaPartsInHand => _titaniaPartsInHand;
 
     /// <summary>Forgets <see cref="TitaniaPartsInHand"/>, which can't be read again until the next reconcile.</summary>
     public void ClearTitaniaPartsInHand()
     {
-        if (_titaniaPartsInHand.Count == 0)
+        if (_titaniaPartsInHand is null)
             return;
-        _titaniaPartsInHand = new HashSet<string>(StringComparer.Ordinal);
+        _titaniaPartsInHand = null;
         _ctx.Report.NotifyTitaniaPartsChanged();
     }
 
@@ -75,7 +76,7 @@ internal sealed class ItemSync
                 inHand.Add(part.ApItemName);
         }
 
-        if (inHand.SetEquals(_titaniaPartsInHand))
+        if (_titaniaPartsInHand is not null && inHand.SetEquals(_titaniaPartsInHand))
             return;
         _titaniaPartsInHand = inHand;
         _ctx.Report.NotifyTitaniaPartsChanged();

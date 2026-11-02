@@ -114,7 +114,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     internal int? GamePassengerClass => _lastPassengerClass;
 
     /// <summary>See <see cref="ItemSync.TitaniaPartsInHand"/>.</summary>
-    internal IReadOnlySet<string> TitaniaPartsInHand => _itemSync.TitaniaPartsInHand;
+    internal IReadOnlySet<string>? TitaniaPartsInHand => _itemSync.TitaniaPartsInHand;
 
     // --- Events for the UI ---
 
