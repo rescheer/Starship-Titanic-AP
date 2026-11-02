@@ -27,7 +27,7 @@ internal static class QuickStartSave
     /// <summary>Returns the finished save file. Throws InvalidDataException if the patch can't be applied.</summary>
     public static byte[] Build(byte[] newGameFile, long seedTag, SlotProgress progress)
     {
-        string newGame = Encoding.Latin1.GetString(Decompress(new ZLibStream(new MemoryStream(newGameFile), CompressionMode.Decompress)));
+        string newGame = ReadText(newGameFile);
         using Stream patch = Assembly.GetExecutingAssembly().GetManifestResourceStream(PatchResourceName)
             ?? throw new InvalidDataException($"{PatchResourceName} is missing from the client");
         string patchText = Encoding.Latin1.GetString(Decompress(new GZipStream(patch, CompressionMode.Decompress)));
@@ -36,6 +36,22 @@ internal static class QuickStartSave
         if (RebuiltGame.HasProgress(progress))
             save = RebuiltGame.Apply(save, progress);
 
+        return WriteText(save);
+    }
+
+    /// <summary>The text of newgame.st, which is zlib, or of a save file, which is gzip.</summary>
+    internal static string ReadText(byte[] file)
+    {
+        var input = new MemoryStream(file);
+        Stream stream = file is [0x1F, 0x8B, ..]
+            ? new GZipStream(input, CompressionMode.Decompress)
+            : new ZLibStream(input, CompressionMode.Decompress);
+        return Encoding.Latin1.GetString(Decompress(stream));
+    }
+
+    /// <summary>A save file with this text.</summary>
+    internal static byte[] WriteText(string save)
+    {
         using var output = new MemoryStream();
         using (var gzip = new GZipStream(output, CompressionLevel.Optimal, leaveOpen: true))
             gzip.Write(Encoding.Latin1.GetBytes(save));

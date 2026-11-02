@@ -174,6 +174,9 @@ internal sealed partial class ClientSession
         _conversationsAddrShown = false;
         _pendingVanillaRoomAssignmentClass = null;
         _parrotHuntSync.Reset();
+        _fuseBoxSync.Reset();
+        _titaniaHeadSync.Reset();
+        _saveSnapshotSync.Reset();
         _quickStart.Reset();
         _itemSync.ClearTitaniaPartsInHand();
         _saveSeedGuard.Reset();

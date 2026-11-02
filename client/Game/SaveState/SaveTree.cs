@@ -11,6 +11,7 @@ internal sealed class SaveObject
     /// <summary>Lines from CGameObject::save's resource key back to _unused4: the key's version, _roomFlags,
     /// _destRoomFlags, _isPendingMail and _visible are in between.</summary>
     private const int ResourceKeyToUnused4 = 6;
+    private const int ResourceKeyToVisible = 5;
 
     public required string ClassName { get; init; }
     public required string Name { get; init; }
@@ -23,30 +24,53 @@ internal sealed class SaveObject
     public void SetNumberField(int fieldIndex, long value)
     {
         string[] lines = Text.Split('\n');
-        int classLine = Array.FindIndex(lines, line => line.Trim() == $"\"{ClassName}\"");
-        if (classLine < 0)
-            throw new InvalidDataException($"{ClassName} {Name} has no class name line");
-        SetNumberLine(lines, classLine + 1 + fieldIndex, value);
+        SetNumberLine(lines, FindClassLine(lines) + 1 + fieldIndex, value);
+    }
+
+    /// <summary>Writes the value of a string line, like <see cref="SetNumberField"/> does a number's. The value isn't
+    /// escaped. Throws InvalidDataException if that line isn't a string.</summary>
+    public void SetStringField(int fieldIndex, string value)
+    {
+        string[] lines = Text.Split('\n');
+        int index = FindClassLine(lines) + 1 + fieldIndex;
+        if (index >= lines.Length || !lines[index].TrimStart().StartsWith('"'))
+            throw new InvalidDataException($"{ClassName} {Name} has no string on line {index}");
+
+        lines[index] = $"{IndentOf(lines[index])}\"{value}\" ";
+        Text = string.Join('\n', lines);
     }
 
     /// <summary>Writes CGameObject's _unused4, this app's per-item state (see <see cref="ItemPersistedState"/>).</summary>
-    public void SetPersistedState(ItemPersistedState state)
+    public void SetPersistedState(ItemPersistedState state) =>
+        SetLineBeforeResourceKey(ResourceKeyToUnused4, state.Encode());
+
+    /// <summary>Writes CGameObject's _visible.</summary>
+    public void SetVisible(bool visible) =>
+        SetLineBeforeResourceKey(ResourceKeyToVisible, visible ? 1 : 0);
+
+    private void SetLineBeforeResourceKey(int linesBefore, long value)
     {
         string[] lines = Text.Split('\n');
         int resourceKey = Array.FindLastIndex(lines, line => line.Trim() == ResourceKeyLine);
-        if (resourceKey < ResourceKeyToUnused4)
+        if (resourceKey < linesBefore)
             throw new InvalidDataException($"{ClassName} {Name} has no resource key line");
-        SetNumberLine(lines, resourceKey - ResourceKeyToUnused4, state.Encode());
+        SetNumberLine(lines, resourceKey - linesBefore, value);
     }
+
+    private int FindClassLine(string[] lines)
+    {
+        int classLine = Array.FindIndex(lines, line => line.Trim() == $"\"{ClassName}\"");
+        return classLine >= 0 ? classLine : throw new InvalidDataException($"{ClassName} {Name} has no class name line");
+    }
+
+    private static string IndentOf(string line) => line[..(line.Length - line.TrimStart().Length)];
 
     private void SetNumberLine(string[] lines, int index, long value)
     {
         if (index >= lines.Length || !long.TryParse(lines[index].Trim(), out _))
             throw new InvalidDataException($"{ClassName} {Name} has no number on line {index}");
 
-        string line = lines[index];
-        string indent = line[..(line.Length - line.TrimStart().Length)];
-        lines[index] = $"{indent}{value} ";
+        lines[index] = $"{IndentOf(lines[index])}{value} ";
         Text = string.Join('\n', lines);
     }
 }
@@ -55,7 +79,7 @@ internal sealed class SaveObject
 /// exactly as the game wrote it.</summary>
 internal sealed class SaveTree
 {
-    private const string TreeStart = "\n{\n\t\"CProjectItem\"";
+    public const string TreeStart = "\n{\n\t\"CProjectItem\"";
 
     /// <summary>Positions in CGameManager::save's numbers, which directly follow the tree.</summary>
     public const int StatePassengerClass = 2;
@@ -114,6 +138,9 @@ internal sealed class SaveTree
         return found.Length == 1 ? found[0]
             : throw new InvalidDataException($"The save has {found.Length} objects named {name}");
     }
+
+    /// <summary>Every object of this class.</summary>
+    public IEnumerable<SaveObject> FindAllOfClass(string className) => All().Where(item => item.ClassName == className);
 
     /// <summary>Moves an object, along with its children, to the end of another's children, where the game's own
     /// attach() puts one.</summary>

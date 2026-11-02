@@ -1,7 +1,7 @@
 namespace StarshipTitanicAp;
 
 /// <summary>The Quick Start option: when the player starts a new game while connected, swaps the untouched new game for
-/// a generated save at the Embarkation Lobby, or wherever the slot's progress leaves them (see <see cref="RebuiltGame"/>).
+/// a generated save at the Embarkation Lobby, or the slot's last <see cref="SaveSnapshot"/> if it has one.
 /// Only an untouched new game qualifies, so this can't replace a game the
 /// player chose to load: the game refuses to save with the PET off, which leaves newgame.st as the only way to have it
 /// off in Home, and the tray check rules out the intro having started.</summary>
@@ -26,11 +26,16 @@ internal sealed class QuickStart
         _ctx = ctx;
     }
 
+    /// <summary>Whether this tree is a new game that should have been swapped and wasn't, or might not be. Saving it over
+    /// the slot's snapshot would lose the slot's progress.</summary>
+    public bool KeepsSnapshot { get; private set; }
+
     /// <summary>Forgets the decision made for the current game tree. Call when the tree is rebuilt (save load).</summary>
     public void Reset()
     {
         _decided = false;
         _loadRequested = false;
+        KeepsSnapshot = false;
     }
 
     /// <summary>Whether the seed has the Quick Start option on. False for seeds without the slot data key.</summary>
@@ -76,6 +81,7 @@ internal sealed class QuickStart
         string? insertedCd = GameState.ReadCString(_ctx.Mem, tray + GameOffsets.CdRomTrayInsertedCdOffset);
         if (insertedCd != NoCd)
         {
+            KeepsSnapshot = true;
             _ctx.Report.AppendLog($"Quick Start: skipped, as the CD tray holds \"{insertedCd}\" and the intro may have started");
             return false;
         }
@@ -87,10 +93,7 @@ internal sealed class QuickStart
             return false;
         }
 
-        var progress = new SlotProgress(
-            _ctx.Ap.GetAllLocationNames().Where(_ctx.Ap.IsLocationCheckedOrQueued).ToHashSet(StringComparer.Ordinal),
-            _ctx.Ap.GetReceivedItemNames(),
-            _ctx.Ap.SlotData);
+        string? snapshot = _ctx.Ap.GetStoredString(SaveSnapshot.StorageKey);
 
         try
         {
@@ -103,7 +106,9 @@ internal sealed class QuickStart
 
             string savePath = install.SavePath(SaveSlot);
             string tempPath = savePath + ".tmp";
-            File.WriteAllBytes(tempPath, QuickStartSave.Build(newGame, SaveSeedTag.ComputeSeedTag(seedName, slotName), progress));
+            File.WriteAllBytes(tempPath, snapshot is not null
+                ? SaveSnapshot.Restore(newGame, snapshot)
+                : QuickStartSave.Build(newGame, SaveSeedTag.ComputeSeedTag(seedName, slotName), NoProgress(_ctx.Ap.SlotData)));
             File.Move(tempPath, savePath, overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or FormatException)
@@ -124,18 +129,14 @@ internal sealed class QuickStart
         }
 
         _loadRequested = true;
-        if (RebuiltGame.HasProgress(progress))
-        {
-            if (StateroomAssignTracker.IsVanilla(_ctx.Ap.SlotData))
-                _ctx.RebuiltStateroomCount = RebuiltGame.VanillaStateroomCount(progress);
-            _ctx.Report.ReportAction(true, $"Quick Start: loading a game rebuilt from {progress.CheckedLocations.Count} checks");
-        }
-        else
-        {
-            _ctx.Report.ReportAction(true, "Quick Start: loading the Embarkation Lobby");
-        }
+        _ctx.Report.ReportAction(true, snapshot is not null
+            ? "Quick Start: restoring this slot's last snapshot"
+            : "Quick Start: loading the Embarkation Lobby");
         return true;
     }
+
+    private static SlotProgress NoProgress(IReadOnlyDictionary<string, object>? slotData) =>
+        new(new HashSet<string>(), Array.Empty<string>(), slotData);
 
     /// <summary>ScummVM only opens saves on the list it made when it first looked in the folder, and the game aborts on
     /// one it can't open, so a save new since then has to be listed first. Clears the cached folder path the way
@@ -175,6 +176,7 @@ internal sealed class QuickStart
 
     private void Fail(string reason)
     {
+        KeepsSnapshot = true;
         string message = $"Quick Start failed: {reason}. Playing the normal intro instead.";
         _ctx.Report.ReportAction(false, message);
         _ctx.Report.AppendServerLog($"CLIENT: {message}", bold: true);

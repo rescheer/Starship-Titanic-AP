@@ -192,6 +192,31 @@ public static class GameActions
         return ok;
     }
 
+    /// <summary>Asks TitanicEngine::canSaveGameStateCurrently. Null if it couldn't be asked.</summary>
+    public static bool? CanSaveGame(MemoryReader mem)
+    {
+        long? engine = mem.ReadInt64(mem.ModuleBase + GameOffsets.Step1);
+        if (engine is null or 0)
+            return null;
+
+        long? result = RemoteCaller.CallAndGetResult(mem, mem.ModuleBase + GameOffsets.EngineCanSaveFunc, rcx: engine.Value);
+        return result is { } value ? (value & 0xFF) != 0 : null;
+    }
+
+    /// <summary>Calls CProjectItem::saveGame, returning once the file is written.</summary>
+    public static bool SaveGame(MemoryReader mem, long project, int slot, string description)
+    {
+        long scratch = RemoteCaller.AllocateAndWrite(mem, new byte[64]);
+        if (scratch == 0)
+            return false;
+
+        bool ok = ConstructCString(mem, scratch, description)
+            && RemoteCaller.Call(mem, mem.ModuleBase + GameOffsets.ProjectSaveGameFunc, rcx: project, rdx: slot, r8: scratch);
+
+        RemoteCaller.FreeRemoteMemory(mem, scratch);
+        return ok;
+    }
+
     /// <summary>Calls CPetConversations::displayMessage(const CString&amp;) to log a conversation line.</summary>
     public static bool DisplayMessage(MemoryReader mem, long conversationsAddr, string text)
     {

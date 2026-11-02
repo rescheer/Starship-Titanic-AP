@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Linq;
 using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.Enums;
@@ -164,6 +165,76 @@ public sealed class ArchipelagoConnection : IDisposable
     /// <summary>Fires when a location check is newly added to the pending-check queue.</summary>
     public event Action<string>? CheckQueued;
 
+    /// <summary>The slot data storage keys this client keeps values under, read on connecting.</summary>
+    private static readonly string[] StoredValueKeys = { FuseBoxState.StorageKey, TitaniaHeadState.StorageKey };
+
+    private static readonly TimeSpan StoredValueReadTimeout = TimeSpan.FromSeconds(3);
+
+    private readonly ConcurrentDictionary<string, long> _storedValues = new();
+    private readonly ConcurrentDictionary<string, string> _storedStrings = new();
+
+    /// <summary>A value in this slot's data storage, as of connecting or this client's last write. Null if there's none.
+    /// </summary>
+    public long? GetStoredValue(string key) => _storedValues.TryGetValue(key, out long value) ? value : null;
+
+    /// <summary>Writes a value to this slot's data storage. False if not connected.</summary>
+    public bool SetStoredValue(string key, long value)
+    {
+        if (_session is not { } session)
+            return false;
+
+        session.DataStorage[Scope.Slot, key] = value;
+        _storedValues[key] = value;
+        return true;
+    }
+
+    /// <summary>Text in this slot's data storage, as of connecting or this client's last write. Null if there's none.
+    /// </summary>
+    public string? GetStoredString(string key) => _storedStrings.TryGetValue(key, out string? value) ? value : null;
+
+    /// <summary>Writes text to this slot's data storage. False if not connected.</summary>
+    public bool SetStoredString(string key, string value)
+    {
+        if (_session is not { } session)
+            return false;
+
+        session.DataStorage[Scope.Slot, key] = value;
+        _storedStrings[key] = value;
+        return true;
+    }
+
+    /// <summary>Reads every stored value. A value that can't be read counts as none, which only risks a rebuilt game
+    /// missing it.</summary>
+    private async Task ReadStoredValuesAsync(ArchipelagoSession session)
+    {
+        _storedValues.Clear();
+        foreach (string key in StoredValueKeys)
+        {
+            try
+            {
+                Task<long?> read = session.DataStorage[Scope.Slot, key].GetAsync<long?>();
+                if (await Task.WhenAny(read, Task.Delay(StoredValueReadTimeout)) == read && await read is { } value)
+                    _storedValues[key] = value;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // Treated as none, as above
+            }
+        }
+
+        _storedStrings.Clear();
+        try
+        {
+            Task<string?> read = session.DataStorage[Scope.Slot, SaveSnapshot.StorageKey].GetAsync<string?>();
+            if (await Task.WhenAny(read, Task.Delay(StoredValueReadTimeout)) == read && await read is { } value)
+                _storedStrings[SaveSnapshot.StorageKey] = value;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Treated as none, as above
+        }
+    }
+
     public async Task ConnectAsync(string server, string slot, string password)
     {
         if (string.IsNullOrWhiteSpace(server))
@@ -245,6 +316,9 @@ public sealed class ArchipelagoConnection : IDisposable
 
         if (result is LoginSuccessful success)
         {
+            // Before anything can see the session as connected, as Quick Start rebuilds from these
+            await ReadStoredValuesAsync(session);
+
             _session = session;
             SlotData = success.SlotData;
             SeedName = session.RoomState.Seed;

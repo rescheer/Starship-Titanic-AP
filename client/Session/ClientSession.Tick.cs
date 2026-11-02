@@ -19,6 +19,9 @@ internal sealed partial class ClientSession
         _itemSync.Reset(); // pending unrestores and the eaten Magazine were tracked against the old tree
         _classSync.Reset(); // the load overwrote PassengerClass and the glyphs, along with any spoof on them
         _parrotHuntSync.Reset(); // CarryParrot was rebuilt with the tree
+        _fuseBoxSync.Reset(); // so were the Fuse Box's objects
+        _titaniaHeadSync.Reset(); // and Titania's slots
+        _saveSnapshotSync.Reset();
         _quickStart.Reset();
         _movers = null; // scanned from the old tree
         _conversationsAddrShown = false;
@@ -241,6 +244,10 @@ internal sealed partial class ClientSession
         {
             _itemSync.ReconcileTrackedItems(gameManager.Value);
         }
+
+        // A new game that should have been swapped and wasn't never replaces the slot's snapshot, nor does an unwatched load
+        if (!_quickStart.KeepsSnapshot && SaveLoadHook.IsInstalled)
+            _saveSnapshotSync.Sync();
 
         _classSync.PollClassUpgradeHook(gameManager.Value);
 

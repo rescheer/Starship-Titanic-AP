@@ -262,6 +262,15 @@ internal sealed class ItemSync
                 {
                     ReshowHiddenSibling(item.Name, persisted, animate: true);
                     SendItemPickupCheck(item.Name);
+
+                    // Picked up while its socket still holds it (see TryReturnToFuseBox). Stays Restored if the move
+                    // fails, so the next pass tries again.
+                    if (IsInstalledInFuseBox(project, item.Name))
+                    {
+                        TryReturnToFuseBox(item, checkFired: true, gameManager);
+                        continue;
+                    }
+
                     GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Inventory, true, ItemPulledFrom.None));
                     continue;
                 }
@@ -574,6 +583,21 @@ internal sealed class ItemSync
     private bool IsInstalledInFuseBox(long project, string itemName) =>
         ItemTracking.IsFuseBoxItem(itemName)
         && GameState.FindShipSettingsInstalledWith(_ctx.Mem, project, itemName).Count > 0;
+
+    /// <summary>Puts a fuse back in the socket that's held it all along. A fuse in a socket is still restored to its home
+    /// spot for its check, like any other item, and its socket isn't told, so the knob and everything it controls stay as
+    /// they were. Leaves it as CBridgePiece::UseWithOtherMsg does: not visible, in the hidden room.</summary>
+    private bool TryReturnToFuseBox(CarryItemLocation item, bool checkFired, long gameManager)
+    {
+        if (_ctx.InventoryRoom is not { } petControlAddr
+            || !GameActions.MoveItemToHiddenRoomFull(_ctx.Mem, item.Address, petControlAddr, gameManager))
+            return false;
+
+        GameActions.SetItemVisible(_ctx.Mem, item.Address, false);
+        GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Inventory, checkFired, ItemPulledFrom.None));
+        _ctx.Report.NotifyItemsChanged();
+        return true;
+    }
 
     /// <summary>Finds a single named item within an already-fetched FindAllCarryItems result.</summary>
     private static CarryItemLocation? FindByName(List<CarryItemLocation> items, string name)
@@ -925,6 +949,9 @@ internal sealed class ItemSync
     /// <summary>The actual move-back for TryUnrestoreItemsLeavingRnv, per ItemPulledFrom.</summary>
     private bool RevertRestoration(CarryItemLocation item, ItemPersistedState persisted, long gameManager)
     {
+        if (_ctx.Project is { } project && IsInstalledInFuseBox(project, item.Name))
+            return TryReturnToFuseBox(item, checkFired: false, gameManager);
+
         bool moved = persisted.PulledFrom switch
         {
             ItemPulledFrom.Inventory => RevertToInventory(item, gameManager),

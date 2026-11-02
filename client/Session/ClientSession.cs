@@ -20,6 +20,9 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     private readonly ClassSync _classSync;
     private readonly ItemSync _itemSync;
     private readonly ParrotHuntSync _parrotHuntSync;
+    private readonly FuseBoxSync _fuseBoxSync;
+    private readonly TitaniaHeadSync _titaniaHeadSync;
+    private readonly SaveSnapshotSync _saveSnapshotSync;
     private readonly QuickStart _quickStart;
     private readonly ClientCommands _commands;
 
@@ -76,6 +79,9 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         _classSync = new ClassSync(_ctx);
         _itemSync = new ItemSync(_ctx);
         _parrotHuntSync = new ParrotHuntSync(_ctx);
+        _fuseBoxSync = new FuseBoxSync(_ctx);
+        _titaniaHeadSync = new TitaniaHeadSync(_ctx);
+        _saveSnapshotSync = new SaveSnapshotSync(_ctx);
         _quickStart = new QuickStart(_ctx);
         _commands = new ClientCommands(_ctx, _saveSeedGuard, _itemSync);
 

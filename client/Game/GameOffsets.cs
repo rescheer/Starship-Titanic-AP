@@ -233,6 +233,21 @@ public static class GameOffsets
     // shows the installed fuse's icon. AddHeadPieceMsg/MouseDragStartMsg execute a CSetFrameMsg against this
     // named object directly.
     public const long ShipSettingFrameTargetOffset = 0x1E0; // CString: size (int32) @ +0, data ptr (int64) @ +8
+
+    // CShipSetting._itemName of a socket with no fuse.
+    public const string ShipSettingEmpty = "NULL";
+
+    // CShipSettingButton - a Fuse Box knob. _enabled directly follows _pressed.
+    public const long ShipSettingButtonPressedOffset = 0x150;
+
+    // CHeadSlot (titanic/game/head_slot.h) and CBrainSlot (brain_slot.h) - Titania's slots. _occupied is the first field
+    // after CGameObject, in its last bytes of padding.
+    public const long HeadSlotOccupiedOffset = 0x121;
+    public const long BrainSlotOccupiedOffset = 0x121;
+    public const long BrainSlotTargetOffset = 0x128; // CString: size (int32) @ +0, data ptr (int64) @ +8
+
+    // CChickenDispensor._dispenseMode
+    public const long ChickenDispensorModeOffset = 0x184;
     public const int CursorArrow = 1;
 
     // CDropTarget (titanic/core/drop_target.h) - fields follow CGameObject from 0x124, same as CCarry's. A drop target
@@ -323,6 +338,13 @@ public static class GameOffsets
     // _project itself never changes. Its prologue (8 pushes + sub rsp,0xC8 = 19 bytes) has no RIP-relative
     // operands; SaveLoadHook replays it verbatim.
     public const long ProjectLoadGameFunc = 0x23A63A0;
+
+    // CProjectItem::saveGame(int slotId, const CString &desc), which TitanicEngine::saveGameState calls.
+    public const long ProjectSaveGameFunc = 0x23A6190;
+
+    // TitanicEngine::canSaveGameStateCurrently(U32String *msg), on the object at Step1. What ScummVM asks before an
+    // autosave: the PET's on, and input isn't locked or the view changing.
+    public const long EngineCanSaveFunc = 0x239C800;
 
     // CProjectItem::postLoad() - called exactly once, from the tail of loadGame, after the loaded children have
     // been re-parented under the project (so the new tree is complete by the time it runs).
