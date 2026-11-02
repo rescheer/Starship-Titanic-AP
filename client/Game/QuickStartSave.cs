@@ -6,8 +6,9 @@ using System.Text;
 namespace StarshipTitanicAp;
 
 /// <summary>Builds the save Quick Start loads: the game's own newgame.st, patched to the moment a vanilla game reaches
-/// the Embarkation Lobby before check-in, and tagged with the seed so <see cref="SaveSeedGuard"/> accepts it. The patch
-/// comes from tools/make_quickstart_patch.py and only fits the newgame.st it was made from.</summary>
+/// the Embarkation Lobby before check-in, tagged with the seed so <see cref="SaveSeedGuard"/> accepts it, and carrying
+/// on from any progress the slot has made (see <see cref="RebuiltGame"/>). The patch comes from
+/// tools/make_quickstart_patch.py and only fits the newgame.st it was made from.</summary>
 internal static class QuickStartSave
 {
     private const string PatchResourceName = "QuickStartPatch.gz";
@@ -24,7 +25,7 @@ internal static class QuickStartSave
         Convert.ToHexString(SHA256.HashData(newGameFile)) == NewGameSha256;
 
     /// <summary>Returns the finished save file. Throws InvalidDataException if the patch can't be applied.</summary>
-    public static byte[] Build(byte[] newGameFile, long seedTag)
+    public static byte[] Build(byte[] newGameFile, long seedTag, SlotProgress progress)
     {
         string newGame = Encoding.Latin1.GetString(Decompress(new ZLibStream(new MemoryStream(newGameFile), CompressionMode.Decompress)));
         using Stream patch = Assembly.GetExecutingAssembly().GetManifestResourceStream(PatchResourceName)
@@ -32,6 +33,8 @@ internal static class QuickStartSave
         string patchText = Encoding.Latin1.GetString(Decompress(new GZipStream(patch, CompressionMode.Decompress)));
 
         string save = WriteSeedTag(ApplyPatch(newGame, patchText), seedTag);
+        if (RebuiltGame.HasProgress(progress))
+            save = RebuiltGame.Apply(save, progress);
 
         using var output = new MemoryStream();
         using (var gzip = new GZipStream(output, CompressionLevel.Optimal, leaveOpen: true))

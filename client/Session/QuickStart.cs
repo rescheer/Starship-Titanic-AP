@@ -1,7 +1,8 @@
 namespace StarshipTitanicAp;
 
 /// <summary>The Quick Start option: when the player starts a new game while connected, swaps the untouched new game for
-/// a generated save at the Embarkation Lobby. Only an untouched new game qualifies, so this can't replace a game the
+/// a generated save at the Embarkation Lobby, or wherever the slot's progress leaves them (see <see cref="RebuiltGame"/>).
+/// Only an untouched new game qualifies, so this can't replace a game the
 /// player chose to load: the game refuses to save with the PET off, which leaves newgame.st as the only way to have it
 /// off in Home, and the tray check rules out the intro having started.</summary>
 internal sealed class QuickStart
@@ -86,6 +87,11 @@ internal sealed class QuickStart
             return false;
         }
 
+        var progress = new SlotProgress(
+            _ctx.Ap.GetAllLocationNames().Where(_ctx.Ap.IsLocationCheckedOrQueued).ToHashSet(StringComparer.Ordinal),
+            _ctx.Ap.GetReceivedItemNames(),
+            _ctx.Ap.SlotData);
+
         try
         {
             byte[] newGame = File.ReadAllBytes(install.NewGamePath);
@@ -97,7 +103,7 @@ internal sealed class QuickStart
 
             string savePath = install.SavePath(SaveSlot);
             string tempPath = savePath + ".tmp";
-            File.WriteAllBytes(tempPath, QuickStartSave.Build(newGame, SaveSeedTag.ComputeSeedTag(seedName, slotName)));
+            File.WriteAllBytes(tempPath, QuickStartSave.Build(newGame, SaveSeedTag.ComputeSeedTag(seedName, slotName), progress));
             File.Move(tempPath, savePath, overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or FormatException)
@@ -118,7 +124,16 @@ internal sealed class QuickStart
         }
 
         _loadRequested = true;
-        _ctx.Report.ReportAction(true, "Quick Start: loading the Embarkation Lobby");
+        if (RebuiltGame.HasProgress(progress))
+        {
+            if (StateroomAssignTracker.IsVanilla(_ctx.Ap.SlotData))
+                _ctx.RebuiltStateroomCount = RebuiltGame.VanillaStateroomCount(progress);
+            _ctx.Report.ReportAction(true, $"Quick Start: loading a game rebuilt from {progress.CheckedLocations.Count} checks");
+        }
+        else
+        {
+            _ctx.Report.ReportAction(true, "Quick Start: loading the Embarkation Lobby");
+        }
         return true;
     }
 

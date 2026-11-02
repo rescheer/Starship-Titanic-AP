@@ -49,6 +49,7 @@ internal sealed class ClassSync
         SyncPendingClassUpgrade(gameManager);
         SyncPassengerClassFromItems(gameManager);
         SyncStateroomFromItems(gameManager);
+        SyncRebuiltStaterooms(gameManager);
         SyncRepairTitaniaGoal();
     }
 
@@ -251,8 +252,7 @@ internal sealed class ClassSync
     }
 
     /// <summary>Applies the stateroom assignment(s) implied by "Progressive Stateroom" AP items received so far,
-    /// if any are still outstanding, via GameActions.AssignNextRoom. Assigns every outstanding tier in order:
-    /// SGT/Third, then Second, then First.</summary>
+    /// if any are still outstanding, via GameActions.AssignNextRoom.</summary>
     private void SyncStateroomFromItems(long gameManager)
     {
         IReadOnlyDictionary<string, object>? slotData = _ctx.Ap.SlotData;
@@ -270,14 +270,31 @@ internal sealed class ClassSync
         if (targetCount is null)
             return;
 
+        AssignStateroomsUpTo(targetCount.Value, "items", gameManager, petControlAddr);
+    }
+
+    /// <summary>Gives a rebuilt game the staterooms the DeskBot handed out in the game it replaces, once it's loaded.
+    /// </summary>
+    private void SyncRebuiltStaterooms(long gameManager)
+    {
+        if (_ctx.RebuiltStateroomCount is not { } targetCount || _ctx.InventoryRoom is not { } petControlAddr)
+            return;
+
+        _ctx.RebuiltStateroomCount = null;
+        AssignStateroomsUpTo(targetCount, "the rebuilt game", gameManager, petControlAddr);
+    }
+
+    /// <summary>Assigns every outstanding tier in order: SGT/Third, then Second, then First.</summary>
+    private void AssignStateroomsUpTo(int targetCount, string source, long gameManager, long petControlAddr)
+    {
         int achievedCount = GameActions.GetAchievedStateroomClass(_ctx.Mem, petControlAddr);
-        for (int next = achievedCount + 1; next <= targetCount.Value; next++)
+        for (int next = achievedCount + 1; next <= targetCount; next++)
         {
             if (StateroomAssignTracker.ClassForAssignedCount(next) is not { } rawClass)
                 break;
 
             bool ok = GameActions.AssignNextRoom(_ctx.Mem, gameManager, petControlAddr, rawClass);
-            _ctx.Report.ReportAction(ok, $"Stateroom assignment from items: {PassengerClassNames.GetName(rawClass)}");
+            _ctx.Report.ReportAction(ok, $"Stateroom assignment from {source}: {PassengerClassNames.GetName(rawClass)}");
             if (!ok)
                 break;
         }

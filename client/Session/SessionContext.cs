@@ -47,6 +47,10 @@ internal sealed class SessionContext
 
     public long? MailManRoom { get; set; }
 
+    /// <summary>Under vanilla stateroom assignment, how many staterooms a rebuilt game about to load should be given.
+    /// The game hands those out at the DeskBot, which a rebuilt game has already been past.</summary>
+    public int? RebuiltStateroomCount { get; set; }
+
     /// <summary>The engine name (see <see cref="RoomNames"/>) of the room the player is in.</summary>
     public string? CurrentRoomName { get; set; }
 

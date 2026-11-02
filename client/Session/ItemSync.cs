@@ -203,6 +203,25 @@ internal sealed class ItemSync
             bool inHiddenRoom = item.IsInHiddenRoom;
             bool inMail = item.ParentAddress == _ctx.MailManRoom.Value;
 
+            // Found in the game this tree was rebuilt from (see RebuiltGame). Delivery doesn't cover one-directional
+            // items, and a natural pickup has already moved on from Stage.None by the time its check is known.
+            if (persisted.Stage == ItemStage.None && !inInventory && ItemTracking.IsOneDirectionalItem(item.Name)
+                && LocationChecks.TryGetItemPickupLocationName(item.Name, out string oneDirectionalLocation)
+                && _ctx.Ap.IsLocationCheckedOrQueued(oneDirectionalLocation))
+            {
+                bool returned = MoveIntoInventory(item);
+                if (returned)
+                {
+                    GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Inventory, true, ItemPulledFrom.None));
+                    ScheduleDirtyReassert();
+                    _ctx.Report.NotifyItemsChanged();
+                }
+                _ctx.Report.ReportAction(returned, returned
+                    ? $"{item.Name} returned to inventory - already found in this slot"
+                    : $"{item.Name} already found in this slot, but failed to return it to inventory");
+                continue;
+            }
+
             if (inInventory)
             {
                 if (ItemTracking.RequiresCanTakeRestoreToggle(item.Name))

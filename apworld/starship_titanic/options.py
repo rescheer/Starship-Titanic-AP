@@ -76,7 +76,8 @@ class EasyMusicRoomPuzzle(Toggle):
 
 class QuickStart(Toggle):
     """Skips the intro. Starting a new game while connected puts you in the Embarkation Lobby, ready to check in,
-    with the PET on and the Photograph in your inventory."""
+    with the PET on and the Photograph in your inventory. If your slot already has progress, the new game carries on
+    from it instead: your class and staterooms are restored, and items you've received are delivered again."""
     display_name = "Quick Start"
 
 
