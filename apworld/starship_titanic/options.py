@@ -76,15 +76,24 @@ class EasyMusicRoomPuzzle(Toggle):
 
 class RoomAccessCardsMode(Choice):
     """Enabled: Requires a matching Access Card item from the multiworld to access any room.
-    Randomized: Chooses a random set of Access Cards to enable at generation (minimum 1).
+    Count: Enables a number of Access Cards picked at random at generation, set by Room Access Cards Count.
     Selection: Enables only the Access Cards selected below.
     Disabled: Room Access Cards are disabled. (Vanilla behavior)"""
     display_name = "Room Access Cards Mode"
     option_enabled = 0
-    option_randomized = 1
+    option_count = 1
     option_selection = 2
     option_disabled = 3
     default = 3
+
+
+class RoomAccessCardsCount(Range):
+    """How many Access Cards are enabled, picked at random from the lockable rooms. Ignored unless Room Access
+    Cards Mode is Count. The Repair Titania goal has no Bridge Access Card, so it enables at most 14."""
+    display_name = "Room Access Cards Count"
+    range_start = 1
+    range_end = 15
+    default = 7
 
 
 class RequireAccessCardsAllRooms(Toggle):
@@ -203,6 +212,7 @@ class StarshipTitanicOptions(PerGameCommonOptions):
     item_delivery_method: ItemDeliveryMethod
     easy_music_room_puzzle: EasyMusicRoomPuzzle
     room_access_cards_mode: RoomAccessCardsMode
+    room_access_cards_count: RoomAccessCardsCount
     require_access_cards_all_rooms: RequireAccessCardsAllRooms
     require_access_card_top_of_the_well: RequireAccessCardTopOfTheWell
     require_access_card_bottom_of_the_well: RequireAccessCardBottomOfTheWell
@@ -255,12 +265,9 @@ def enabled_access_cards(options: StarshipTitanicOptions, random: Random) -> Lis
         mode = RoomAccessCardsMode.option_enabled
     if mode == RoomAccessCardsMode.option_enabled:
         return candidates
-    if mode == RoomAccessCardsMode.option_randomized:
-        cards = [card for card in candidates if random.random() < 0.5]
-        # Always require at least one card
-        if not cards:
-            cards = [random.choice(candidates)]
-        return cards
+    if mode == RoomAccessCardsMode.option_count:
+        picked = random.sample(candidates, min(options.room_access_cards_count.value, len(candidates)))
+        return [card for card in candidates if card in picked]
     if mode == RoomAccessCardsMode.option_selection:
         return [card for card in candidates if getattr(options, ACCESS_CARD_OPTIONS[card])]
     return []

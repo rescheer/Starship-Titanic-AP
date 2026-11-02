@@ -108,7 +108,7 @@ class StarshipTitanicWorld(World):
 
     def apply_slot_data(self, slot_data: Dict[str, Any]) -> None:
         """Universal Tracker regenerates locally, possibly without a YAML; restore the seed's options from
-        slot data instead (and reuse its cards rather than re-rolling Randomized mode)."""
+        slot data instead (and reuse its cards rather than re-rolling Count mode)."""
         options = self.options
         options.goal.value = Goal.options[slot_data["goal"]]
         # Keys added after the first release; older seeds fall back to the defaults
