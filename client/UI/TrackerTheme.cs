@@ -90,10 +90,27 @@ internal static class TrackerTheme
         button.BackColor = Background;
         button.ForeColor = Text;
         button.Font = TileNameFont;
-        button.FlatAppearance.BorderColor = LineStrong;
+        button.FlatAppearance.BorderColor = Accent;
         button.FlatAppearance.MouseOverBackColor = Surface;
         button.FlatAppearance.MouseDownBackColor = AccentFill;
         button.UseVisualStyleBackColor = false;
+        button.Paint += PaintDisabledButton;
+    }
+
+    /// <summary>Paints over a disabled button, as WinForms ignores its colors and darkens the background for the text, leaving it near black.</summary>
+    private static void PaintDisabledButton(object? sender, PaintEventArgs e)
+    {
+        var button = (Button)sender!;
+        if (button.Enabled)
+            return;
+
+        e.Graphics.Clear(button.BackColor);
+        using var border = new Pen(Line);
+        e.Graphics.DrawRectangle(border, 0, 0, button.Width - 1, button.Height - 1);
+        // Enabled buttons draw their text a little above center. This keeps it level with one alongside
+        var textBounds = new Rectangle(0, -button.Font.Height / 7, button.Width, button.Height);
+        TextRenderer.DrawText(e.Graphics, button.Text, button.Font, textBounds, TextDim,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
     }
 
     public static void StyleTextBox(TextBox textBox)
