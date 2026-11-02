@@ -82,8 +82,8 @@ internal sealed class TrackerView : TrackerControl
     };
 
     private readonly SectionHeader _roomsHeader = new("ROOMS",
-        ("Checked", TrackerTheme.Accent, true),
-        ("In logic", TrackerTheme.Accent, false),
+        ("Checked", TrackerTheme.Accent, false),
+        ("In logic", TrackerTheme.Accent, true),
         ("Locked", TrackerTheme.PipLocked, false));
     private readonly Label[] _deckLabels;
     private readonly RoomTile[][] _roomTiles;
@@ -122,7 +122,7 @@ internal sealed class TrackerView : TrackerControl
     private readonly TextBox _chatInput = new() { Font = TrackerTheme.LogFont, PlaceholderText = "Message or /command" };
     private readonly Button _chatSend = new() { Text = "Send" };
     private readonly SectionHeader _hereHeader = new("YOU ARE HERE",
-        ("In logic", TrackerTheme.Accent, false),
+        ("In logic", TrackerTheme.Accent, true),
         ("Locked", TrackerTheme.PipLocked, false));
     private readonly HerePanel _here = new();
     private readonly SectionHeader _recentHeader = new("RECENT");

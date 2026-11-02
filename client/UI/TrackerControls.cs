@@ -27,7 +27,7 @@ internal abstract class TrackerControl : Control
         g.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
     }
 
-    /// <summary>Draws a check dot: filled once checked, otherwise a ring.</summary>
+    /// <summary>Draws a dot: either filled or a ring.</summary>
     protected void DrawPip(Graphics g, int x, int y, int size, Color color, bool filled)
     {
         g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -152,7 +152,7 @@ internal sealed class RoomTile : TrackerControl
         {
             Rectangle pip = PipBounds(i);
             CheckStatus status = _state.Checks[i].Status;
-            DrawPip(e.Graphics, pip.X, pip.Y, pip.Width, status == CheckStatus.Locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, status == CheckStatus.Checked);
+            DrawPip(e.Graphics, pip.X, pip.Y, pip.Width, status == CheckStatus.Locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, status == CheckStatus.InLogic);
         }
 
         // A tag stops short of the corner icon
@@ -797,7 +797,7 @@ internal sealed class HerePanel : TrackerControl
         {
             Rectangle line = LineBounds(i);
             bool locked = _state.Checks[i].Status == CheckStatus.Locked;
-            DrawPip(e.Graphics, line.X, line.Y + (line.Height - pip) / 2, pip, locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, filled: false);
+            DrawPip(e.Graphics, line.X, line.Y + (line.Height - pip) / 2, pip, locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, filled: !locked);
             TextRenderer.DrawText(e.Graphics, _state.Checks[i].Name, TrackerTheme.TileNameFont, new Rectangle(line.X + textOffset, line.Y, line.Width - textOffset - S(4), line.Height),
                 locked ? TrackerTheme.TextMuted : TrackerTheme.Text, SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
