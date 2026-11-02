@@ -2,7 +2,8 @@ using System.Runtime.InteropServices;
 
 namespace StarshipTitanicAp;
 
-/// <summary>Calls an existing function inside the target process by writing a small stub and executing it via CreateRemoteThread.</summary>
+/// <summary>Calls an existing function inside the target process: on the game thread through <see cref="GameThreadHook"/>,
+/// or failing that hook, by writing a small stub and executing it via CreateRemoteThread.</summary>
 public static class RemoteCaller
 {
     private const uint MEM_COMMIT = 0x1000;
@@ -102,6 +103,9 @@ public static class RemoteCaller
         if (!mem.IsAttached)
             return false;
 
+        if (GameThreadHook.IsInstalled)
+            return GameThreadHook.Call(mem, funcAddr, rcx, rdx, r8, r9d, arg5, arg6) is not null;
+
         byte[] stub = BuildStub(funcAddr, rcx, rdx, r8, r9d, arg5, arg6);
 
         IntPtr remoteMem = VirtualAllocEx(mem.ProcessHandle, IntPtr.Zero, (UIntPtr)stub.Length,
@@ -173,6 +177,9 @@ public static class RemoteCaller
     {
         if (!mem.IsAttached)
             return null;
+
+        if (GameThreadHook.IsInstalled)
+            return GameThreadHook.Call(mem, funcAddr, rcx, rdx, r8, r9d, arg5, arg6);
 
         byte[] mailboxInit = new byte[8]; // zeroed
         long mailboxAddr = AllocateAndWrite(mem, mailboxInit);

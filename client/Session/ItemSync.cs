@@ -98,6 +98,9 @@ internal sealed class ItemSync
             return;
         if (_ctx.InventoryRoom is null || _ctx.MailManRoom is null)
             return;
+        // Every move would fail while the game isn't running its loop (ScummVM's menu), so wait until it is.
+        if (!GameThreadHook.IsPumping(_ctx.Mem))
+            return;
 
         List<CarryItemLocation> items = GameState.FindAllCarryItems(_ctx.Mem, project);
         string[] receivedItems = _ctx.Ap.GetReceivedItemNames();
