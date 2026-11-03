@@ -21,7 +21,8 @@ public enum PassengerClass
     None = 4,
 }
 
-/// <summary>The passenger-class value used for the Bridge-access grant after Titania's repair.</summary>
+/// <summary>The passenger-class value used for the Bridge-access grant after Titania's repair. The client only reports
+/// it around the Bridge door (ClassSync's Bridge-access spoof), as the game also refuses the Titania lift to it.</summary>
 public static class SpecialPassengerClassValues
 {
     public const int BridgeAccessClassValue = 4;
@@ -594,6 +595,12 @@ public static class GameState
 
         return false;
     }
+
+    /// <summary>Finds Titania's CTitania ("TitaniaControl") in room 37.</summary>
+    public static long? FindTitaniaControl(MemoryReader mem, long project) =>
+        FindRoomByName(mem, project, RoomNames.GetName(37)) is { } room
+            ? FindDescendant(mem, room, "TitaniaControl", "CTitania")
+            : null;
 
     /// <summary>Bounded search of rootAddr's own subtree for the first node with an exact name match, regardless of class.</summary>
     public static long? FindDescendantByName(MemoryReader mem, long rootAddr, string name)

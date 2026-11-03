@@ -31,6 +31,7 @@ internal sealed class ClassSync
         _sgtGlyphAddr = null;
         _sgtGlyphOriginalMode = null;
         _pendingClassUpgrade = null;
+        _currentRnv = null;
         ResyncFromItems();
     }
 
@@ -47,6 +48,7 @@ internal sealed class ClassSync
     public void SyncFromItems(long gameManager)
     {
         SyncPendingClassUpgrade(gameManager);
+        SyncRepairedClass(gameManager);
         SyncPassengerClassFromItems(gameManager);
         SyncStateroomFromItems(gameManager);
         SyncRepairTitaniaGoal();
@@ -88,6 +90,55 @@ internal sealed class ClassSync
             : "Goal complete: Titania repaired (queued offline)");
     }
 
+    /// <summary>Replaces a class 4 still held after Titania's repair - from a save made before the client stopped
+    /// applying it, or one made during <see cref="TryApplyBridgeAccessSpoof"/> - with the real class. At a Bridge-access
+    /// RNV it only corrects the spoof's backup, so the spoof stays.</summary>
+    private void SyncRepairedClass(long gameManager)
+    {
+        if (_classUpgradeSpoofOriginalClass is not null)
+            return;
+        if (!GameState.IsTitaniaRepaired(_ctx.Mem))
+            return;
+        if (GameState.ReadPassengerClass(_ctx.Mem, gameManager) != SpecialPassengerClassValues.BridgeAccessClassValue)
+            return;
+        if (RealClassAfterRepair() is not { } realClass)
+            return;
+
+        if (_currentRnv is { } rnv && IsBridgeAccessRnv(rnv))
+        {
+            _classUpgradeSpoofOriginalClass = realClass;
+            return;
+        }
+
+        bool ok = _ctx.InventoryRoom is { } petControlAddr
+            ? GameActions.SetPassengerClassFull(_ctx.Mem, gameManager, petControlAddr, realClass)
+            : GameActions.SetPassengerClass(_ctx.Mem, gameManager, realClass);
+        _ctx.Report.ReportAction(ok, $"Titania repaired: restored {PassengerClassNames.GetName(realClass)} in place of Bridge access");
+    }
+
+    /// <summary>The class the player holds after Titania's repair, which the saved class can't be trusted for: the
+    /// items' class, or under vanilla class upgrades the DeskBot upgrade checks, and Third (checked in) otherwise. Null
+    /// until slot data is known.</summary>
+    private int? RealClassAfterRepair()
+    {
+        if (_ctx.Ap.KnownSlotData is not { } slotData)
+            return null;
+
+        if (!ClassUpgradeTracker.IsVanilla(slotData))
+            return ClassUpgradeTracker.ComputeClass(_ctx.Ap.GetReceivedItemNames(), slotData) ?? (int)PassengerClass.Third;
+
+        foreach (int upgradedClass in new[] { (int)PassengerClass.First, (int)PassengerClass.Second })
+        {
+            if (LocationChecks.TryGetClassUpgradeLocationName(upgradedClass, out string locationName)
+                && _ctx.Ap.IsLocationCheckedOrQueued(locationName))
+                return upgradedClass;
+        }
+        return (int)PassengerClass.Third;
+    }
+
+    /// <summary>The player's RNV as of the last spoof pass; null until one runs after a reset.</summary>
+    private RoomNodeView? _currentRnv;
+
     /// <summary>Undoes any spoof that doesn't apply at the player's new RNV.</summary>
     public void RevertSpoofs(RoomNodeView newRnv, long gameManager)
     {
@@ -98,8 +149,43 @@ internal sealed class ClassSync
     /// <summary>Starts any spoof the player's new RNV calls for.</summary>
     public void ApplySpoofs(RoomNodeView rnv, long gameManager)
     {
+        _currentRnv = rnv;
         TryApplyClassUpgradeSpoof(rnv, gameManager);
+        TryApplyBridgeAccessSpoof(rnv, gameManager);
         TryApplySgtGlyphSpoof(rnv);
+    }
+
+    private const int TitaniaRoomNum = 37;
+    private const int BridgeDoorNodeNum = 1; // Titania.Node 1.S (37,1,3) holds the Bridge door
+    private const int BridgeRoomNum = 43;
+
+    /// <summary>Whether the RNV is in the Bridge door's node or on the Bridge, where a repaired game reports Bridge
+    /// access. Spans the whole node and the Bridge so the class is already 4 when the door's view is entered (from a
+    /// turn or the Bridge's exit) and its cursor is worked out. Titania's lift (CExitTiania, at (37,2,5)) is outside it.</summary>
+    private static bool IsBridgeAccessRnv(RoomNodeView rnv) =>
+        (rnv.Room == TitaniaRoomNum && rnv.Node == BridgeDoorNodeNum) || rnv.Room == BridgeRoomNum;
+
+    /// <summary>Temporarily reports class 4 (Bridge access) at <see cref="IsBridgeAccessRnv"/> RNVs once Titania is
+    /// repaired - vanilla sets it for good, which also locks the Titania lift (CExitTiania refuses class 4) and every
+    /// class-gated door elsewhere. Shares the class-upgrade spoof's backup, so <see cref="TryRevertClassUpgradeSpoof"/>
+    /// restores the real class on leaving and item upgrades received meanwhile still land.</summary>
+    private void TryApplyBridgeAccessSpoof(RoomNodeView rnv, long gameManager)
+    {
+        if (!IsBridgeAccessRnv(rnv) || _classUpgradeSpoofOriginalClass is not null)
+            return;
+        if (!GameState.IsTitaniaRepaired(_ctx.Mem))
+            return;
+
+        int? currentClass = GameState.ReadPassengerClass(_ctx.Mem, gameManager);
+        // Already 4: an unmigrated class, which SyncRepairedClass turns into this spoof's backup once it can.
+        if (currentClass is null || currentClass.Value == SpecialPassengerClassValues.BridgeAccessClassValue)
+            return;
+
+        if (GameActions.SetPassengerClass(_ctx.Mem, gameManager, SpecialPassengerClassValues.BridgeAccessClassValue))
+        {
+            _classUpgradeSpoofOriginalClass = currentClass.Value;
+            _ctx.Report.ReportAction(true, $"Bridge access spoof: reporting class 4 (really {PassengerClassNames.GetName(currentClass.Value)})");
+        }
     }
 
     /// <summary>Handles a class upgrade that ClassUpgradeHook blocked: sends the matching AP check (applying the
@@ -135,22 +221,14 @@ internal sealed class ClassSync
         }
         else if (attemptedClass.Value == SpecialPassengerClassValues.BridgeAccessClassValue)
         {
-            if (_ctx.InventoryRoom is not null)
-            {
-                RecordPriorClass(gameManager);
-                bool applied = GameActions.SetPassengerClassFull(_ctx.Mem, gameManager, _ctx.InventoryRoom.Value, attemptedClass.Value);
-
-                bool handedOff = _ctx.Ap.SendLocationCheck(TitaniaRepairedLocation);
-                _ctx.Ap.SendLocationCheck(TitaniaRepairedEventLocation);
-                _ctx.Report.ReportAction(applied && handedOff, handedOff
-                    ? $"Bridge access granted -> {TitaniaRepairedLocation}"
-                    : $"Bridge access granted -> {TitaniaRepairedLocation} (queued offline or class-apply failed)");
-                _ctx.Report.NotifyPendingChecksChanged();
-            }
-            else
-            {
-                _ctx.Report.ReportAction(false, "Bridge-access class upgrade blocked - inventory not resolved yet, will retry on next attempt");
-            }
+            // Not applied: class 4 would also lock the Titania lift and every class-gated door on the ship. The real
+            // class stays, and TryApplyBridgeAccessSpoof reports 4 only around the Bridge door.
+            bool handedOff = _ctx.Ap.SendLocationCheck(TitaniaRepairedLocation);
+            _ctx.Ap.SendLocationCheck(TitaniaRepairedEventLocation);
+            _ctx.Report.ReportAction(handedOff, handedOff
+                ? $"Bridge access granted -> {TitaniaRepairedLocation}"
+                : $"Bridge access granted -> {TitaniaRepairedLocation} (queued offline)");
+            _ctx.Report.NotifyPendingChecksChanged();
         }
         else if (attemptedClass.Value == (int)PassengerClass.Third && _ctx.Options.AllowInitialUpgrade)
         {
@@ -222,7 +300,7 @@ internal sealed class ClassSync
         if (currentClass is null)
             return;
 
-        // Bridge access shares its raw value with None - never overwrite it once Titania has been repaired.
+        // Bridge access shares its raw value with None - after the repair, SyncRepairedClass replaces it instead.
         if (currentClass.Value == SpecialPassengerClassValues.BridgeAccessClassValue
             && GameState.IsTitaniaRepaired(_ctx.Mem))
             return;
@@ -424,7 +502,7 @@ internal sealed class ClassSync
     {
         if (_classUpgradeSpoofOriginalClass is not { } originalClass)
             return;
-        if (ClassSpoofTriggerRnvs.ContainsKey(newRnv) || newRnv == BellBotIntroRnv)
+        if (ClassSpoofTriggerRnvs.ContainsKey(newRnv) || newRnv == BellBotIntroRnv || IsBridgeAccessRnv(newRnv))
             return;
 
         if (_ctx.InventoryRoom is { } petControlAddr)

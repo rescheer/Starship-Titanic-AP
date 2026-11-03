@@ -272,6 +272,25 @@ public static class GameOffsets
     public const long HeadPieceFlagOffset = 0x218;
     public const long BrainPieceAddedOffset = 0x21C; // after _pos1 (Point, two int16s)
 
+    // CTitania (titanic/npcs/titania.h, the "TitaniaControl" object) - one bool per part, set by AddHeadPieceMsg and
+    // cleared by TakeHeadPieceMsg (module + 0x2427A80 / 0x2427CA0), keyed by the part's name. CheckHead wakes her only
+    // once all eleven are set. CHeadPiece::PETGainedObjectMsg sends a CTakeHeadPieceMsg on every pickup of a head piece.
+    public static readonly IReadOnlyDictionary<string, long> TitaniaPartFlagOffsets =
+        new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["SpeechCentre"] = 0x158,
+            ["OlfactoryCentre"] = 0x159,
+            ["AuditoryCentre"] = 0x15A,
+            ["CentralCore"] = 0x15B,
+            ["VisionCentre"] = 0x15C,
+            ["Eye1"] = 0x15D,
+            ["Eye2"] = 0x15E,
+            ["Ear1"] = 0x15F,
+            ["Ear 2"] = 0x160,
+            ["Nose"] = 0x161,
+            ["Mouth"] = 0x162,
+        };
+
     // CDropTarget (titanic/core/drop_target.h) - fields follow CGameObject from 0x124, same as CCarry's. A drop target
     // shows its held item by its own frame (_dropFrame) rather than the item's, picked only in EnterViewMsg.
     public const long DropTargetDropFrameOffset = 0x1BC;   // int

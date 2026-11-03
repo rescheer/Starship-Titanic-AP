@@ -306,6 +306,12 @@ public static class GameActions
     public static bool WriteItemInstalledFlag(MemoryReader mem, long itemAddr, bool value) =>
         InstalledFlagOffset(mem, itemAddr) is not { } offset || mem.WriteByte(itemAddr + offset, (byte)(value ? 1 : 0));
 
+    /// <summary>Writes TitaniaControl's flag for one of her parts (see GameOffsets.TitaniaPartFlagOffsets). False for
+    /// a name that isn't a part.</summary>
+    public static bool WriteTitaniaPartFlag(MemoryReader mem, long titaniaAddr, string partName, bool value) =>
+        GameOffsets.TitaniaPartFlagOffsets.TryGetValue(partName, out long offset)
+        && mem.WriteByte(titaniaAddr + offset, (byte)(value ? 1 : 0));
+
     /// <summary>Reads an item's _visible flag.</summary>
     public static bool IsItemVisible(MemoryReader mem, long itemAddr) =>
         mem.ReadBytes(itemAddr + GameOffsets.GameObjectVisibleOffset, 1) is [not 0];

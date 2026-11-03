@@ -1033,8 +1033,22 @@ internal sealed class ItemSync
             GameActions.SetItemVisible(_ctx.Mem, item.Address, persisted.InstalledVisible);
             GameActions.WriteItemInstalledFlag(_ctx.Mem, item.Address, persisted.InstalledFlag);
             GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Inventory, checkFired, ItemPulledFrom.None));
+            if (TitaniaParts.IsPart(item.Name))
+                RemarkInstalledInTitania(item.Name);
         }
         return moved;
+    }
+
+    /// <summary>Sets TitaniaControl's flag for a part that's back in its slot. A head piece's pickup at its restored
+    /// spot sent her a CTakeHeadPieceMsg (CHeadPiece::PETGainedObjectMsg), so she'd otherwise count the part as
+    /// missing and never wake. Her next CheckHead, on the next part added, picks the flag up.</summary>
+    private void RemarkInstalledInTitania(string partName)
+    {
+        bool ok = _ctx.Project is { } project
+            && GameState.FindTitaniaControl(_ctx.Mem, project) is { } titania
+            && GameActions.WriteTitaniaPartFlag(_ctx.Mem, titania, partName, true);
+        if (!ok)
+            _ctx.Report.ReportAction(false, $"{partName} returned to its slot, but failed to mark it installed in Titania");
     }
 
     private bool RevertToMail(CarryItemLocation item, ItemPersistedState persisted, long gameManager)
