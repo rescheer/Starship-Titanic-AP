@@ -84,6 +84,10 @@ public static class GameState
     public static bool IsTitaniaRepaired(MemoryReader mem) =>
         mem.ReadBytes(mem.ModuleBase + GameOffsets.BrainSlotWokenStatic, 1) is [not 0];
 
+    /// <summary>Whether the starlings have been pureed in the loaded game (see GameOffsets.StarlingsDeadStatic).</summary>
+    public static bool AreStarlingsPureed(MemoryReader mem) =>
+        mem.ReadBytes(mem.ModuleBase + GameOffsets.StarlingsDeadStatic, 1) is [not 0];
+
     /// <summary>The room flags for where the player is standing, built the way CPetRooms::getRoomFlags builds them: a
     /// named room's fixed code, otherwise one from the PET's floor, elevator, room and sublevel numbers. Null while
     /// the room isn't known or the numbers can't be read.</summary>

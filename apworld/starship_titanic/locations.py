@@ -176,7 +176,6 @@ location_table: Dict[str, STLocationData] = {
     "Promenade Deck - Visited": STLocationData("Promenade Deck"),
     # Item
     "Promenade Deck - Hammer": STLocationData("Promenade Deck"),
-    # "Promenade Deck - Pureed Starlings": STLocationData("Promenade Deck"),
     # Puzzle
     # Other
 
@@ -257,6 +256,8 @@ location_table: Dict[str, STLocationData] = {
     "Music Room - Play the Correct Music": STLocationData("Music Room"),
     # Sent on entering SGTState Node 2 S, which can only be reached once the furniture puzzle is done
     "SGT Class Stateroom - Furniture Puzzle": STLocationData("SGT Class Stateroom"),
+    # Sent once CStarlings::_dead is set, when the fan on high speed purees them (ClientSession.PollStarlingsPureed)
+    "Promenade Deck - Pureed the Starlings": STLocationData("Promenade Deck"),
 }
 
 location_name_to_id: Dict[str, int] = {

@@ -251,13 +251,12 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         & CanReachRegion("Promenade Deck")
     )
 
-    """ world.set_rule(
-        world.get_location("Promenade Deck - Pureed Starlings"),
-        HasAll("Blue Fuse", "Bar Glass")
-        & has_second_class(world)
+    world.set_rule(
+        world.get_location("Promenade Deck - Pureed the Starlings"),
+        Has("Blue Fuse")
         & CanReachRegion("Promenade Deck")
-        & CanReachRegion("Titania's Room")
-    ) """
+        & CanReachRegion("Titania's Room")  # the Blue Fuse goes in the Fuse Box to power the fan
+    )
 
     # ---------------------------------------------------------------- #
     # Arboretum

@@ -181,6 +181,12 @@ public static class GameOffsets
     // CBrainSlot::ActMsg (module + 0x23D69D8).
     public const long BrainSlotWokenStatic = 0x5F31FD0;
 
+    // CStarlings::_dead (titanic/npcs/starlings.h) - a STATIC bool, so a module-relative global. Set by the
+    // StatusChangeMsg CStarlingPuret sends as the puree movie starts, after the fan's been turned up to high speed.
+    // Saved and loaded with each CStarlings, and nothing else clears it. Found from CStarlings::save/load (vtable
+    // slots 3/4, module + 0x2424580/0x24245D0), whose vtable the constructor (module + 0x2424780) sets.
+    public const long StarlingsDeadStatic = 0x5F32E20;
+
     // CParrotLobbyController::ActMsg(CActMsg*) (titanic/game/parrot/parrot_lobby_controller.cpp) - the only entry in
     // the controller's message map (module + 0x4F225A0). "LoseParrot" clears _haveParrot, recalculates _flags, and
     // sends "Refresh" to the Parrot Lobby objects and ParrotLobbyUpdater_TOW, which hides the parrot in the lobby's

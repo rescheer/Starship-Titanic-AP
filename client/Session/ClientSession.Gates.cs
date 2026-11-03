@@ -5,6 +5,23 @@ internal sealed partial class ClientSession
     private const string TableAccessItemName = "Restaurant Table Reservation";
     private const string DefeatMaitreDLocation = "1st Class Restaurant - Defeat the Maitre'D";
     private const string CorrectMusicLocation = "Music Room - Play the Correct Music";
+    private const string PureedStarlingsLocation = "Promenade Deck - Pureed the Starlings";
+
+    /// <summary>Sends the Pureed the Starlings check when CStarlings::_dead is set. The last reading is forgotten on
+    /// a load, so a save loaded with the starlings already pureed sends it too.</summary>
+    private void PollStarlingsPureed()
+    {
+        bool pureed = GameState.AreStarlingsPureed(_mem);
+        bool justPureed = pureed && _lastStarlingsPureed != true;
+        _lastStarlingsPureed = pureed;
+        if (!justPureed || _apConnection.IsLocationCheckedOrQueued(PureedStarlingsLocation))
+            return;
+
+        bool handedOff = _apConnection.SendLocationCheck(PureedStarlingsLocation);
+        ReportAction(handedOff, handedOff
+            ? $"Starlings pureed -> {PureedStarlingsLocation}"
+            : $"Starlings pureed -> {PureedStarlingsLocation} (queued offline)");
+    }
 
     /// <summary>Sends the Defeat the Maitre'D check when MaitreDHook blocks the table unlock that follows the win.</summary>
     private void PollMaitreDHook()
