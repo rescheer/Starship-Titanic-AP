@@ -164,7 +164,8 @@ public sealed class MainForm : Form
         bool connected = _session.Ap.State == ApConnectionState.Connected;
         string[] receivedItems = _session.Ap.GetReceivedItemNames();
         int? passengerClass = CurrentPassengerClass(connected, receivedItems);
-        bool titaniaRepaired = connected && _session.Ap.IsLocationCheckedOrQueued(ClassSync.TitaniaRepairedLocation);
+        // Without a save to read, the server's word has to do, though a collect can mark the repair's check too
+        bool titaniaRepaired = connected && (_session.GameTitaniaRepaired ?? _session.Ap.IsLocationCheckedOrQueued(ClassSync.TitaniaRepairedLocation));
 
         if (connected && _logic is not null && _evaluatedItemCount != receivedItems.Length)
         {

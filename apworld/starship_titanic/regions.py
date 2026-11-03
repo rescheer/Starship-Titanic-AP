@@ -11,6 +11,7 @@ from .locations import (
     CLASS_UPGRADE_CHECKS,
     CLASS_UPGRADE_EVENT_LOCATIONS,
     location_table,
+    REPAIR_TITANIA_LOCATION,
     StarshipTitanicLocation,
 )
 from .options import Goal
@@ -97,6 +98,8 @@ def create_regions(world) -> None:
             if loc_name == PARROT_HUNT_GOAL_LOCATION:
                 continue  # created below, in the chosen stateroom's region
             if world.class_upgrades_locked and loc_name in CLASS_UPGRADE_EVENT_LOCATIONS:
+                continue
+            if loc_name == REPAIR_TITANIA_LOCATION and not world.has_repair_titania_check:
                 continue
             is_auditory_center = loc_name == AUDITORY_CENTER_LOCATION
             # Seeds from before the Auditory Center was a real check (Universal Tracker regenerating one)

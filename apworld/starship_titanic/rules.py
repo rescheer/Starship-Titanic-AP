@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from rule_builder.rules import CanReachRegion, Has, HasAll, Rule, True_ # type: ignore
 
+from .locations import REPAIR_TITANIA_LOCATION
 from .options import Goal
 from .regions import REGION_CONNECTIONS
 from .items import (
@@ -218,11 +219,12 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # ---------------------------------------------------------------- #
     # Titania's Room
     # ---------------------------------------------------------------- #
-    world.set_rule(
-        world.get_location("Titania's Room - Repair Titania"),
-        HasAll(*TITANIA_PARTS, "Titania's Auditory Center")
-        & CanReachRegion("Titania's Room")
-    )
+    if world.has_repair_titania_check:
+        world.set_rule(
+            world.get_location(REPAIR_TITANIA_LOCATION),
+            HasAll(*TITANIA_PARTS, "Titania's Auditory Center")
+            & CanReachRegion("Titania's Room")
+        )
     world.set_rule(
         # Event
         world.get_location("Titania's Room - Repair Titania (Event)"),

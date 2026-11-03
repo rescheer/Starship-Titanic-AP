@@ -68,15 +68,16 @@ internal sealed class ClassSync
             ApplyVanillaClassUpgrade(newClass, gameManager);
     }
 
-    /// <summary>Under the Repair Titania goal, reports the goal once Titania's repair has been checked or queued -
-    /// including a repair made while offline, which only gets here once slot data is back.</summary>
+    /// <summary>Under the Repair Titania goal, reports the goal once the loaded game says Titania is repaired -
+    /// including a repair made while offline, which only gets here once slot data is back. Doesn't go by the repair's
+    /// location, which another slot's collect can mark and new seeds of this goal don't have.</summary>
     private void SyncRepairTitaniaGoal()
     {
         if (_repairTitaniaGoalSent)
             return;
         if (!LocationChecks.IsRepairTitaniaGoal(_ctx.Ap.SlotData))
             return;
-        if (!_ctx.Ap.IsLocationCheckedOrQueued(TitaniaRepairedLocation))
+        if (!GameState.IsTitaniaRepaired(_ctx.Mem))
             return;
 
         _repairTitaniaGoalSent = true;
@@ -223,7 +224,7 @@ internal sealed class ClassSync
 
         // Bridge access shares its raw value with None - never overwrite it once Titania has been repaired.
         if (currentClass.Value == SpecialPassengerClassValues.BridgeAccessClassValue
-            && _ctx.Ap.IsLocationChecked(TitaniaRepairedLocation))
+            && GameState.IsTitaniaRepaired(_ctx.Mem))
             return;
 
         int? targetClass = ClassUpgradeTracker.ComputeClass(receivedItems, slotData);
@@ -361,7 +362,7 @@ internal sealed class ClassSync
         bool magazineCheckPending = !_ctx.Ap.IsLocationCheckedOrQueued(MagazineItem.Definition.PickupLocationName!);
         // None before Titania's repair means the player hasn't checked in yet (after it, None is Bridge access).
         bool notCheckedIn = currentClass.Value == (int)PassengerClass.None
-            && !_ctx.Ap.IsLocationCheckedOrQueued(TitaniaRepairedLocation);
+            && !GameState.IsTitaniaRepaired(_ctx.Mem);
 
         // Not checked in: leave the DeskBot unspoofed so the check-in conversation runs first - otherwise the player
         // can never leave the Embarkation Lobby. Once it pays out the real class is Third, so a Magazine hand-off

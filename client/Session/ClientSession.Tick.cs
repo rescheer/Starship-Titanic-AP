@@ -14,6 +14,7 @@ internal sealed partial class ClientSession
         _lastDisplayedRnv = null;
         _lastRoomFlags = null;
         _lastPassengerClass = null;
+        _lastTitaniaRepaired = null;
         _lastMailItems = null;
         _musicConsoleAddr = null;
         _itemSync.Reset(); // pending unrestores and the eaten Magazine were tracked against the old tree
@@ -61,6 +62,7 @@ internal sealed partial class ClientSession
         if (gameManager is null)
         {
             _itemSync.ClearTitaniaPartsInHand();
+            _lastTitaniaRepaired = null;
             RoomNodeViewChanged?.Invoke(null, "menu / loading");
             ReportAddress("gameManager", null);
             return;
@@ -152,6 +154,7 @@ internal sealed partial class ClientSession
             _lastPassengerClass = passengerClass;
             PassengerClassChanged?.Invoke(passengerClass.Value);
         }
+        _lastTitaniaRepaired = GameState.IsTitaniaRepaired(_mem);
 
         if (_ctx.TickCount % InventoryIntervalTicks == 0)
         {

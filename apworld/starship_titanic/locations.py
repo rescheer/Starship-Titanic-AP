@@ -269,3 +269,5 @@ CLASS_UPGRADE_EVENT_LOCATIONS = {f"{name} (Event)" for name in CLASS_UPGRADE_CHE
 # Fires when the part first enters the inventory, and holds a record of it (items.py)
 AUDITORY_CENTER_LOCATION = "1st Class Restaurant - Titania's Auditory Center"
 AUDITORY_CENTER_ITEM = "Titania's Auditory Center"
+
+REPAIR_TITANIA_LOCATION = "Titania's Room - Repair Titania"

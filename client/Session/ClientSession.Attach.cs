@@ -164,6 +164,7 @@ internal sealed partial class ClientSession
         _lastRoomNodeView = null;
         _lastRoomFlags = null;
         _lastPassengerClass = null;
+        _lastTitaniaRepaired = null;
         _lastMailItems = null;
         _ctx.GameManager = null;
         _ctx.Project = null;

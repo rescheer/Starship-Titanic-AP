@@ -29,6 +29,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     private RoomNodeView? _lastRoomNodeView;
     private uint? _lastRoomFlags;
     private int? _lastPassengerClass;
+    private bool? _lastTitaniaRepaired;
 
     /// <summary>Display-only cache of the last RNV reported through <see cref="RoomNodeViewChanged"/>, updated every
     /// tick regardless of the save/seed guard. <see cref="_lastRoomNodeView"/> only advances once the guard is Ok.</summary>
@@ -112,6 +113,10 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
 
     /// <summary>The game's current PassengerClass value, or null until it's been read since attaching.</summary>
     internal int? GamePassengerClass => _lastPassengerClass;
+
+    /// <summary>Whether Titania has been repaired in the loaded game, or null until it's been read since attaching or
+    /// while on the main menu.</summary>
+    internal bool? GameTitaniaRepaired => _lastTitaniaRepaired;
 
     /// <summary>See <see cref="ItemSync.TitaniaPartsInHand"/>.</summary>
     internal IReadOnlySet<string>? TitaniaPartsInHand => _itemSync.TitaniaPartsInHand;

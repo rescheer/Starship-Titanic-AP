@@ -80,6 +80,10 @@ public static class GameState
     public static int? ReadPassengerClass(MemoryReader mem, long gameManager) =>
         mem.ReadInt32(gameManager + GameOffsets.PassengerClass);
 
+    /// <summary>Whether Titania has been repaired in the loaded game (see GameOffsets.BrainSlotWokenStatic).</summary>
+    public static bool IsTitaniaRepaired(MemoryReader mem) =>
+        mem.ReadBytes(mem.ModuleBase + GameOffsets.BrainSlotWokenStatic, 1) is [not 0];
+
     /// <summary>Reads the current room's roomFlags value directly off the PET control.</summary>
     public static uint? ReadCurrentRoomFlags(MemoryReader mem, long petControlAddr)
     {

@@ -174,6 +174,13 @@ public static class GameOffsets
     public const long ParrotStateStatic = 0x5F32DE4;
     public const int ParrotStateMailed = 3;
 
+    // CBrainSlot::_woken (titanic/game/brain_slot.h) - a STATIC bool, so a module-relative global. Set by "Woken", which
+    // CTitania::ActMsg sends the moment all of her parts are in, just before setPassengerClass(UNCHECKED). Nothing but
+    // a load clears it, and it's saved and loaded with each CBrainSlot, so unlike the AP check for the repair, which a
+    // collect or release can mark, it means the repair really happened in this save. Found from "Woken"'s reference in
+    // CBrainSlot::ActMsg (module + 0x23D69D8).
+    public const long BrainSlotWokenStatic = 0x5F31FD0;
+
     // CParrotLobbyController::ActMsg(CActMsg*) (titanic/game/parrot/parrot_lobby_controller.cpp) - the only entry in
     // the controller's message map (module + 0x4F225A0). "LoseParrot" clears _haveParrot, recalculates _flags, and
     // sends "Refresh" to the Parrot Lobby objects and ParrotLobbyUpdater_TOW, which hides the parrot in the lobby's
