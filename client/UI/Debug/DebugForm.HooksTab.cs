@@ -42,6 +42,11 @@ public sealed partial class DebugForm
         },
         new()
         {
+            Title = "Maitre'D Pacified-Flag Hold", ActionName = "Maitre'D pacified-flag hold", NotInstalledText = "Hold not installed",
+            IsInstalled = () => MaitreDPacifiedHook.IsInstalled, Install = MaitreDPacifiedHook.Install, Uninstall = MaitreDPacifiedHook.Uninstall,
+        },
+        new()
+        {
             Title = "Broken Elevator Eye Gate", ActionName = "broken-elevator Eye gate", NotInstalledText = "Gate not installed",
             IsInstalled = () => GetLiftEye2GateHook.IsInstalled, Install = GetLiftEye2GateHook.Install, Uninstall = GetLiftEye2GateHook.Uninstall,
         },

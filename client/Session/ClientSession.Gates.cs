@@ -61,6 +61,37 @@ internal sealed partial class ClientSession
             : $"Maitre'D defeated -> {DefeatMaitreDLocation} (queued offline)");
     }
 
+    /// <summary>Keeps the Maitre'D fightable until the Defeat the Maitre'D check is sent: MaitreDPacifiedHook diverts
+    /// the game's writes to his "pacified" flag into a shadow slot, and a flag set without the hook (a save from before
+    /// it, or while detached) is moved there too. Once he's defeated, the flag gets the shadow's value, i.e. whatever
+    /// the music would have left it as. With the flag clear, entering his view with the correct music still playing
+    /// during a fight wins it too, as in vanilla.</summary>
+    private void SyncMaitreDPacifiedFlag()
+    {
+        long flagAddr = _mem.ModuleBase + GameOffsets.TrueTalkFlagsStatic + GameOffsets.MaitreDPacifiedFlagIndex * 4;
+        long shadowAddr = _mem.ModuleBase + GameOffsets.TrueTalkFlagsStatic + GameOffsets.MaitreDPacifiedShadowIndex * 4;
+
+        if (!_apConnection.IsLocationCheckedOrQueued(DefeatMaitreDLocation))
+        {
+            if (!MaitreDPacifiedHook.SetDiverting(_mem, true) || _mem.ReadInt32(flagAddr) is not int flag || flag == 0)
+                return;
+
+            bool moved = _mem.WriteInt32(shadowAddr, flag) && _mem.WriteInt32(flagAddr, 0);
+            AppendLog(moved
+                ? "Maitre'D was pacified before being defeated - held the flag back so he can still be fought"
+                : "Maitre'D was pacified before being defeated - failed to hold the flag back");
+            return;
+        }
+
+        if (!MaitreDPacifiedHook.SetDiverting(_mem, false) || _mem.ReadInt32(shadowAddr) is not int shadow || shadow == 0)
+            return;
+
+        bool restored = _mem.WriteInt32(flagAddr, shadow) && _mem.WriteInt32(shadowAddr, 0);
+        ReportAction(restored, restored
+            ? "Maitre'D defeated - restored his pacified flag from the music"
+            : "Maitre'D defeated - failed to restore his pacified flag");
+    }
+
     /// <summary>Grants access to the Maitre'D's table (the effect MaitreDHook blocks) once the "Table Access"
     /// AP item is received, regardless of whether the MaitreD was ever defeated naturally.</summary>
     private void SyncTableAccessFromItems()

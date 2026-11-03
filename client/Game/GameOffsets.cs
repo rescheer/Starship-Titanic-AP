@@ -171,6 +171,23 @@ public static class GameOffsets
     // Saved/loaded with each CTelevision, and reset to true by CTelevision::init().
     public const long TelevisionChannel4GlyphStatic = 0x5F32601;
 
+    // CTrueTalkManager::_v11[41] (titanic/true_talk/true_talk_manager.h) - a STATIC int array, so a module-relative
+    // global. The script flags setFlags() writes for indexes 0 and 7..40 (the default case of CTrueTalkManager::setFlags
+    // at 0x2460F70: `lea rax,[rip+...]; mov [rax+rcx*4],edx`). MaitreDScript keeps its state here: flag 8 is set once
+    // the correct music pacifies him (script event 110), and while it's set his prod and fight handling never run.
+    // Slot 0 is never set by a script (getValue(0) reads _v2 instead), so MaitreDPacifiedHook keeps flag 8's diverted
+    // value there. The whole array is saved with the game.
+    public const long TrueTalkFlagsStatic = 0x5F338C0;
+    public const int MaitreDPacifiedFlagIndex = 8;
+    public const int MaitreDPacifiedShadowIndex = 0;
+
+    // CTrueTalkManager::setFlags(int index, int val) - a switch on index: cases 1..6 go through the jump table, the
+    // rest store into _v11. MaitreDPacifiedHook detours its first 14 bytes, which reference the jump table and the
+    // default case rip-relatively.
+    public const long TrueTalkSetFlagsFunc = 0x2460F70;
+    public const long TrueTalkSetFlagsDefaultCase = 0x2460FE7; // ja target: cmp ecx,0x28 / ... / mov [rax+rcx*4],edx
+    public const long TrueTalkSetFlagsJumpTable = 0x4F2B804;   // lea r8,[rip+0x2ACA888] at 0x2460F75
+
     // CParrot::_state (titanic/npcs/parrot.h) - a STATIC ParrotState (int), so a module-relative global. Found from
     // CParrot::save/load (vtable slots 3/4, module + 0x2421080/0x24211E0), which reference it in source order between
     // _eatOffsetX and _coreReplaced (0x5F32DE0). Saved and loaded with CParrot. PARROT_MAILED keeps the parrot out of
