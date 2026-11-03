@@ -175,14 +175,12 @@ class StarshipTitanicWorld(World):
             pool.extend(self.create_item(PROGRESSIVE_CLUE)
                         for _ in range(self.options.parrot_hunt_clues.value))
 
-        # The one-of-each filler and trap copies are only padding, so they give way when the pool runs out of room
-        # Filler goes first, then traps.
-        for classification in (ItemClassification.filler, ItemClassification.trap):
-            while len(pool) > non_event_locations:
-                spare = next((item for item in reversed(pool) if item.classification == classification), None)
-                if spare is None:
-                    break
-                pool.remove(spare)
+        # The one-of-each filler copies are only padding, so they give way when the pool runs out of room
+        while len(pool) > non_event_locations:
+            spare = next((item for item in reversed(pool) if item.classification == ItemClassification.filler), None)
+            if spare is None:
+                break
+            pool.remove(spare)
 
         deficit = non_event_locations - len(pool)
         if deficit > 0:

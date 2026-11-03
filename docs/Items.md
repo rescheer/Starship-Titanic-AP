@@ -68,8 +68,3 @@ listed, since they never go into the item pool.
 - Polite Passenger Comment Card
 - SGT Class Chocolate
 - Ship-Themed Snow Globe
-
-## Traps
-- Cellpoint Trap
-- Disposition Trap
-- Parrot Trap

@@ -168,15 +168,6 @@ _filler_items: Dict[str, int] = {
 }
 
 # --------------------------------------------------------------------------
-# Traps
-# --------------------------------------------------------------------------
-_trap_items: Dict[str, int] = {
-    "Disposition Trap": 60,
-    "Cellpoint Trap": 61,
-    "Parrot Trap": 62,
-}
-
-# --------------------------------------------------------------------------
 # Events
 # --------------------------------------------------------------------------
 _event_items: Set[str] = {
@@ -227,9 +218,6 @@ for name, offset in _useful_items.items():
 for name, offset in _filler_items.items():
     item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.filler)
 
-for name, offset in _trap_items.items():
-    item_table[name] = STItemData(ITEM_ID_BASE + offset, ItemClassification.trap)
-
 for name in _event_items:
     item_table[name] = STItemData(None, ItemClassification.progression)
 
@@ -242,13 +230,11 @@ item_name_groups: Dict[str, Set[str]] = {
     "Access Cards": set(_access_card_items.keys()),
     "Fuses": {"Blue Fuse", "Green Fuse", "Red Fuse", "Yellow Fuse"},
     "Filler": set(_filler_items.keys()),
-    "Traps": set(_trap_items.keys()),
     "Progressive": set(_progressive_items.keys()) | set(_progressive_room_items.keys())
                    | set(_progressive_clue_items.keys()),
 }
 
 filler_item_names = list(_filler_items.keys())
-trap_item_names = list(_trap_items.keys())
 
 PROGRESSIVE_CLASS_UPGRADE = "Progressive Passenger Class Upgrade"
 SECOND_CLASS_TIER = 1
