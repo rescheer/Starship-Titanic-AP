@@ -400,7 +400,12 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
     # ---------------------------------------------------------------- #
     # SGT Class Stateroom
     # ---------------------------------------------------------------- #
-    # (no location rules)
+    world.set_rule(
+        # The furniture only folds out in the player's own stateroom
+        world.get_location("SGT Class Stateroom - Furniture Puzzle"),
+        has_sgt_room(world)
+        & CanReachRegion("SGT Class Stateroom")
+    )
 
     # ---------------------------------------------------------------- #
     # Parrot Hunt

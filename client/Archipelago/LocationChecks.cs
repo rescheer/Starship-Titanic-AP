@@ -78,6 +78,7 @@ public static class LocationChecks
         [new RoomNodeView(34, 9, 1)] = "2nd Class Lobby - Succ-U-Bus",
         [new RoomNodeView(7, 8, 1)] = "1st Class Stateroom - Succ-U-Bus",
         [new RoomNodeView(20, 8, 1)] = "1st Class Lobby - Succ-U-Bus",
+        [new RoomNodeView(27, 2, 1)] = "SGT Class Stateroom - Furniture Puzzle", // only enterable once it's solved
     };
 
     // DeskBot class-upgrade locations, keyed by the PassengerClass value (2=Second, 1=First)

@@ -255,6 +255,8 @@ location_table: Dict[str, STLocationData] = {
     "1st Class Restaurant - Defeat the Maitre'D": STLocationData("1st Class Restaurant"),
     # Sent when the console starts the music with the panel set to the solution (ClientSession.PollMusicConsole)
     "Music Room - Play the Correct Music": STLocationData("Music Room"),
+    # Sent on entering SGTState Node 2 S, which can only be reached once the furniture puzzle is done
+    "SGT Class Stateroom - Furniture Puzzle": STLocationData("SGT Class Stateroom"),
 }
 
 location_name_to_id: Dict[str, int] = {
