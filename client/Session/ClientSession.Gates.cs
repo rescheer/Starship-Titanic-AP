@@ -7,6 +7,32 @@ internal sealed partial class ClientSession
     private const string CorrectMusicLocation = "Music Room - Play the Correct Music";
     private const string PureedStarlingsLocation = "Promenade Deck - Pureed the Starlings";
 
+    // CGameState::_seasonNum (1=Autumn, 2=Winter, 3=Spring) -> AP location name. Summer, the starting season, has none
+    private static readonly string[] SeasonLocations =
+        { "", "Arboretum - Autumn", "Arboretum - Winter", "Arboretum - Spring" };
+
+    /// <summary>Sends the season checks when the Arboretum's season changes. The seasons only ever step forward from
+    /// Summer, so reaching one sends every season before it too, which covers a save loaded part way through.</summary>
+    private void PollSeason(long gameManager)
+    {
+        int? season = GameState.ReadSeason(_mem, gameManager);
+        if (season == _lastSeason || season is not (>= 0 and < 4))
+            return;
+        _lastSeason = season;
+
+        for (int i = 1; i <= season.Value; i++)
+        {
+            string location = SeasonLocations[i];
+            if (_apConnection.IsLocationCheckedOrQueued(location))
+                continue;
+
+            bool handedOff = _apConnection.SendLocationCheck(location);
+            ReportAction(handedOff, handedOff
+                ? $"Arboretum season reached -> {location}"
+                : $"Arboretum season reached -> {location} (queued offline)");
+        }
+    }
+
     /// <summary>Sends the Pureed the Starlings check when CStarlings::_dead is set. The last reading is forgotten on
     /// a load, so a save loaded with the starlings already pureed sends it too.</summary>
     private void PollStarlingsPureed()

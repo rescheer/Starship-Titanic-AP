@@ -31,6 +31,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     private int? _lastPassengerClass;
     private bool? _lastTitaniaRepaired;
     private bool? _lastStarlingsPureed;
+    private int? _lastSeason;
     private int _lastHintPoints;
 
     /// <summary>Display-only cache of the last RNV reported through <see cref="RoomNodeViewChanged"/>, updated every

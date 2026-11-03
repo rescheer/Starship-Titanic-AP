@@ -282,6 +282,15 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         & CanReachRegion("Titania's Room")
     )
 
+    for season in ("Autumn", "Winter", "Spring"):
+        world.set_rule(
+            # The season switch is powered by the Green Fuse in the Fuse Box, and each press moves one season on
+            world.get_location(f"Arboretum - {season}"),
+            Has("Green Fuse")
+            & CanReachRegion("Arboretum")
+            & CanReachRegion("Titania's Room")
+        )
+
     # ---------------------------------------------------------------- #
     # Bar
     # ---------------------------------------------------------------- #

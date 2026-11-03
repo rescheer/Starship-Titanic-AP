@@ -35,6 +35,10 @@ public static class GameOffsets
     public const int GameModeInteractive = 1;
     public const int GameModePendingLoad = 6;
 
+    // --- CGameState::_seasonNum, relative to CGameManager ---
+    // 0=Summer, 1=Autumn, 2=Winter, 3=Spring. Directly after _mode; CGameState::changeSeason() steps it on by one.
+    public const long SeasonNum = 0xE77C;
+
     // --- PET active flag, relative to CGameManager ---
     public const long PetActive = 0xE780;
 

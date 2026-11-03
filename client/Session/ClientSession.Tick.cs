@@ -16,6 +16,7 @@ internal sealed partial class ClientSession
         _lastPassengerClass = null;
         _lastTitaniaRepaired = null;
         _lastStarlingsPureed = null;
+        _lastSeason = null;
         _lastMailItems = null;
         _musicConsoleAddr = null;
         _itemSync.Reset(); // pending unrestores and the eaten Magazine were tracked against the old tree
@@ -80,6 +81,7 @@ internal sealed partial class ClientSession
             _itemSync.ClearTitaniaPartsInHand();
             _lastTitaniaRepaired = null;
             _lastStarlingsPureed = null;
+            _lastSeason = null;
             RoomNodeViewChanged?.Invoke(null, "menu / loading");
             ReportAddress("gameManager", null);
             return;
@@ -253,6 +255,7 @@ internal sealed partial class ClientSession
         PollMusicConsole();
         PollMaitreDHook();
         PollStarlingsPureed();
+        PollSeason(gameManager.Value);
         SyncTableAccessFromItems();
         SyncRoomGate();
         KeepTelevisionChannel4GlyphOn();

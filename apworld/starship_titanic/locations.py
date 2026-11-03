@@ -258,6 +258,10 @@ location_table: Dict[str, STLocationData] = {
     "SGT Class Stateroom - Furniture Puzzle": STLocationData("SGT Class Stateroom"),
     # Sent once CStarlings::_dead is set, when the fan on high speed purees them (ClientSession.PollStarlingsPureed)
     "Promenade Deck - Pureed the Starlings": STLocationData("Promenade Deck"),
+    # Sent when CGameState::_seasonNum reaches each season (ClientSession.PollSeason). Summer is the starting season
+    "Arboretum - Autumn": STLocationData("Arboretum"),
+    "Arboretum - Winter": STLocationData("Arboretum"),
+    "Arboretum - Spring": STLocationData("Arboretum"),
 }
 
 location_name_to_id: Dict[str, int] = {
