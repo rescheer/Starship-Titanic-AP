@@ -340,11 +340,12 @@ internal sealed class ItemSync
         if (!LocationChecks.TryGetClassUpgradeLocationName((int)PassengerClass.Second, out string secondLocationName))
             return;
 
-        // Only a Magazine the client saw the player hold (Inventory + CheckFired, which the hand-off leaves as-is):
-        // one already eaten in a save from before this seed would just be re-picked-up and hidden again.
+        // Only a Magazine the client saw the player hold (Stage.Inventory, which the hand-off leaves as-is): one already
+        // eaten in a save from before this seed would just be re-picked-up and hidden again. CheckFired isn't required,
+        // since a granted Magazine collected from the mail before the SGT TV puzzle reaches Inventory without it.
         if (FindByName(items, "Magazine") is not { } magazine
             || _ctx.Ap.IsLocationCheckedOrQueued(secondLocationName)
-            || GameActions.ReadItemPersistedState(_ctx.Mem, magazine.Address) is not { Stage: ItemStage.Inventory, CheckFired: true }
+            || GameActions.ReadItemPersistedState(_ctx.Mem, magazine.Address) is not { Stage: ItemStage.Inventory }
             || !IsEatenByDeskBot(magazine, petControlAddr, mailManAddr))
         {
             _eatenMagazineAddr = null;
