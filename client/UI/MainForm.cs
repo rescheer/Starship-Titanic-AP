@@ -439,16 +439,17 @@ public sealed class MainForm : Form
     private HereState BuildHere(bool connected)
     {
         if (_hereRoom is null)
-            return new HereState("Unknown", Array.Empty<CheckPip>(), "Waiting for the game");
+            return new HereState("Unknown", Array.Empty<CheckPip>(), "Waiting for the game", null);
+        uint? roomFlags = _session.GameRoomFlags;
         if (!connected || !_roomLocationNames.TryGetValue(_hereRoom, out string[]? locations))
-            return new HereState(_hereRoom.Name, Array.Empty<CheckPip>(), "Not connected to AP");
+            return new HereState(_hereRoom.Name, Array.Empty<CheckPip>(), "Not connected to AP", roomFlags);
 
         CheckPip[] checks = locations
             .Select(location => BuildCheck(location) with { Name = ShortCheckName(location, locations) })
             .Where(check => check.Status != CheckStatus.Checked)
             .OrderBy(check => check.Status)
             .ToArray();
-        return new HereState(_hereRoom.Name, checks, locations.Length == 0 ? "No checks here" : "All checks complete");
+        return new HereState(_hereRoom.Name, checks, locations.Length == 0 ? "No checks here" : "All checks complete", roomFlags);
     }
 
     /// <summary>A check's name without its room. Tiles can cover more than one room, so a name that's used twice under

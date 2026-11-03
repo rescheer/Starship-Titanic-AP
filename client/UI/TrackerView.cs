@@ -46,7 +46,6 @@ internal sealed class TrackerView : TrackerControl
     private const int TrackerHeight = 330;
     private const int GoalWidth = 420;
     private const int ChatRowHeight = 33;
-    private const int HerePanelHeight = 106; // the room's name and four rows of checks, enough for the Restaurant's seven. Grows for hints
     private const int MinRecentHeight = 24; // anything less isn't worth showing
 
     private const string InMailMark = "✉";
@@ -495,7 +494,7 @@ internal sealed class TrackerView : TrackerControl
 
         // You Are Here takes what it needs for its hints. Recent gives up its height first, then the panel clips its last rows
         int hereTop = _hereHeader.Bottom + S(6);
-        int hereHeight = Math.Min(Math.Max(S(HerePanelHeight), _here.NeededHeight), height - S(8) - hereTop);
+        int hereHeight = Math.Min(Math.Max(S(HerePanel.DefaultHeight), _here.NeededHeight), height - S(8) - hereTop);
         _here.SetBounds(recentLeft, hereTop, recentWidth, Math.Max(0, hereHeight));
         _recentHeader.SetBounds(recentLeft, _here.Bottom + S(8), recentWidth, S(17));
         int recentHeight = height - _recentHeader.Bottom - S(14);

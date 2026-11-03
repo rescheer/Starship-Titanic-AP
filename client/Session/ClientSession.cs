@@ -116,6 +116,9 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     /// <summary>The game's current PassengerClass value, or null until it's been read since attaching.</summary>
     internal int? GamePassengerClass => _lastPassengerClass;
 
+    /// <summary>The PET's room flags for where the player is standing, or null until they've been read since attaching.</summary>
+    internal uint? GameRoomFlags => _lastRoomFlags;
+
     /// <summary>Whether Titania has been repaired in the loaded game, or null until it's been read since attaching or
     /// while on the main menu.</summary>
     internal bool? GameTitaniaRepaired => _lastTitaniaRepaired;

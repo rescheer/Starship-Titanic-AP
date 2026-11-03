@@ -1052,12 +1052,16 @@ internal sealed class ClueBar : TrackerControl
 /// <summary>What the You Are Here panel shows.</summary>
 /// <param name="Checks">The room's uncompleted checks, named without the room, in the order to draw them.</param>
 /// <param name="Message">Stands in for the list while <paramref name="Checks"/> is empty.</param>
-internal readonly record struct HereState(string RoomName, CheckPip[] Checks, string Message);
+/// <param name="RoomFlags">The PET's room flags where the player's standing, drawn as a chevron behind the panel.</param>
+internal readonly record struct HereState(string RoomName, CheckPip[] Checks, string Message, uint? RoomFlags);
 
 /// <summary>The room the player's in and the checks still to get there, row by row across two columns.</summary>
 internal sealed class HerePanel : TrackerControl
 {
-    private HereState _state = new("", Array.Empty<CheckPip>(), "");
+    /// <summary>The room's name and four rows of checks, enough for the Restaurant's seven. Grows for hints.</summary>
+    public const int DefaultHeight = 106;
+
+    private HereState _state = new("", Array.Empty<CheckPip>(), "", null);
     private const int RoomNameHeight = 28;
     private const int CheckLineHeight = 18;
     private const int HintLineHeight = 14;
@@ -1159,6 +1163,8 @@ internal sealed class HerePanel : TrackerControl
     protected override void OnPaint(PaintEventArgs e)
     {
         FillTile(e.Graphics, TrackerTheme.Background, TrackerTheme.LineStrong);
+        if (_state.RoomFlags is { } roomFlags and not 0)
+            DrawChevron(e.Graphics, roomFlags);
 
         int left = S(8), pip = S(8), textOffset = pip + S(5);
         TextRenderer.DrawText(e.Graphics, _state.RoomName, TrackerTheme.BodyFont, new Rectangle(left, S(6), Width - left * 2, S(19)),
@@ -1185,6 +1191,33 @@ internal sealed class HerePanel : TrackerControl
             if (check.Hint is { } hint)
                 DrawParts(e.Graphics, hint.Parts, TrackerTheme.CaptionFont, new Rectangle(line.X + textOffset, line.Y + nameHeight, textWidth, S(HintLineHeight)), textWidth / 2);
         }
+    }
+
+    /// <summary>The room's chevron, faint against the panel's right side and as tall as its default height. Follows
+    /// CPetRoomsGlyph: the low 20 bits of the room flags, most significant first, as five rows of four segments that
+    /// zigzag up and down, lit for a 1.</summary>
+    private void DrawChevron(Graphics g, uint roomFlags)
+    {
+        // Measured in tenths of a row: each segment is 13 wide, rises 5 and is 3 thick, so the chevron is 52 by 48
+        int padding = S(6);
+        float unit = (S(DefaultHeight) - padding * 2) / 48f;
+        float left = Width - padding - 52 * unit, thickness = 3 * unit;
+        using var lit = new SolidBrush(Color.FromArgb(48, TrackerTheme.Accent));
+        using var unlit = new SolidBrush(Color.FromArgb(14, TrackerTheme.Accent));
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        for (int row = 0; row < 5; row++)
+        {
+            uint bits = (roomFlags >> (16 - row * 4)) & 0xF;
+            float top = padding + row * 10 * unit, bottom = top + 5 * unit;
+            for (int column = 0; column < 4; column++)
+            {
+                float x0 = left + column * 13 * unit, x1 = x0 + 13 * unit;
+                (float y0, float y1) = column % 2 == 0 ? (bottom, top) : (top, bottom);
+                PointF[] segment = { new(x0, y0), new(x1, y1), new(x1, y1 + thickness), new(x0, y0 + thickness) };
+                g.FillPolygon((bits & (8u >> column)) != 0 ? lit : unlit, segment);
+            }
+        }
+        g.SmoothingMode = SmoothingMode.Default;
     }
 }
 
