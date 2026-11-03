@@ -122,7 +122,7 @@ internal sealed class ParrotHuntSync
     /// object, so it's told apart by the PET's room flags, compared the way the stateroom's Succ-U-Bus compares them.</summary>
     private bool IsPlayerInTargetRoom(ParrotHuntInfo info, long petControlAddr) =>
         string.Equals(_ctx.CurrentRoomName, info.TargetRoomName, StringComparison.OrdinalIgnoreCase)
-        && GameState.ReadCurrentRoomFlags(_ctx.Mem, petControlAddr) is { } roomFlags
+        && GameState.ReadCurrentRoomFlags(_ctx.Mem, petControlAddr, _ctx.CurrentRoomName) is { } roomFlags
         && RoomFlags.CompareLocation(roomFlags, info.TargetRoomFlags);
 
     /// <summary>Whether <paramref name="nodeAddr"/> is the named room or sits somewhere under it.</summary>

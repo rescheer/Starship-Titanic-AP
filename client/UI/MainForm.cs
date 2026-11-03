@@ -438,9 +438,10 @@ public sealed class MainForm : Form
     /// <summary>The highlighted tile's room and the checks still to get there.</summary>
     private HereState BuildHere(bool connected)
     {
+        // Known in rooms without a tile too, like the lift a game was attached in.
+        uint? roomFlags = _session.CurrentRoomName is not null && _session.Memory.IsAttached ? _session.GameRoomFlags : null;
         if (_hereRoom is null)
-            return new HereState("Unknown", Array.Empty<CheckPip>(), "Waiting for the game", null);
-        uint? roomFlags = _session.GameRoomFlags;
+            return new HereState("Unknown", Array.Empty<CheckPip>(), "Waiting for the game", roomFlags);
         if (!connected || !_roomLocationNames.TryGetValue(_hereRoom, out string[]? locations))
             return new HereState(_hereRoom.Name, Array.Empty<CheckPip>(), "Not connected to AP", roomFlags);
 

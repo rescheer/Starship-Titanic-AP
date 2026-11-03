@@ -155,7 +155,7 @@ internal sealed partial class ClientSession
 
         if (_ctx.InventoryRoom is not null)
         {
-            uint? roomFlags = GameState.ReadCurrentRoomFlags(_mem, _ctx.InventoryRoom.Value);
+            uint? roomFlags = GameState.ReadCurrentRoomFlags(_mem, _ctx.InventoryRoom.Value, _ctx.CurrentRoomName);
             if (roomFlags is not null && roomFlags != _lastRoomFlags)
             {
                 _lastRoomFlags = roomFlags;

@@ -1043,7 +1043,7 @@ internal sealed class ItemSync
         string destRoomName = _ctx.CurrentRoomName is not null && ChevronCodes.HasStation(_ctx.CurrentRoomName)
             ? _ctx.CurrentRoomName
             : "EmbLobby";
-        uint? liveRoomFlags = GameState.ReadCurrentRoomFlags(_ctx.Mem, _ctx.InventoryRoom.Value);
+        uint? liveRoomFlags = GameState.ReadCurrentRoomFlags(_ctx.Mem, _ctx.InventoryRoom.Value, _ctx.CurrentRoomName);
         ChevronCodes.TryGetCode(destRoomName, liveRoomFlags, out uint code);
 
         bool moved = GameActions.MoveItemSmart(_ctx.Mem, item.Address, _ctx.MailManRoom.Value, _ctx.InventoryRoom, gameManager);

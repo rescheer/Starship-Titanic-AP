@@ -85,6 +85,9 @@ public static class ChevronCodes
 
     public static bool TryGetCode(string roomName, out uint code) => TryGetCode(roomName, null, out code);
 
+    /// <summary>CRoomFlags::getSpecialRoomFlags: the fixed code of a named room, station or not.</summary>
+    public static bool TryGetSpecialRoomFlags(string roomName, out uint code) => Codes.TryGetValue(roomName, out code);
+
     /// <summary>Returns the room name for a room-flags value, or null if not found.</summary>
     public static string? TryGetRoomName(uint code) =>
         ReverseCodes.TryGetValue(code, out string? name) ? name : null;

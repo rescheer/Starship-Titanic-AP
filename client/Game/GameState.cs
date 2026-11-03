@@ -84,11 +84,34 @@ public static class GameState
     public static bool IsTitaniaRepaired(MemoryReader mem) =>
         mem.ReadBytes(mem.ModuleBase + GameOffsets.BrainSlotWokenStatic, 1) is [not 0];
 
-    /// <summary>Reads the current room's roomFlags value directly off the PET control.</summary>
-    public static uint? ReadCurrentRoomFlags(MemoryReader mem, long petControlAddr)
+    /// <summary>The room flags for where the player is standing, built the way CPetRooms::getRoomFlags builds them: a
+    /// named room's fixed code, otherwise one from the PET's floor, elevator, room and sublevel numbers. Null while
+    /// the room isn't known or the numbers can't be read.</summary>
+    public static uint? ReadCurrentRoomFlags(MemoryReader mem, long petControlAddr, string? roomName)
     {
-        int? raw = mem.ReadInt32(petControlAddr + GameOffsets.PetControlCurrentRoomFlags);
-        return raw is null ? null : unchecked((uint)raw.Value);
+        if (roomName is null)
+            return null;
+        if (ChevronCodes.TryGetSpecialRoomFlags(roomName, out uint special))
+            return special;
+
+        if (mem.ReadInt32(petControlAddr + GameOffsets.PetControlRoomsFloorNum) is not int floor
+            || mem.ReadInt32(petControlAddr + GameOffsets.PetControlRoomsElevatorNum) is not int elevator
+            || mem.ReadInt32(petControlAddr + GameOffsets.PetControlRoomsRoomNum) is not int room
+            || mem.ReadInt32(petControlAddr + GameOffsets.PetControlRoomsSublevel) is not int sublevel)
+            return null;
+
+        // CRoomFlags::whatPassengerClass
+        int classNum = floor is > 1 and < 10 ? 1 : floor is >= 10 and < 20 ? 2 : 3;
+        return classNum switch
+        {
+            1 => RoomFlags.Encode(elevator, classNum, floor, room),
+            // Each 2nd class stateroom is shared by a pair of elevators; with no room the elevator bits stay 0.
+            2 when room > 0 => RoomFlags.Encode(
+                room >= 3 ? (elevator is 1 or 2 ? 1 : 3) : (elevator is 1 or 2 ? 2 : 4),
+                classNum, floor, ((room - 1) & 1) + (sublevel > 1 ? 3 : 2)),
+            2 => RoomFlags.Encode(1, classNum, floor, 0),
+            _ => RoomFlags.Encode(elevator, classNum, floor, room + sublevel * 6 - 6),
+        };
     }
 
     public static bool? ReadPetActive(MemoryReader mem, long gameManager)

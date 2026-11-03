@@ -398,7 +398,7 @@ public sealed partial class DebugForm
             string destRoomName = _session.CurrentRoomName is not null && ChevronCodes.HasStation(_session.CurrentRoomName)
                 ? _session.CurrentRoomName
                 : "EmbLobby";
-            uint? liveRoomFlags = _session.InventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_session.Memory, petControl) : null;
+            uint? liveRoomFlags = _session.InventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_session.Memory, petControl, _session.CurrentRoomName) : null;
             ChevronCodes.TryGetCode(destRoomName, liveRoomFlags, out uint code);
 
             ok = GameActions.SetItemMailDestination(_session.Memory, itemAddr, code);

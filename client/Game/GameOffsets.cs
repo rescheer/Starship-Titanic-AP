@@ -267,10 +267,6 @@ public static class GameOffsets
     private const long HeaderOffset = 0x8;
     public const long Parent = HeaderOffset + 0x00;
 
-    // CPetControl's own current room-flags value (see RoomFlags.cs), relative
-    // to the PET control's own base address.
-    public const long PetControlCurrentRoomFlags = 0x1110;
-
     // --- CPetRooms / CPetRoomsGlyph (titanic/pet_control/pet_rooms{,_glyphs}.cpp) ---
     // CPetRooms::reassignRoom's body:
     //   glyph = _glyphs.findAssignedRoom(); if (glyph) glyph->_mode = RGM_PREV_ASSIGNED_ROOM;   // mov [rax+48],2
@@ -405,6 +401,12 @@ public static class GameOffsets
     // current floor and which of the four elevators the player is in. Read by CExitLift::MouseButtonDownMsg.
     public const long PetControlRoomsFloorNum = 0x1260;
     public const long PetControlRoomsElevatorNum = 0x1264;
+
+    // CPetRooms::_roomNum / _sublevel (PetRoomsOffset + 0x278/0x27C), between _elevatorNum and _wellEntry/_elevatorBroken
+    // (0x284). With the two above, what CPetRooms::getRoomFlags builds the player's room flags from. Not the Rooms
+    // page's own glyph (+0x120), which only refreshes on a room change while that page is open.
+    public const long PetControlRoomsRoomNum = 0x1268;
+    public const long PetControlRoomsSublevel = 0x126C;
 
     // CExitPellerator::_statics (titanic/moves/exit_pellerator.h) - a STATIC `CExitPelleratorStatics *`, so a
     // module-relative global holding a pointer. _v2 is the stop the Pellerator is at (0 Promenade, 1 Music Room

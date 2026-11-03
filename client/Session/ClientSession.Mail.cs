@@ -42,7 +42,7 @@ internal sealed partial class ClientSession
     {
         if (_ctx.MailManRoom is null)
             return;
-        uint? liveRoomFlags = _ctx.InventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_mem, petControl) : null;
+        uint? liveRoomFlags = _ctx.InventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_mem, petControl, roomName) : null;
         if (!ChevronCodes.TryGetCode(roomName, liveRoomFlags, out uint code))
             return;
 

@@ -125,7 +125,7 @@ public sealed partial class DebugForm
             ShowActionResult(false, "Select an item first");
             return;
         }
-        uint? liveRoomFlags = _session.InventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_session.Memory, petControl) : null;
+        uint? liveRoomFlags = _session.InventoryRoom is long petControl ? GameState.ReadCurrentRoomFlags(_session.Memory, petControl, _session.CurrentRoomName) : null;
         if (_session.CurrentRoomName is null || !ChevronCodes.TryGetCode(_session.CurrentRoomName, liveRoomFlags, out uint code))
         {
             ShowActionResult(false, "Current room has no SuccUBus station");
