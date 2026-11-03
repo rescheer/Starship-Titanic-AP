@@ -1,6 +1,7 @@
 using System.Linq;
 using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.Enums;
+using Archipelago.MultiClient.Net.Helpers;
 using Archipelago.MultiClient.Net.MessageLog.Messages;
 using Archipelago.MultiClient.Net.Models;
 using Archipelago.MultiClient.Net.Packets;
@@ -149,6 +150,15 @@ public sealed class ArchipelagoConnection : IDisposable
             return _receivedItemNames.ToArray();
     }
 
+    /// <summary>The slot's hints. Empty while not connected.</summary>
+    public HintTracker Hints { get; } = new();
+
+    /// <summary>What a hint costs this slot, or 0 if they're free. 0 while not connected.</summary>
+    public int HintCost => _session?.RoomState.HintCost ?? 0;
+
+    /// <summary>The slot's current hint points. 0 while not connected.</summary>
+    public int HintPoints => _session?.RoomState.HintPoints ?? 0;
+
     public event Action<ApConnectionState, string>? StateChanged;
 
     /// <summary>Fires for every server log-line the AP client library surfaces, with its colored parts.</summary>
@@ -160,6 +170,9 @@ public sealed class ArchipelagoConnection : IDisposable
     /// <summary>Fires when the server reports more of this slot's locations as checked, whoever checked them, or the
     /// slot's goal as complete.</summary>
     public event Action? CheckedLocationsChanged;
+
+    /// <summary>Fires when the server sends a new list of the slot's hints.</summary>
+    public event Action? HintsChanged;
 
     /// <summary>Fires when a location check is newly added to the pending-check queue.</summary>
     public event Action<string>? CheckQueued;
@@ -184,6 +197,7 @@ public sealed class ArchipelagoConnection : IDisposable
             _seenItemLocationPairs.Clear();
         }
         _goalComplete = false;
+        Hints.Clear();
 
         RaiseState(ApConnectionState.Connecting, $"Connecting to {server}...");
 
@@ -207,6 +221,7 @@ public sealed class ArchipelagoConnection : IDisposable
                 SeedName = null;
                 SlotName = null;
                 _pendingChecksFlushedThisSession = false;
+                Hints.Clear();
                 RaiseState(ApConnectionState.Disconnected, $"Disconnected: {reason}");
             }
         };
@@ -259,6 +274,13 @@ public sealed class ArchipelagoConnection : IDisposable
                 _goalComplete = true;
                 CheckedLocationsChanged?.Invoke();
             });
+            session.Hints.TrackHints(hints =>
+            {
+                if (!ReferenceEquals(_session, session))
+                    return;
+                Hints.Update((hints ?? Array.Empty<Hint>()).Select(hint => ResolveHint(session, hint)).ToArray());
+                HintsChanged?.Invoke();
+            });
 
             RaiseState(ApConnectionState.Connected, $"Connected as {slot}");
         }
@@ -284,6 +306,49 @@ public sealed class ArchipelagoConnection : IDisposable
 
         _ = TrySendAsync(session, () => session.Socket.SendPacket(new SayPacket { Text = commandText }));
         return true;
+    }
+
+    /// <summary>Asks the server to reveal a copy of one of this slot's items.</summary>
+    public bool RequestItemHint(string itemName)
+    {
+        if (_session is null)
+            return false;
+
+        Hints.AddItemRequest(itemName);
+        return SendCommand($"!hint {itemName}");
+    }
+
+    /// <summary>Asks the server to reveal what's in one of this slot's locations.</summary>
+    public bool RequestLocationHint(string locationName)
+    {
+        if (_session is null)
+            return false;
+
+        Hints.AddLocationRequest(locationName);
+        return SendCommand($"!hint_location {locationName}");
+    }
+
+    /// <summary>A name that can't be resolved shows as unknown rather than dropping the hint, which still counts.</summary>
+    private static HintInfo ResolveHint(ArchipelagoSession session, Hint hint)
+    {
+        const string unknown = "Unknown";
+        PlayerInfo self = session.Players.ActivePlayer;
+        PlayerInfo? receiving = session.Players.GetPlayerInfo(hint.ReceivingPlayer);
+        string? findingGame = session.Players.GetPlayerInfo(hint.FindingPlayer)?.Game;
+
+        return new HintInfo(
+            (receiving is null ? null : session.Items.GetItemName(hint.ItemId, receiving.Game)) ?? unknown,
+            session.Players.GetPlayerAlias(hint.ReceivingPlayer) ?? unknown,
+            receiving is not null && self.IsRelatedTo(receiving),
+            (findingGame is null ? null : session.Locations.GetLocationNameFromId(hint.LocationId, findingGame)) ?? unknown,
+            session.Players.GetPlayerAlias(hint.FindingPlayer) ?? unknown,
+            hint.FindingPlayer == self.Slot,
+            hint.FindingPlayer,
+            hint.LocationId,
+            hint.ItemFlags,
+            hint.Found,
+            hint.Entrance ?? "",
+            hint.Status);
     }
 
     /// <summary>
@@ -407,6 +472,7 @@ public sealed class ArchipelagoConnection : IDisposable
         SeedName = null;
         SlotName = null;
         _pendingChecksFlushedThisSession = false;
+        Hints.Clear();
         RaiseState(ApConnectionState.Disconnected, message);
 
 #pragma warning disable CS4014
@@ -431,6 +497,7 @@ public sealed class ArchipelagoConnection : IDisposable
             SeedName = null;
             SlotName = null;
             _pendingChecksFlushedThisSession = false;
+            Hints.Clear();
 
 #pragma warning disable CS4014
             try { session.Socket.DisconnectAsync(); } catch { /* best-effort */ }

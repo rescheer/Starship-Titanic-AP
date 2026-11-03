@@ -9,20 +9,24 @@ internal enum PartState { NotReceived, InMail, InHand }
 /// <summary>The goal rectangles: Titania's parts or, under Parrot Hunt, the parrot's address.</summary>
 internal abstract record GoalState
 {
+    /// <param name="Title">The section's label, which names the goal once it's known.</param>
     /// <param name="InHandCount">Null while it can't be known.</param>
     /// <param name="UsesMail">False under Direct To Inventory, which has no use for the "in the mail" legend entry.</param>
     /// <param name="FromServer">Whether <see cref="PartState.InHand"/> only means the AP server says the part was received, while there's no game to ask.</param>
-    public sealed record Titania(PartState[] Parts, int? InHandCount, bool UsesMail, bool FromServer) : GoalState;
+    /// <param name="PartHints">Each part's hints, for those that have any or can have any.</param>
+    public sealed record Titania(string Title, PartState[] Parts, int? InHandCount, bool UsesMail, bool FromServer, HintTarget?[] PartHints) : GoalState;
 
     /// <param name="Elevator">Each part of the address is null until revealed.</param>
     /// <param name="Clues">The clues found so far, in order. Empty while not connected, since their text depends on the seed.</param>
-    public sealed record Parrot(int? Elevator, int? Floor, int? Room, int CluesFound, int CluesTotal, ClueEntry[] Clues) : GoalState;
+    /// <param name="ClueHint">The hints for the clues still to come, if there are any or there can be.</param>
+    public sealed record Parrot(int? Elevator, int? Floor, int? Room, int CluesFound, int CluesTotal, ClueEntry[] Clues, HintTarget? ClueHint) : GoalState;
 }
 
 /// <summary>Everything the main window shows, besides the log and Recent lines.</summary>
 internal sealed record TrackerState(
     string GameValue, bool GameHasError, string GameButton,
     string ApValue, Color ApValueColor, bool ApValueClickable, bool ApHasError, string ApButton, bool ApButtonEnabled,
+    string HintsValue, int HintCost, int HintPoints,
     string InLogicValue, bool InLogicAlert,
     string GoModeValue, bool GoModeHighlighted, string[] GoModeRequires,
     string MailLabel, string MailValue, bool MailHighlighted,
@@ -38,10 +42,12 @@ internal sealed class TrackerView : TrackerControl
     private const int CommandBarHeight = 62;
     private const int BannerHeight = 52;
     private const int BannerTextHeight = 28;
+    private const int StatusTileWidth = 136;
     private const int TrackerHeight = 330;
     private const int GoalWidth = 420;
     private const int ChatRowHeight = 33;
-    private const int HerePanelHeight = 106; // the room's name and four rows of checks, enough for the Restaurant's seven
+    private const int HerePanelHeight = 106; // the room's name and four rows of checks, enough for the Restaurant's seven. Grows for hints
+    private const int MinRecentHeight = 24; // anything less isn't worth showing
 
     private const string InMailMark = "✉";
     private const string InHandMark = "✔";
@@ -53,11 +59,16 @@ internal sealed class TrackerView : TrackerControl
     public event Action<string>? ChatSubmitted;
     public event Action? ForceSeedClicked;
 
+    /// <summary>The player confirmed these hints. An option's <see cref="HintOption.Copies"/> is how many requests to send for it.</summary>
+    public event Action<HintOption[]>? HintRequested;
+
     private readonly ConnectionTile _gameTile = new("STARSHIP TITANIC");
     private readonly ConnectionTile _apTile = new("ARCHIPELAGO");
+    private readonly StatusTile _hintsTile = new();
     private readonly StatusTile _inLogicTile = new();
     private readonly StatusTile _goModeTile = new();
     private string[] _goModeRequires = Array.Empty<string>();
+    private RequirementLine[] _goModeLines = Array.Empty<RequirementLine>();
     private readonly StatusTile _mailTile = new();
 
     private readonly Label _saveSeedBanner = new()
@@ -82,14 +93,35 @@ internal sealed class TrackerView : TrackerControl
         Visible = false,
     };
 
-    private readonly SectionHeader _roomsHeader = new("ROOMS",
-        ("Checked", TrackerTheme.Accent, false),
+    private readonly SectionHeader _roomsHeader = new("ROOMS");
+    private readonly SectionHeader _roomsLegend = new("", // beside the Bridge, the one deck with space to spare
+        ("Checked", TrackerTheme.PipLocked, true),
         ("In logic", TrackerTheme.Accent, true),
-        ("Locked", TrackerTheme.PipLocked, false));
+        ("Locked", TrackerTheme.PipLocked, false))
+    {
+        ExtraLegendLines = new[]
+        {
+            new (string, Color?, bool)[]
+            {
+                ("Hinted in logic", TrackerTheme.HintedDot, true),
+                ("Hinted locked", TrackerTheme.HintedDot, false),
+            },
+            new (string, Color?, bool)[]
+            {
+                ("Avoid in logic", TrackerTheme.AvoidDot, true),
+                ("Avoid locked", TrackerTheme.AvoidDot, false),
+            },
+        },
+    };
     private readonly Label[] _deckLabels;
     private readonly RoomTile[][] _roomTiles;
     private readonly CheckPopup _checkPopup = new();
     private Control? _popupSource;
+    private readonly HintPopup _hintPopup = new();
+    private Control? _hintPopupSource;
+    private readonly HintConfirmBox _hintBox = new() { Visible = false };
+    private int _hintCost;
+    private int _hintPoints;
 
     private static readonly (string Text, Color? Pip, bool PipFilled)[] TitaniaMailLegend =
     {
@@ -110,7 +142,7 @@ internal sealed class TrackerView : TrackerControl
 
     private readonly SectionHeader _titaniaHeader = new("TITANIA", TitaniaMailLegend);
     private readonly GoalTile[] _partTiles; // the parts total first, then each part
-    private readonly SectionHeader _parrotHeader = new("THE PARROT");
+    private readonly SectionHeader _parrotHeader = new("GOAL: PARROT HUNT");
     private readonly GoalTile[] _parrotTiles = { new(), new(), new() };
     private readonly ClueBar _clueBar = new();
     private readonly CluePopup _cluePopup = new();
@@ -136,6 +168,7 @@ internal sealed class TrackerView : TrackerControl
 
     private bool _showParrot;
     private bool _scrollLogWhenSized;
+    private int _hereNeededHeight;
 
     public TrackerView()
     {
@@ -152,9 +185,11 @@ internal sealed class TrackerView : TrackerControl
         TrackerTheme.StyleTextBox(_chatInput);
         TrackerTheme.StyleButton(_chatSend);
 
-        Controls.Add(_checkPopup); // the popups are added first, so they're on top of everything else
+        Controls.Add(_hintBox); // the box and popups are added first, so they're on top of everything else
+        Controls.Add(_checkPopup);
         Controls.Add(_cluePopup);
-        Controls.AddRange(new Control[] { _gameTile, _apTile, _inLogicTile, _goModeTile, _mailTile, _saveSeedBanner, _forceSeedLink, _roomsHeader, _titaniaHeader, _parrotHeader, _clueBar, _log, _chatInput, _chatSend, _hereHeader, _here, _recentHeader, _recent });
+        Controls.Add(_hintPopup);
+        Controls.AddRange(new Control[] { _gameTile, _apTile, _hintsTile, _inLogicTile, _goModeTile, _mailTile, _saveSeedBanner, _forceSeedLink, _roomsHeader, _roomsLegend, _titaniaHeader, _parrotHeader, _clueBar, _log, _chatInput, _chatSend, _hereHeader, _here, _recentHeader, _recent });
         Controls.AddRange(_deckLabels);
         Controls.AddRange(_roomTiles.SelectMany(row => row).ToArray<Control>());
         Controls.AddRange(_partTiles.ToArray<Control>());
@@ -165,6 +200,12 @@ internal sealed class TrackerView : TrackerControl
         _here.CheckHoverChanged += OnCheckHoverChanged;
         _goModeTile.HoverChanged += UpdateGoModePopup;
         _clueBar.ClueHoverChanged += OnClueHoverChanged;
+        foreach (TrackerControl hintable in _roomTiles.SelectMany(row => row).Concat<TrackerControl>(_partTiles).Append(_here).Append(_clueBar))
+        {
+            hintable.HintClicked += OpenHintBox;
+            hintable.HintHoverChanged += OnHintHoverChanged;
+        }
+        _hintBox.Requested += options => HintRequested?.Invoke(options);
         _gameTile.Button.Click += (_, _) => AttachButtonClicked?.Invoke();
         _apTile.Button.Click += (_, _) => ApButtonClicked?.Invoke();
         _apTile.ValueClicked += () => ApValueClicked?.Invoke();
@@ -193,11 +234,15 @@ internal sealed class TrackerView : TrackerControl
     {
         _gameTile.Set(state.GameValue, state.GameHasError ? TrackerTheme.Error : TrackerTheme.Text, state.GameHasError, state.GameButton, buttonEnabled: true);
         _apTile.Set(state.ApValue, state.ApValueColor, state.ApHasError, state.ApButton, state.ApButtonEnabled, state.ApValueClickable);
+        _hintsTile.Set("HINTS AVAILABLE", state.HintsValue, highlighted: false);
+        _hintCost = state.HintCost;
+        _hintPoints = state.HintPoints;
         _inLogicTile.Set("IN-LOGIC CHECKS", state.InLogicValue, highlighted: false, state.InLogicAlert);
         _goModeTile.Set("GO MODE", state.GoModeValue, state.GoModeHighlighted);
         if (!ReferenceEquals(_goModeRequires, state.GoModeRequires))
         {
             _goModeRequires = state.GoModeRequires;
+            _goModeLines = state.GoModeRequires.Select(item => new RequirementLine(item, Array.Empty<(string Text, Color Color)[]>())).ToArray();
             UpdateGoModePopup();
         }
         _mailTile.Set(state.MailLabel, state.MailValue, state.MailHighlighted);
@@ -217,6 +262,11 @@ internal sealed class TrackerView : TrackerControl
         _here.State = state.Here;
 
         bool layoutChanged = false;
+        if (_hereNeededHeight != _here.NeededHeight)
+        {
+            _hereNeededHeight = _here.NeededHeight;
+            layoutChanged = true;
+        }
         if (_saveSeedBanner.Visible != state.SaveSeedMismatch)
         {
             _saveSeedBanner.Visible = state.SaveSeedMismatch;
@@ -240,6 +290,8 @@ internal sealed class TrackerView : TrackerControl
     {
         if (check is { } shown)
         {
+            if (_hintBox.Visible)
+                return;
             _popupSource = source;
             bounds.Offset(source.Location);
             _checkPopup.ShowFor(shown, bounds);
@@ -254,7 +306,9 @@ internal sealed class TrackerView : TrackerControl
     /// <summary>Lists what's still missing for the goal while the mouse is over the tile.</summary>
     private void UpdateGoModePopup()
     {
-        CheckPip? check = _goModeTile.IsHovered && _goModeRequires.Length > 0 ? new CheckPip("Go mode", CheckStatus.Locked, _goModeRequires) : null;
+        CheckPip? check = _goModeTile.IsHovered && _goModeLines.Length > 0
+            ? new CheckPip("Go mode", "Go mode", CheckStatus.Locked, _goModeLines, Array.Empty<HintOption>(), null)
+            : null;
         OnCheckHoverChanged(_goModeTile, check, new Rectangle(Point.Empty, _goModeTile.Size));
     }
 
@@ -262,8 +316,10 @@ internal sealed class TrackerView : TrackerControl
     {
         if (clue is { } shown)
         {
+            if (_hintBox.Visible)
+                return;
             bounds.Offset(_clueBar.Location);
-            _cluePopup.ShowFor(shown, bounds);
+            _cluePopup.ShowFor(shown, _clueBar.Hint, bounds);
         }
         else
         {
@@ -271,11 +327,50 @@ internal sealed class TrackerView : TrackerControl
         }
     }
 
+    /// <summary>The same rule as <see cref="OnCheckHoverChanged"/>: only the control showing the popup can hide it.</summary>
+    private void OnHintHoverChanged(TrackerControl source, HintTarget? target, Rectangle bounds)
+    {
+        if (target is not null)
+        {
+            if (_hintBox.Visible)
+                return;
+            _hintPopupSource = source;
+            bounds.Offset(source.Location);
+            _hintPopup.ShowFor(target, bounds);
+        }
+        else if (_hintPopupSource == source)
+        {
+            _hintPopupSource = null;
+            _hintPopup.Visible = false;
+        }
+    }
+
+    private void OpenHintBox(HintOption[] options)
+    {
+        _popupSource = null;
+        _hintPopupSource = null;
+        _checkPopup.Visible = false;
+        _cluePopup.Visible = false;
+        _hintPopup.Visible = false;
+        _hintBox.Open(options, _hintCost, _hintPoints, PointToClient(Cursor.Position));
+    }
+
+    public void CloseHintBox() => _hintBox.Close();
+
+    /// <summary>Keeps an open box in step with what can still be requested. <paramref name="resolve"/> gives an option
+    /// as it now stands, or null if it's no longer on offer.</summary>
+    public void RefreshHintBox(Func<HintOption, HintOption?> resolve)
+    {
+        if (_hintBox.Visible)
+            _hintBox.UpdateOptions(_hintBox.Options.Select(resolve).OfType<HintOption>().ToArray(), _hintCost, _hintPoints);
+    }
+
     private void ApplyGoal(GoalState goal)
     {
         switch (goal)
         {
             case GoalState.Titania titania:
+                _titaniaHeader.SetTitle(titania.Title);
                 _titaniaHeader.SetLegend(titania.FromServer ? TitaniaServerLegend : titania.UsesMail ? TitaniaMailLegend : TitaniaDirectLegend);
                 string total = $"{(titania.InHandCount?.ToString() ?? "-")}/{TitaniaParts.All.Length}";
                 _partTiles[0].Set("PARTS", total, GoalTileStyle.Total, TrackerTheme.PartCountFont);
@@ -288,6 +383,7 @@ internal sealed class TrackerView : TrackerControl
                         _ => (UnknownMark, GoalTileStyle.Unknown),
                     };
                     _partTiles[i + 1].Set(TitaniaParts.All[i].Label.ToUpperInvariant(), mark, style, TrackerTheme.MarkFont);
+                    _partTiles[i + 1].SetHint(titania.PartHints[i]);
                 }
                 break;
 
@@ -295,7 +391,7 @@ internal sealed class TrackerView : TrackerControl
                 SetParrotTile(0, "ELEVATOR", parrot.Elevator);
                 SetParrotTile(1, "FLOOR", parrot.Floor);
                 SetParrotTile(2, "ROOM", parrot.Room);
-                _clueBar.Set(parrot.CluesFound, parrot.CluesTotal, parrot.Clues);
+                _clueBar.Set(parrot.CluesFound, parrot.CluesTotal, parrot.Clues, parrot.ClueHint);
                 break;
         }
     }
@@ -366,11 +462,13 @@ internal sealed class TrackerView : TrackerControl
 
         // Command bar: the connections on the left, the flavor on the right
         int barHeight = S(CommandBarHeight), tileTop = S(8), tileHeight = S(46);
+        int statusWidth = S(StatusTileWidth);
         _gameTile.SetBounds(margin, tileTop, S(250), tileHeight);
-        _apTile.SetBounds(_gameTile.Right + gap, tileTop, S(370), tileHeight);
-        _mailTile.SetBounds(width - margin - S(136), tileTop, S(136), tileHeight);
-        _goModeTile.SetBounds(_mailTile.Left - gap - S(136), tileTop, S(136), tileHeight);
-        _inLogicTile.SetBounds(_goModeTile.Left - gap - S(136), tileTop, S(136), tileHeight);
+        _mailTile.SetBounds(width - margin - statusWidth, tileTop, statusWidth, tileHeight);
+        _goModeTile.SetBounds(_mailTile.Left - gap - statusWidth, tileTop, statusWidth, tileHeight);
+        _inLogicTile.SetBounds(_goModeTile.Left - gap - statusWidth, tileTop, statusWidth, tileHeight);
+        _hintsTile.SetBounds(_inLogicTile.Left - gap - statusWidth, tileTop, statusWidth, tileHeight);
+        _apTile.SetBounds(_gameTile.Right + gap, tileTop, _hintsTile.Left - gap - (_gameTile.Right + gap), tileHeight);
 
         int top = barHeight;
         if (_saveSeedBanner.Visible)
@@ -394,9 +492,15 @@ internal sealed class TrackerView : TrackerControl
 
         int recentLeft = logWidth + margin, recentWidth = S(GoalWidth) - margin * 2;
         _hereHeader.SetBounds(recentLeft, bottomTop + S(8), recentWidth, S(17));
-        _here.SetBounds(recentLeft, _hereHeader.Bottom + S(6), recentWidth, S(HerePanelHeight));
+
+        // You Are Here takes what it needs for its hints. Recent gives up its height first, then the panel clips its last rows
+        int hereTop = _hereHeader.Bottom + S(6);
+        int hereHeight = Math.Min(Math.Max(S(HerePanelHeight), _here.NeededHeight), height - S(8) - hereTop);
+        _here.SetBounds(recentLeft, hereTop, recentWidth, Math.Max(0, hereHeight));
         _recentHeader.SetBounds(recentLeft, _here.Bottom + S(8), recentWidth, S(17));
-        _recent.SetBounds(recentLeft, _recentHeader.Bottom + S(6), recentWidth, height - _recentHeader.Bottom - S(14));
+        int recentHeight = height - _recentHeader.Bottom - S(14);
+        _recent.SetBounds(recentLeft, _recentHeader.Bottom + S(6), recentWidth, Math.Max(0, recentHeight));
+        _recentHeader.Visible = _recent.Visible = recentHeight >= S(MinRecentHeight);
 
         Invalidate();
     }
@@ -417,6 +521,9 @@ internal sealed class TrackerView : TrackerControl
                 _roomTiles[deck][room].SetBounds(tilesLeft + room * (tileWidth + gap), y, tileWidth, tileHeight);
             y += tileHeight + gap;
         }
+
+        RoomTile bridge = _roomTiles[0][^1];
+        _roomsLegend.SetBounds(bridge.Right + gap, bridge.Top, areaWidth - margin - bridge.Right - gap, tileHeight);
     }
 
     private void LayoutGoal(int top, int left, int right, int gap)

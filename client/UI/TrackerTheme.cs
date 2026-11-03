@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using Archipelago.MultiClient.Net.Colors;
+using Archipelago.MultiClient.Net.Enums;
 
 namespace StarshipTitanicAp;
 
@@ -21,6 +23,53 @@ internal static class TrackerTheme
     public static readonly Color Error = ColorTranslator.FromHtml("#FF8A80");
     public static readonly Color ErrorFill = ColorTranslator.FromHtml("#2E2021");
 
+    // The standard AP client's colors (Archipelago's data/client.kv). The library's own palette differs from them, its green most of all
+    private static readonly Color ApRed = ColorTranslator.FromHtml("#EE0000");
+    private static readonly Color ApGreen = ColorTranslator.FromHtml("#00FF7F");
+    private static readonly Color ApYellow = ColorTranslator.FromHtml("#FAFAD2");
+    private static readonly Color ApBlue = ColorTranslator.FromHtml("#6495ED");
+    private static readonly Color ApMagenta = ColorTranslator.FromHtml("#EE00EE");
+    private static readonly Color ApCyan = ColorTranslator.FromHtml("#00EEEE");
+    private static readonly Color ApSlateBlue = ColorTranslator.FromHtml("#6D8BE8");
+    private static readonly Color ApPlum = ColorTranslator.FromHtml("#AF99EF");
+    private static readonly Color ApSalmon = ColorTranslator.FromHtml("#FA8072");
+
+    /// <summary>A check with a hint on it that matters.</summary>
+    public static readonly Color HintedDot = ApBlue;
+
+    /// <summary>A check with a hint on it saying it can be ignored.</summary>
+    public static readonly Color AvoidDot = ApSalmon;
+
+    public static readonly Color LocationText = ApGreen;
+    public static readonly Color EntranceText = ApBlue;
+
+    /// <summary>A palette color from an AP message. White or unspecified is plain text, so it stays the normal text color.</summary>
+    public static Color ApColor(PaletteColor? color) => color switch
+    {
+        PaletteColor.Black => Color.Black,
+        PaletteColor.Red => ApRed,
+        PaletteColor.Green => ApGreen,
+        PaletteColor.Yellow => ApYellow,
+        PaletteColor.Blue => ApBlue,
+        PaletteColor.Magenta => ApMagenta,
+        PaletteColor.Cyan => ApCyan,
+        PaletteColor.SlateBlue => ApSlateBlue,
+        PaletteColor.Plum => ApPlum,
+        PaletteColor.Salmon => ApSalmon,
+        _ => Text,
+    };
+
+    public static Color SlotColor(bool isThisSlot) => isThisSlot ? ApMagenta : ApYellow;
+
+    /// <summary>An item's color by its type. A trap flag is read first, as an item can have more than one flag.</summary>
+    public static Color ItemColor(ItemFlags flags) => true switch
+    {
+        _ when flags.HasFlag(ItemFlags.Trap) => ApSalmon,
+        _ when flags.HasFlag(ItemFlags.Advancement) => ApPlum,
+        _ when flags.HasFlag(ItemFlags.NeverExclude) => ApSlateBlue,
+        _ => ApCyan,
+    };
+
     // Ships with Windows 10 and later
     private static readonly string UiFamily = FontFamily.Families.Any(f => f.Name == "Bahnschrift") ? "Bahnschrift" : "Segoe UI";
 
@@ -41,10 +90,27 @@ internal static class TrackerTheme
         button.BackColor = Background;
         button.ForeColor = Text;
         button.Font = TileNameFont;
-        button.FlatAppearance.BorderColor = LineStrong;
+        button.FlatAppearance.BorderColor = Accent;
         button.FlatAppearance.MouseOverBackColor = Surface;
         button.FlatAppearance.MouseDownBackColor = AccentFill;
         button.UseVisualStyleBackColor = false;
+        button.Paint += PaintDisabledButton;
+    }
+
+    /// <summary>Paints over a disabled button, as WinForms ignores its colors and darkens the background for the text, leaving it near black.</summary>
+    private static void PaintDisabledButton(object? sender, PaintEventArgs e)
+    {
+        var button = (Button)sender!;
+        if (button.Enabled)
+            return;
+
+        e.Graphics.Clear(button.BackColor);
+        using var border = new Pen(Line);
+        e.Graphics.DrawRectangle(border, 0, 0, button.Width - 1, button.Height - 1);
+        // Enabled buttons draw their text a little above center. This keeps it level with one alongside
+        var textBounds = new Rectangle(0, -button.Font.Height / 7, button.Width, button.Height);
+        TextRenderer.DrawText(e.Graphics, button.Text, button.Font, textBounds, TextDim,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
     }
 
     public static void StyleTextBox(TextBox textBox)

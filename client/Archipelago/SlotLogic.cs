@@ -22,6 +22,25 @@ public sealed class SlotLogic
         ["1st Class Upgrade"] = "DeskBot - 1st Class Upgrade",
     };
 
+    /// <summary>An item still needed for a check.</summary>
+    /// <param name="Count">How many copies the check needs in total.</param>
+    /// <param name="Display">How to describe it to the player: progressive class and stateroom items as the tier they lead to.</param>
+    /// <param name="Hintable">False for an item locked to a check, whose location is already known.</param>
+    public sealed record MissingItem(string Item, int Count, string Display, bool Hintable);
+
+    /// <summary>Whether an item is locked to a check of its own, so a hint for it would only name that check.</summary>
+    public static bool IsLockedItem(string item) => LockedItemLocations.ContainsKey(item);
+
+    /// <summary>Whether a location is known to hold a particular item, so a hint for its contents would say nothing new.</summary>
+    public static bool HoldsFixedItem(IReadOnlyDictionary<string, object>? slotData, string location)
+    {
+        if (slotData is null || !LockedItemLocations.ContainsValue(location))
+            return false;
+
+        string lockedKey = location == LockedItemLocations["Titania's Auditory Center"] ? "auditory_center_locked" : "class_upgrades_locked";
+        return slotData.TryGetValue(lockedKey, out object? locked) && Convert.ToBoolean(locked);
+    }
+
     /// <summary>What a rule can see: the items collected so far and the regions reached so far.</summary>
     private sealed class State
     {
@@ -85,13 +104,12 @@ public sealed class SlotLogic
 
     /// <summary>Where a set of received items leaves the slot's locations, checked or not.</summary>
     /// <param name="Reachable">The names of the locations reachable with these items.</param>
-    /// <param name="MissingItems">For the rest, what's still needed, described for the player (progressive class and
-    /// stateroom items as the tier they lead to). Events are followed through to the items behind them, as are items
-    /// locked to a check, which are listed along with them. Where a rule has alternatives this is the one needing the
-    /// fewest items. Empty if nothing can open it.</param>
+    /// <param name="MissingItems">For the rest, what's still needed. Events are followed through to the items behind
+    /// them, as are items locked to a check, which are listed along with them. Where a rule has alternatives this is the
+    /// one needing the fewest items. Empty if nothing can open it.</param>
     /// <param name="GoalReachable">Whether these items are enough to complete the slot's goal.</param>
-    /// <param name="GoalMissingItems">What's still needed to complete the goal, described the same way and sorted by name.</param>
-    public sealed record Evaluation(HashSet<string> Reachable, Dictionary<string, string[]> MissingItems, bool GoalReachable, string[] GoalMissingItems);
+    /// <param name="GoalMissingItems">What's still needed to complete the goal, described for the player and sorted by name.</param>
+    public sealed record Evaluation(HashSet<string> Reachable, Dictionary<string, MissingItem[]> MissingItems, bool GoalReachable, string[] GoalMissingItems);
 
     /// <summary>Works out an <see cref="Evaluation"/>. Pass duplicates for items received more than once.</summary>
     public Evaluation Evaluate(IEnumerable<string> receivedItems)
@@ -127,7 +145,7 @@ public sealed class SlotLogic
         }
 
         var reachable = new HashSet<string>(StringComparer.Ordinal);
-        var missingItems = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        var missingItems = new Dictionary<string, MissingItem[]>(StringComparer.Ordinal);
         foreach (Spot location in _locations)
         {
             if (state.Regions.Contains(location.Region) && IsMet(location.Rule, state))
@@ -135,7 +153,7 @@ public sealed class SlotLogic
             else
                 missingItems[location.Name] = DescribeMissing(InRegion(location.Region, location.Rule), state);
         }
-        string[] goalMissing = DescribeMissing(new Rule.Has(_goalEvent, 1), state).Order(StringComparer.Ordinal).ToArray();
+        string[] goalMissing = DescribeMissing(new Rule.Has(_goalEvent, 1), state).Select(item => item.Display).Order(StringComparer.Ordinal).ToArray();
         return new Evaluation(reachable, missingItems, state.Has(_goalEvent, 1), goalMissing);
     }
 
@@ -149,12 +167,12 @@ public sealed class SlotLogic
         _ => false,
     };
 
-    private string[] DescribeMissing(Rule rule, State state)
+    private MissingItem[] DescribeMissing(Rule rule, State state)
     {
         Dictionary<string, int>? missing = FindMissing(rule, state, new HashSet<string>(StringComparer.Ordinal));
         if (missing is null)
-            return Array.Empty<string>();
-        return missing.Select(item => DescribeItem(item.Key, item.Value, state)).ToArray();
+            return Array.Empty<MissingItem>();
+        return missing.Select(item => new MissingItem(item.Key, item.Value, DescribeItem(item.Key, item.Value, state), !IsLockedItem(item.Key))).ToArray();
     }
 
     private static string DescribeItem(string item, int count, State state) => (item, count) switch

@@ -7,6 +7,14 @@ namespace StarshipTitanicAp;
 internal abstract class TrackerControl : Control
 {
     protected const TextFormatFlags SingleLine = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
+    protected const int Inset = 7;
+
+    /// <summary>The player clicked something with hints to request.</summary>
+    public event Action<HintOption[]>? HintClicked;
+
+    /// <summary>The mouse moved onto or off a part of the control that's hinted or hintable: the control, the part
+    /// (null for none) and its bounds in the control. Dots and clues have their own, as they show more.</summary>
+    public event Action<TrackerControl, HintTarget?, Rectangle>? HintHoverChanged;
 
     protected TrackerControl()
     {
@@ -18,6 +26,67 @@ internal abstract class TrackerControl : Control
 
     /// <summary>Scales a design-time pixel size for the monitor the window is on.</summary>
     protected int S(int pixels) => LogicalToDeviceUnits(pixels);
+
+    protected void RaiseHintClicked(HintOption[] options)
+    {
+        if (options.Length > 0)
+            HintClicked?.Invoke(options);
+    }
+
+    protected void RaiseHintHover(HintTarget? target, Rectangle bounds) => HintHoverChanged?.Invoke(this, target, bounds);
+
+    protected void ShowHandCursor(bool show) => Cursor = show ? Cursors.Hand : Cursors.Default;
+
+    /// <summary>Shows the control beside <paramref name="anchor"/> (in the parent's coordinates), inside the parent.</summary>
+    protected void ShowBesideAnchor(Rectangle anchor, int width, int height)
+    {
+        int margin = S(4);
+        Size parent = Parent!.ClientSize;
+        width = Math.Min(width, parent.Width - margin * 2);
+
+        int x = Math.Clamp(anchor.Left - S(Inset), margin, parent.Width - width - margin);
+        int y = anchor.Bottom + margin;
+        if (y + height > parent.Height - margin)
+            y = Math.Max(margin, anchor.Top - margin - height);
+
+        SetBounds(x, y, width, height);
+        Visible = true;
+        Invalidate();
+    }
+
+    private static int SpaceWidth(Font font) =>
+        TextRenderer.MeasureText("a a", font, Size.Empty, SingleLine).Width - TextRenderer.MeasureText("aa", font, Size.Empty, SingleLine).Width;
+
+    /// <summary>A part's width, counting the spaces around its text, which measuring would leave out.</summary>
+    private static int PartWidth(string text, Font font)
+    {
+        string trimmed = text.Trim();
+        int width = trimmed.Length > 0 ? TextRenderer.MeasureText(trimmed, font, Size.Empty, SingleLine).Width : 0;
+        return width + (text.Length - trimmed.Length) * SpaceWidth(font);
+    }
+
+    protected static int MeasureParts((string Text, Color Color)[] parts, Font font) => parts.Sum(part => PartWidth(part.Text, font));
+
+    /// <summary>Draws differently colored pieces in a row, cutting off what doesn't fit with an ellipsis.</summary>
+    /// <param name="maxFirstPartWidth">Keeps a long first part from pushing the others out of sight.</param>
+    protected static void DrawParts(Graphics g, (string Text, Color Color)[] parts, Font font, Rectangle bounds, int maxFirstPartWidth = int.MaxValue)
+    {
+        int x = bounds.Left;
+        for (int i = 0; i < parts.Length && x < bounds.Right; i++)
+        {
+            (string text, Color color) = parts[i];
+            int width = Math.Min(PartWidth(text, font), bounds.Right - x);
+            if (i == 0)
+                width = Math.Min(width, maxFirstPartWidth);
+
+            string trimmed = text.TrimStart();
+            int leading = (text.Length - trimmed.Length) * SpaceWidth(font);
+            trimmed = trimmed.TrimEnd();
+            if (trimmed.Length > 0)
+                TextRenderer.DrawText(g, trimmed, font, new Rectangle(x + leading, bounds.Top, width - leading, bounds.Height), color, SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            x += width;
+        }
+    }
 
     protected void FillTile(Graphics g, Color fill, Color border)
     {
@@ -49,17 +118,55 @@ internal abstract class TrackerControl : Control
 /// <summary>Where a check stands, in the order a room tile's dots show them.</summary>
 internal enum CheckStatus { Checked, InLogic, Locked }
 
-/// <summary>One of a room's checks.</summary>
-/// <param name="Requires">What's still missing for a locked check, where that's known. Compared by reference, so reuse
-/// the same array while it hasn't changed.</param>
-internal readonly record struct CheckPip(string Name, CheckStatus Status, string[] Requires);
+/// <summary>Something a click can ask the server for.</summary>
+/// <param name="Label">How to name it to the player.</param>
+/// <param name="Target">The item or location name to send.</param>
+/// <param name="IsLocation">Whether it's a location's contents, rather than an item.</param>
+/// <param name="Required">For an item, how many copies are needed in total.</param>
+/// <param name="Copies">How many requests it would take to reveal everything needed.</param>
+internal readonly record struct HintOption(string Label, string Target, bool IsLocation, int Required, int Copies);
+
+/// <summary>Something that isn't a check but can have hints: an Access Card, a Titania part or the clues.</summary>
+/// <param name="Hints">Where its unfound hints say it is, one line each.</param>
+/// <param name="Options">What's left to request. Compared by reference, as is <paramref name="Hints"/>, so reuse the
+/// same instance while it hasn't changed.</param>
+internal sealed record HintTarget(string Title, (string Text, Color Color)[][] Hints, HintOption[] Options);
+
+/// <summary>An item a locked check is missing, and where its unfound hints say it is.</summary>
+internal readonly record struct RequirementLine(string Text, (string Text, Color Color)[][] Hints);
+
+/// <summary>A hint on a check itself.</summary>
+/// <param name="Caption">What the hover calls it, like "HINTED: PRIORITY".</param>
+/// <param name="DotColor">What color the hint turns the check's dot, if any.</param>
+/// <param name="Parts">The item it's for, as "Slot - Item".</param>
+internal sealed record CheckHint(string Caption, Color? DotColor, (string Text, Color Color)[] Parts);
+
+/// <summary>One of a room's checks. The arrays are compared by reference, so reuse the same ones while they haven't changed.</summary>
+/// <param name="Name">What to call it, which can leave out its room.</param>
+/// <param name="Location">Its full location name.</param>
+/// <param name="Requires">What's still missing for a locked check, where that's known.</param>
+/// <param name="HintOptions">What's left to request by clicking it.</param>
+/// <param name="Hint">The hint on the check itself. Null once it's checked.</param>
+internal readonly record struct CheckPip(string Name, string Location, CheckStatus Status, RequirementLine[] Requires, HintOption[] HintOptions, CheckHint? Hint)
+{
+    public Color DotColor => Status switch
+    {
+        CheckStatus.Checked => TrackerTheme.PipLocked,
+        _ when Hint?.DotColor is { } hinted => hinted,
+        CheckStatus.Locked => TrackerTheme.PipLocked,
+        _ => TrackerTheme.Accent,
+    };
+
+    public bool DotFilled => Status != CheckStatus.Locked;
+}
 
 /// <summary>What a room tile shows. Without <paramref name="Checks"/> it's just a name and tag.</summary>
 /// <param name="Checks">The room's checks, in the order to draw them.</param>
 /// <param name="IsLocked">Whether something's missing to enter the room, which dims the tile.</param>
 /// <param name="IsHere">Whether the player's in this room, which highlights the tile and adds a map pin.</param>
 /// <param name="NeedsCard">Whether the room's Access Card is still missing, which adds a lock unless there's a map pin.</param>
-internal readonly record struct RoomTileState(string Name, CheckPip[] Checks, string Tag, bool IsLocked, bool IsHere, bool NeedsCard);
+/// <param name="CardHint">The Access Card's hints, for the bottom of the tile, if it has any or can have any.</param>
+internal readonly record struct RoomTileState(string Name, CheckPip[] Checks, string Tag, bool IsLocked, bool IsHere, bool NeedsCard, HintTarget? CardHint);
 
 /// <summary>One room: its name, a dot per check, and a line on where it stands.</summary>
 internal sealed class RoomTile : TrackerControl
@@ -67,9 +174,11 @@ internal sealed class RoomTile : TrackerControl
     private const int CornerIconSize = 12;
     private const int CornerIconInset = 5;
 
-    private RoomTileState _state = new("", Array.Empty<CheckPip>(), "", false, false, false);
+    private RoomTileState _state = new("", Array.Empty<CheckPip>(), "", false, false, false, null);
     private int _hoveredIndex = -1;
     private CheckPip? _hoveredPip;
+    private HintTarget? _hoveredCard;
+    private bool _mouseInside;
 
     /// <summary>The dot under the mouse changed: the tile, its check (null for none) and its bounds in the tile.</summary>
     public event Action<RoomTile, CheckPip?, Rectangle>? PipHoverChanged;
@@ -83,7 +192,7 @@ internal sealed class RoomTile : TrackerControl
                 return;
             _state = value;
             Invalidate();
-            if (_hoveredIndex >= 0)
+            if (_mouseInside)
                 UpdateHover(PointToClient(Cursor.Position));
         }
     }
@@ -91,25 +200,54 @@ internal sealed class RoomTile : TrackerControl
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        _mouseInside = true;
         UpdateHover(e.Location);
     }
 
     protected override void OnMouseLeave(EventArgs e)
     {
         base.OnMouseLeave(e);
+        _mouseInside = false;
         UpdateHover(new Point(-1, -1));
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        if (e.Button != MouseButtons.Left)
+            return;
+
+        int index = PipAt(e.Location);
+        if (index >= 0)
+            RaiseHintClicked(_state.Checks[index].HintOptions);
+        else if (CardAt(e.Location) is { } card)
+            RaiseHintClicked(card.Options);
     }
 
     private void UpdateHover(Point mouse)
     {
         int index = PipAt(mouse);
         CheckPip? pip = index >= 0 ? _state.Checks[index] : null;
-        if (index == _hoveredIndex && pip == _hoveredPip)
-            return;
-        _hoveredIndex = index;
-        _hoveredPip = pip;
-        PipHoverChanged?.Invoke(this, pip, index >= 0 ? PipBounds(index) : Rectangle.Empty);
+        HintTarget? card = index >= 0 ? null : CardAt(mouse);
+        ShowHandCursor((pip?.HintOptions.Length ?? card?.Options.Length ?? 0) > 0);
+
+        if (index != _hoveredIndex || pip != _hoveredPip)
+        {
+            _hoveredIndex = index;
+            _hoveredPip = pip;
+            PipHoverChanged?.Invoke(this, pip, index >= 0 ? PipBounds(index) : Rectangle.Empty);
+        }
+        if (card != _hoveredCard)
+        {
+            _hoveredCard = card;
+            RaiseHintHover(card, BottomBounds);
+        }
     }
+
+    /// <summary>The bottom of the tile, where its tag and corner icon are.</summary>
+    private Rectangle BottomBounds => new(0, Height - S(19), Width, S(19));
+
+    private HintTarget? CardAt(Point point) => BottomBounds.Contains(point) ? _state.CardHint : null;
 
     /// <summary>The check at a point, counting the gaps around a dot as part of it, since the dots are small.</summary>
     private int PipAt(Point point)
@@ -124,7 +262,7 @@ internal sealed class RoomTile : TrackerControl
 
     private Rectangle PipBounds(int index)
     {
-        int left = S(6), pip = S(8), pitch = pip + S(3);
+        int left = S(6), pip = S(12), pitch = pip + S(3);
         int perRow = Math.Max(1, (Width - S(2) - left + S(3)) / pitch);
         return new Rectangle(left + index % perRow * pitch, S(22) + index / perRow * pitch, pip, pip);
     }
@@ -151,8 +289,7 @@ internal sealed class RoomTile : TrackerControl
         for (int i = 0; i < _state.Checks.Length; i++)
         {
             Rectangle pip = PipBounds(i);
-            CheckStatus status = _state.Checks[i].Status;
-            DrawPip(e.Graphics, pip.X, pip.Y, pip.Width, status == CheckStatus.Locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, status == CheckStatus.InLogic);
+            DrawPip(e.Graphics, pip.X, pip.Y, pip.Width, _state.Checks[i].DotColor, _state.Checks[i].DotFilled);
         }
 
         // A tag stops short of the corner icon
@@ -222,8 +359,8 @@ internal sealed class RoomTile : TrackerControl
 /// tooltip, so it can match the window and appear at once.</summary>
 internal abstract class HoverPopup : TrackerControl
 {
-    protected const int Inset = 7;
     protected const int CaptionGap = 6;
+    protected const string ClickToHint = "Click to hint";
     private const int WmNcHitTest = 0x84;
     private static readonly IntPtr HtTransparent = new(-1);
 
@@ -233,22 +370,8 @@ internal abstract class HoverPopup : TrackerControl
     }
 
     /// <summary>Shows the popup beside <paramref name="anchor"/> (in the parent's coordinates), inside the parent, sized to its content.</summary>
-    protected void ShowBeside(Rectangle anchor, int contentWidth, int contentHeight)
-    {
-        int margin = S(4);
-        Size parent = Parent!.ClientSize;
-        int width = Math.Min(contentWidth + S(Inset) * 2, parent.Width - margin * 2);
-        int height = contentHeight + S(Inset) * 2;
-
-        int x = Math.Clamp(anchor.Left - S(Inset), margin, parent.Width - width - margin);
-        int y = anchor.Bottom + margin;
-        if (y + height > parent.Height - margin)
-            y = Math.Max(margin, anchor.Top - margin - height);
-
-        SetBounds(x, y, width, height);
-        Visible = true;
-        Invalidate();
-    }
+    protected void ShowBeside(Rectangle anchor, int contentWidth, int contentHeight) =>
+        ShowBesideAnchor(anchor, contentWidth + S(Inset) * 2, contentHeight + S(Inset) * 2);
 
     protected static Size Measure(string text, Font font) => TextRenderer.MeasureText(text, font, Size.Empty, SingleLine);
 
@@ -268,17 +391,83 @@ internal abstract class HoverPopup : TrackerControl
         TextRenderer.DrawText(g, text, font, new Rectangle(x, y, Width - x * 2, height), color, SingleLine | TextFormatFlags.EndEllipsis);
         return y + height;
     }
+
+    /// <summary>Draws a line of colored pieces and returns where the next one goes.</summary>
+    protected int DrawPartsLine(Graphics g, (string Text, Color Color)[] parts, Font font, int x, int y)
+    {
+        int height = Measure("Ag", font).Height;
+        DrawParts(g, parts, font, new Rectangle(x, y, Width - S(Inset) - x, height));
+        return y + height;
+    }
+
+    /// <summary>The size of a list of hints, followed by the line saying more can be requested if there's anything to request.</summary>
+    protected Size MeasureHints((string Text, Color Color)[][] hints, HintOption[] options, int gap)
+    {
+        int width = 0, height = 0;
+        foreach ((string Text, Color Color)[] hint in hints)
+        {
+            width = Math.Max(width, MeasureParts(hint, TrackerTheme.TileNameFont));
+            height += Measure("Ag", TrackerTheme.TileNameFont).Height;
+        }
+        if (options.Length > 0)
+        {
+            Size line = Measure(ClickToHint, TrackerTheme.CaptionFont);
+            width = Math.Max(width, line.Width);
+            height += gap + line.Height;
+        }
+        return new Size(width, height);
+    }
+
+    /// <summary>Draws what <see cref="MeasureHints"/> measured.</summary>
+    protected void DrawHints(Graphics g, (string Text, Color Color)[][] hints, HintOption[] options, int gap, int x, int y)
+    {
+        foreach ((string Text, Color Color)[] hint in hints)
+            y = DrawPartsLine(g, hint, TrackerTheme.TileNameFont, x, y);
+        if (options.Length > 0)
+            DrawLine(g, ClickToHint, TrackerTheme.CaptionFont, TrackerTheme.Accent, x, y + gap);
+    }
 }
 
-/// <summary>Names the check under the mouse and where it stands or, if it's locked, what it still requires.</summary>
+/// <summary>Names an Access Card, Titania part or the clues, with where they're hinted to be and whether more can be requested.</summary>
+internal sealed class HintPopup : HoverPopup
+{
+    private HintTarget _target = new("", Array.Empty<(string Text, Color Color)[]>(), Array.Empty<HintOption>());
+
+    /// <summary>Shows a target beside <paramref name="anchor"/> (in the parent's coordinates), inside the parent.</summary>
+    public void ShowFor(HintTarget target, Rectangle anchor)
+    {
+        _target = target;
+        Size title = Measure(target.Title, TrackerTheme.TileNameFont);
+        Size hints = MeasureHints(target.Hints, target.Options, S(CaptionGap));
+        ShowBeside(anchor, Math.Max(title.Width, hints.Width), title.Height + hints.Height);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        FillTile(e.Graphics, TrackerTheme.Surface, _target.Options.Length > 0 ? TrackerTheme.Accent : TrackerTheme.PipLocked);
+
+        int x = S(Inset), y = S(Inset);
+        y = DrawLine(e.Graphics, _target.Title, TrackerTheme.TileNameFont, TrackerTheme.Text, x, y);
+        DrawHints(e.Graphics, _target.Hints, _target.Options, S(CaptionGap), x, y);
+    }
+}
+
+/// <summary>Names the check under the mouse and where it stands, any hint on it and, if it's locked, what it still
+/// requires and where any of that is hinted to be.</summary>
 internal sealed class CheckPopup : HoverPopup
 {
-    private const int MaxItemsPerColumn = 20; // short enough to fit above or below anything at the minimum window size
+    private const int MaxLinesPerColumn = 20; // short enough to fit above or below anything at the minimum window size
     private const int ColumnGap = 14;
+    private const int HintIndent = 10;
+    private const string RequiresCaption = "REQUIRES";
 
+    private readonly record struct Cell(int Column, int Row, (string Text, Color Color)[] Parts, int Indent);
+
+    private readonly List<Cell> _cells = new();
     private CheckPip _check;
     private int _columnWidth;
-    private int _itemHeight;
+    private int _lineHeight;
+    private int _rows;
 
     /// <summary>Shows a check beside <paramref name="anchor"/> (in the parent's coordinates), inside the parent.</summary>
     public void ShowFor(CheckPip check, Rectangle anchor)
@@ -287,66 +476,121 @@ internal sealed class CheckPopup : HoverPopup
 
         Size nameSize = Measure(check.Name, TrackerTheme.TileNameFont);
         int width = nameSize.Width, height = nameSize.Height;
-        if (Caption(check) is { } caption)
+        void AddLine(int lineWidth, int lineHeight, int gap)
         {
-            Size captionSize = Measure(caption, TrackerTheme.CaptionFont);
-            width = Math.Max(width, captionSize.Width);
-            height += S(CaptionGap) + captionSize.Height;
+            width = Math.Max(width, lineWidth);
+            height += gap + lineHeight;
+        }
 
-            _columnWidth = 0;
-            foreach (string item in check.Requires)
-            {
-                Size size = Measure(item, TrackerTheme.TileNameFont);
-                _columnWidth = Math.Max(_columnWidth, size.Width);
-                _itemHeight = size.Height;
-            }
-            int columns = (check.Requires.Length + MaxItemsPerColumn - 1) / MaxItemsPerColumn;
-            if (columns > 0)
-                width = Math.Max(width, columns * _columnWidth + (columns - 1) * S(ColumnGap));
-            height += Math.Min(check.Requires.Length, MaxItemsPerColumn) * _itemHeight;
+        if (StatusCaption(check) is { } status)
+        {
+            Size size = Measure(status, TrackerTheme.CaptionFont);
+            AddLine(size.Width, size.Height, S(CaptionGap));
+        }
+        if (check.Hint is { } hint)
+        {
+            Size caption = Measure(hint.Caption, TrackerTheme.CaptionFont);
+            AddLine(caption.Width, caption.Height, S(CaptionGap));
+            AddLine(MeasureParts(hint.Parts, TrackerTheme.TileNameFont), Measure("Ag", TrackerTheme.TileNameFont).Height, 0);
+        }
+        if (check.Requires.Length > 0)
+        {
+            Size caption = Measure(RequiresCaption, TrackerTheme.CaptionFont);
+            AddLine(caption.Width, caption.Height, S(CaptionGap));
+            int columns = LayOutRequires(check.Requires);
+            AddLine(columns * _columnWidth + (columns - 1) * S(ColumnGap), _rows * _lineHeight, 0);
+        }
+        if (check.HintOptions.Length > 0)
+        {
+            Size line = Measure(ClickToHint, TrackerTheme.CaptionFont);
+            AddLine(line.Width, line.Height, S(CaptionGap));
         }
         ShowBeside(anchor, width, height);
     }
 
-    /// <summary>The line under the name. A locked check without known requirements has none.</summary>
-    private static string? Caption(CheckPip check) => check.Status switch
+    /// <summary>Flows the requirements down columns, keeping each with its hints. Returns how many columns that takes.</summary>
+    private int LayOutRequires(RequirementLine[] requires)
+    {
+        _cells.Clear();
+        _columnWidth = 0;
+        _rows = 0;
+        _lineHeight = Measure("Ag", TrackerTheme.TileNameFont).Height;
+
+        int column = 0, row = 0;
+        void AddCell((string Text, Color Color)[] parts, int indent)
+        {
+            _cells.Add(new Cell(column, row, parts, indent));
+            _columnWidth = Math.Max(_columnWidth, indent + MeasureParts(parts, TrackerTheme.TileNameFont));
+            row++;
+            _rows = Math.Max(_rows, row);
+        }
+
+        foreach (RequirementLine requirement in requires)
+        {
+            if (row > 0 && row + 1 + requirement.Hints.Length > MaxLinesPerColumn)
+            {
+                column++;
+                row = 0;
+            }
+            AddCell(new[] { (requirement.Text, TrackerTheme.Text) }, 0);
+            foreach ((string Text, Color Color)[] hint in requirement.Hints)
+                AddCell(hint, S(HintIndent));
+        }
+        return column + 1;
+    }
+
+    private static string? StatusCaption(CheckPip check) => check.Status switch
     {
         CheckStatus.Checked => "COMPLETED",
         CheckStatus.InLogic => "IN LOGIC",
-        _ => check.Requires.Length > 0 ? "REQUIRES" : null,
+        _ => null,
     };
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        FillTile(e.Graphics, TrackerTheme.Surface, _check.Status == CheckStatus.Locked ? TrackerTheme.PipLocked : TrackerTheme.Accent);
+        Graphics g = e.Graphics;
+        FillTile(g, TrackerTheme.Surface, _check.DotColor);
 
-        int x = S(Inset), y = S(Inset);
-        y = DrawLine(e.Graphics, _check.Name, TrackerTheme.TileNameFont, TrackerTheme.Text, x, y);
-        if (Caption(_check) is not { } caption)
-            return;
-
-        y = DrawLine(e.Graphics, caption, TrackerTheme.CaptionFont, TrackerTheme.TextMuted, x, y + S(CaptionGap));
-        for (int i = 0; i < _check.Requires.Length; i++)
+        int x = S(Inset), y = S(Inset), gap = S(CaptionGap);
+        y = DrawLine(g, _check.Name, TrackerTheme.TileNameFont, TrackerTheme.Text, x, y);
+        if (StatusCaption(_check) is { } status)
+            y = DrawLine(g, status, TrackerTheme.CaptionFont, TrackerTheme.TextMuted, x, y + gap);
+        if (_check.Hint is { } hint)
         {
-            var bounds = new Rectangle(x + i / MaxItemsPerColumn * (_columnWidth + S(ColumnGap)), y + i % MaxItemsPerColumn * _itemHeight, _columnWidth, _itemHeight);
-            TextRenderer.DrawText(e.Graphics, _check.Requires[i], TrackerTheme.TileNameFont, bounds, TrackerTheme.Text, SingleLine | TextFormatFlags.EndEllipsis);
+            y = DrawLine(g, hint.Caption, TrackerTheme.CaptionFont, hint.DotColor ?? TrackerTheme.TextMuted, x, y + gap);
+            y = DrawPartsLine(g, hint.Parts, TrackerTheme.TileNameFont, x, y);
         }
+        if (_check.Requires.Length > 0)
+        {
+            y = DrawLine(g, RequiresCaption, TrackerTheme.CaptionFont, TrackerTheme.TextMuted, x, y + gap);
+            foreach (Cell cell in _cells)
+            {
+                int left = x + cell.Column * (_columnWidth + S(ColumnGap));
+                DrawParts(g, cell.Parts, TrackerTheme.TileNameFont, new Rectangle(left + cell.Indent, y + cell.Row * _lineHeight, _columnWidth - cell.Indent, _lineHeight));
+            }
+            y += _rows * _lineHeight;
+        }
+        if (_check.HintOptions.Length > 0)
+            DrawLine(g, ClickToHint, TrackerTheme.CaptionFont, TrackerTheme.Accent, x, y + gap);
     }
 }
 
-/// <summary>Shows what the clue under the mouse said and whether it turned up anything.</summary>
+/// <summary>Shows what the clue under the mouse said and whether it turned up anything, then where the clues still to
+/// come are hinted to be and whether more can be requested.</summary>
 internal sealed class CluePopup : HoverPopup
 {
     private const int MaxTextWidth = 300;
     private const TextFormatFlags Wrapped = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak;
 
     private ClueEntry _clue;
+    private HintTarget? _hint;
     private Size _textSize;
 
     /// <summary>Shows a clue beside <paramref name="anchor"/> (in the parent's coordinates), inside the parent.</summary>
-    public void ShowFor(ClueEntry clue, Rectangle anchor)
+    public void ShowFor(ClueEntry clue, HintTarget? hint, Rectangle anchor)
     {
         _clue = clue;
+        _hint = hint;
 
         int maxWidth = Math.Min(S(MaxTextWidth), Parent!.ClientSize.Width - S(4 + Inset) * 2);
         _textSize = TextRenderer.MeasureText(clue.Text, TrackerTheme.TileNameFont, new Size(maxWidth, int.MaxValue), Wrapped);
@@ -360,6 +604,12 @@ internal sealed class CluePopup : HoverPopup
             Size discoverySize = Measure(discovery, TrackerTheme.TileNameFont);
             width = Math.Max(width, discoverySize.Width);
             height += discoverySize.Height;
+        }
+        if (hint is not null)
+        {
+            Size hints = MeasureHints(hint.Hints, hint.Options, S(CaptionGap));
+            width = Math.Max(width, hints.Width);
+            height += S(CaptionGap) + hints.Height;
         }
         ShowBeside(anchor, width, height);
     }
@@ -379,7 +629,9 @@ internal sealed class CluePopup : HoverPopup
 
         y = DrawLine(e.Graphics, Caption, TrackerTheme.CaptionFont, TrackerTheme.TextMuted, x, y);
         if (_clue.Discovery is { } discovery)
-            DrawLine(e.Graphics, discovery, TrackerTheme.TileNameFont, TrackerTheme.Accent, x, y);
+            y = DrawLine(e.Graphics, discovery, TrackerTheme.TileNameFont, TrackerTheme.Accent, x, y);
+        if (_hint is not null)
+            DrawHints(e.Graphics, _hint.Hints, _hint.Options, S(CaptionGap), x, y + S(CaptionGap));
     }
 }
 
@@ -405,6 +657,8 @@ internal sealed class GoalTile : TrackerControl
     private string _value = "";
     private GoalTileStyle _style;
     private Font _valueFont = TrackerTheme.MarkFont;
+    private HintTarget? _hint;
+    private bool _hovered;
 
     public void Set(string label, string value, GoalTileStyle style, Font valueFont)
     {
@@ -415,6 +669,43 @@ internal sealed class GoalTile : TrackerControl
         _style = style;
         _valueFont = valueFont;
         Invalidate();
+    }
+
+    /// <summary>The tile's item, if it has hints or can have them.</summary>
+    public void SetHint(HintTarget? hint)
+    {
+        if (hint == _hint)
+            return;
+        _hint = hint;
+        if (_hovered)
+            UpdateHover();
+    }
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        base.OnMouseEnter(e);
+        _hovered = true;
+        UpdateHover();
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        _hovered = false;
+        UpdateHover();
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        if (e.Button == MouseButtons.Left && _hint is not null)
+            RaiseHintClicked(_hint.Options);
+    }
+
+    private void UpdateHover()
+    {
+        ShowHandCursor(_hovered && _hint?.Options.Length > 0);
+        RaiseHintHover(_hovered ? _hint : null, ClientRectangle);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -576,13 +867,26 @@ internal sealed class ConnectionTile : TrackerControl
 /// <summary>A section's title, with an optional legend on the right.</summary>
 internal sealed class SectionHeader : TrackerControl
 {
-    private readonly string _title;
+    private string _title;
+    private const int FirstLineHeight = 17;
+
     private (string Text, Color? Pip, bool PipFilled)[] _legend;
+
+    /// <summary>More lines of legend under the first, sharing the height below it, for a header tall enough to hold them.</summary>
+    public (string Text, Color? Pip, bool PipFilled)[][] ExtraLegendLines { get; init; } = Array.Empty<(string, Color?, bool)[]>();
 
     public SectionHeader(string title, params (string Text, Color? Pip, bool PipFilled)[] legend)
     {
         _title = title;
         _legend = legend;
+    }
+
+    public void SetTitle(string title)
+    {
+        if (title == _title)
+            return;
+        _title = title;
+        Invalidate();
     }
 
     public void SetLegend((string Text, Color? Pip, bool PipFilled)[] legend)
@@ -595,20 +899,31 @@ internal sealed class SectionHeader : TrackerControl
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        TextRenderer.DrawText(e.Graphics, _title, TrackerTheme.CaptionFont, ClientRectangle, TrackerTheme.TextMuted, SingleLine | TextFormatFlags.VerticalCenter);
+        int firstLine = ExtraLegendLines.Length > 0 ? S(FirstLineHeight) : Height;
+        TextRenderer.DrawText(e.Graphics, _title, TrackerTheme.CaptionFont, new Rectangle(0, 0, Width, firstLine), TrackerTheme.TextMuted, SingleLine | TextFormatFlags.VerticalCenter);
 
+        DrawLegend(e.Graphics, _legend, 0, firstLine);
+        for (int line = 0; line < ExtraLegendLines.Length; line++)
+        {
+            int lineHeight = (Height - firstLine) / ExtraLegendLines.Length;
+            DrawLegend(e.Graphics, ExtraLegendLines[line], firstLine + line * lineHeight, lineHeight);
+        }
+    }
+
+    private void DrawLegend(Graphics g, (string Text, Color? Pip, bool PipFilled)[] legend, int top, int height)
+    {
         int x = Width;
         int pip = S(8);
-        for (int i = _legend.Length - 1; i >= 0; i--)
+        for (int i = legend.Length - 1; i >= 0; i--)
         {
-            (string text, Color? pipColor, bool filled) = _legend[i];
-            int textWidth = TextRenderer.MeasureText(e.Graphics, text, TrackerTheme.CaptionFont, Size.Empty, SingleLine).Width;
+            (string text, Color? pipColor, bool filled) = legend[i];
+            int textWidth = TextRenderer.MeasureText(g, text, TrackerTheme.CaptionFont, Size.Empty, SingleLine).Width;
             x -= textWidth;
-            TextRenderer.DrawText(e.Graphics, text, TrackerTheme.CaptionFont, new Rectangle(x, 0, textWidth, Height), TrackerTheme.TextMuted, SingleLine | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(g, text, TrackerTheme.CaptionFont, new Rectangle(x, top, textWidth, height), TrackerTheme.TextMuted, SingleLine | TextFormatFlags.VerticalCenter);
             if (pipColor is { } color)
             {
                 x -= pip + S(4);
-                DrawPip(e.Graphics, x, (Height - pip) / 2, pip, color, filled);
+                DrawPip(g, x, top + (height - pip) / 2, pip, color, filled);
             }
             x -= S(14);
         }
@@ -628,33 +943,49 @@ internal sealed class ClueBar : TrackerControl
     private ClueEntry[] _clues = Array.Empty<ClueEntry>();
     private int _hoveredIndex = -1;
     private ClueEntry? _hoveredClue;
+    private HintTarget? _hoveredBarHint;
+    private HintTarget? _shownClueHint;
+    private bool _mouseInside;
 
     /// <summary>The found clue under the mouse changed: its entry (null for none) and its dot's bounds in the bar.</summary>
     public event Action<ClueEntry?, Rectangle>? ClueHoverChanged;
 
+    /// <summary>The hints for the clues still to come, if there are any or there can be.</summary>
+    public HintTarget? Hint { get; private set; }
+
     /// <param name="clues">The found clues in order, where they're known.</param>
-    public void Set(int found, int total, ClueEntry[] clues)
+    public void Set(int found, int total, ClueEntry[] clues, HintTarget? hint)
     {
-        if (found == _found && total == _total && clues.SequenceEqual(_clues))
+        if (found == _found && total == _total && hint == Hint && clues.SequenceEqual(_clues))
             return;
         _found = found;
         _total = total;
         _clues = clues;
+        Hint = hint;
         Invalidate();
-        if (_hoveredIndex >= 0)
+        if (_mouseInside)
             UpdateHover(PointToClient(Cursor.Position));
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        _mouseInside = true;
         UpdateHover(e.Location);
     }
 
     protected override void OnMouseLeave(EventArgs e)
     {
         base.OnMouseLeave(e);
+        _mouseInside = false;
         UpdateHover(new Point(-1, -1));
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        if (e.Button == MouseButtons.Left && Hint is not null)
+            RaiseHintClicked(Hint.Options);
     }
 
     protected override void OnVisibleChanged(EventArgs e)
@@ -668,11 +999,22 @@ internal sealed class ClueBar : TrackerControl
     {
         int index = DotAt(mouse);
         ClueEntry? clue = index >= 0 && index < _clues.Length ? _clues[index] : null;
-        if (index == _hoveredIndex && clue == _hoveredClue)
-            return;
-        _hoveredIndex = index;
-        _hoveredClue = clue;
-        ClueHoverChanged?.Invoke(clue, index >= 0 ? DotBounds(index) : Rectangle.Empty);
+        bool inside = ClientRectangle.Contains(mouse);
+        HintTarget? barHint = inside && clue is null ? Hint : null;
+        ShowHandCursor(inside && Hint?.Options.Length > 0);
+
+        if (index != _hoveredIndex || clue != _hoveredClue || (clue is not null && Hint != _shownClueHint))
+        {
+            _hoveredIndex = index;
+            _hoveredClue = clue;
+            _shownClueHint = Hint;
+            ClueHoverChanged?.Invoke(clue, index >= 0 ? DotBounds(index) : Rectangle.Empty);
+        }
+        if (barHint != _hoveredBarHint)
+        {
+            _hoveredBarHint = barHint;
+            RaiseHintHover(barHint, ClientRectangle);
+        }
     }
 
     /// <summary>The dot at a point, counting the gaps around a dot as part of it.</summary>
@@ -716,11 +1058,27 @@ internal readonly record struct HereState(string RoomName, CheckPip[] Checks, st
 internal sealed class HerePanel : TrackerControl
 {
     private HereState _state = new("", Array.Empty<CheckPip>(), "");
+    private const int RoomNameHeight = 28;
+    private const int CheckLineHeight = 18;
+    private const int HintLineHeight = 14;
+    private const int BottomPadding = 6;
+
     private int _hoveredIndex = -1;
     private CheckPip? _hoveredCheck;
+    private bool _mouseInside;
 
-    /// <summary>The locked check under the mouse changed: the panel, its check (null for none) and its line's bounds in the panel.</summary>
+    /// <summary>The check under the mouse changed: the panel, its check (null for none) and its line's bounds in the panel.</summary>
     public event Action<HerePanel, CheckPip?, Rectangle>? CheckHoverChanged;
+
+    /// <summary>The height that shows every check and its hint.</summary>
+    public int NeededHeight
+    {
+        get
+        {
+            int rows = (_state.Checks.Length + 1) / 2;
+            return S(RoomNameHeight + BottomPadding) + Enumerable.Range(0, rows).Sum(RowHeight);
+        }
+    }
 
     public HereState State
     {
@@ -730,7 +1088,7 @@ internal sealed class HerePanel : TrackerControl
                 return;
             _state = value;
             Invalidate();
-            if (_hoveredIndex >= 0)
+            if (_mouseInside)
                 UpdateHover(PointToClient(Cursor.Position));
         }
     }
@@ -738,19 +1096,30 @@ internal sealed class HerePanel : TrackerControl
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        _mouseInside = true;
         UpdateHover(e.Location);
     }
 
     protected override void OnMouseLeave(EventArgs e)
     {
         base.OnMouseLeave(e);
+        _mouseInside = false;
         UpdateHover(new Point(-1, -1));
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        int index = CheckAt(e.Location);
+        if (e.Button == MouseButtons.Left && index >= 0)
+            RaiseHintClicked(_state.Checks[index].HintOptions);
     }
 
     private void UpdateHover(Point mouse)
     {
-        int index = LockedCheckAt(mouse);
+        int index = CheckAt(mouse);
         CheckPip? check = index >= 0 ? _state.Checks[index] : null;
+        ShowHandCursor(check?.HintOptions.Length > 0);
         if (index == _hoveredIndex && check == _hoveredCheck)
             return;
         _hoveredIndex = index;
@@ -758,22 +1127,33 @@ internal sealed class HerePanel : TrackerControl
         CheckHoverChanged?.Invoke(this, check, index >= 0 ? LineBounds(index) : Rectangle.Empty);
     }
 
-    /// <summary>The check at a point, among those with known needs to show.</summary>
-    private int LockedCheckAt(Point point)
+    private int CheckAt(Point point)
     {
         for (int i = 0; i < _state.Checks.Length; i++)
         {
-            CheckPip check = _state.Checks[i];
-            if (check.Status == CheckStatus.Locked && check.Requires.Length > 0 && LineBounds(i).Contains(point))
+            if (LineBounds(i).Contains(point))
                 return i;
         }
         return -1;
     }
 
+    /// <summary>A row is as tall as its tallest check, so the two columns stay lined up.</summary>
+    private int RowHeight(int row)
+    {
+        CheckPip[] checks = _state.Checks;
+        bool hasHint = checks[row * 2].Hint is not null || (row * 2 + 1 < checks.Length && checks[row * 2 + 1].Hint is not null);
+        return S(hasHint ? CheckLineHeight + HintLineHeight : CheckLineHeight);
+    }
+
+    /// <summary>A check's line and the hint under it. With no checks, where the panel's message goes.</summary>
     private Rectangle LineBounds(int index)
     {
-        int left = S(8), columnWidth = (Width - left * 2) / 2, rowHeight = S(18);
-        return new Rectangle(left + index % 2 * columnWidth, S(28) + index / 2 * rowHeight, columnWidth, rowHeight);
+        int left = S(8), columnWidth = (Width - left * 2) / 2;
+        int top = S(RoomNameHeight);
+        for (int row = 0; row < index / 2; row++)
+            top += RowHeight(row);
+        int height = _state.Checks.Length > 0 ? RowHeight(index / 2) : S(CheckLineHeight);
+        return new Rectangle(left + index % 2 * columnWidth, top, columnWidth, height);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -795,11 +1175,15 @@ internal sealed class HerePanel : TrackerControl
 
         for (int i = 0; i < _state.Checks.Length; i++)
         {
+            CheckPip check = _state.Checks[i];
             Rectangle line = LineBounds(i);
-            bool locked = _state.Checks[i].Status == CheckStatus.Locked;
-            DrawPip(e.Graphics, line.X, line.Y + (line.Height - pip) / 2, pip, locked ? TrackerTheme.PipLocked : TrackerTheme.Accent, filled: !locked);
-            TextRenderer.DrawText(e.Graphics, _state.Checks[i].Name, TrackerTheme.TileNameFont, new Rectangle(line.X + textOffset, line.Y, line.Width - textOffset - S(4), line.Height),
+            int nameHeight = S(CheckLineHeight), textWidth = line.Width - textOffset - S(4);
+            bool locked = check.Status == CheckStatus.Locked;
+            DrawPip(e.Graphics, line.X, line.Y + (nameHeight - pip) / 2, pip, check.DotColor, check.DotFilled);
+            TextRenderer.DrawText(e.Graphics, check.Name, TrackerTheme.TileNameFont, new Rectangle(line.X + textOffset, line.Y, textWidth, nameHeight),
                 locked ? TrackerTheme.TextMuted : TrackerTheme.Text, SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            if (check.Hint is { } hint)
+                DrawParts(e.Graphics, hint.Parts, TrackerTheme.CaptionFont, new Rectangle(line.X + textOffset, line.Y + nameHeight, textWidth, S(HintLineHeight)), textWidth / 2);
         }
     }
 }
