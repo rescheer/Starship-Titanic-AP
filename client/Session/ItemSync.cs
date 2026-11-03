@@ -111,6 +111,7 @@ internal sealed class ItemSync
         TryHideOrDeliverFeather(items, receivedItems, gameManager);
         // Under this goal CarryParrot's persisted state belongs to ParrotHuntSync, and the Feather check isn't in the seed
         bool parrotHunt = LocationChecks.IsParrotHuntGoal(_ctx.Ap.KnownSlotData);
+        RoomNodeView? currentRnv = GameState.ReadRoomNodeView(_ctx.Mem, gameManager);
 
         foreach (CarryItemLocation item in items)
         {
@@ -304,8 +305,11 @@ internal sealed class ItemSync
                 continue;
             }
 
-            // Granted but never found: deliver it. One-directional items are excluded.
-            if (persisted.Stage == ItemStage.None && granted && !ItemTracking.IsOneDirectionalItem(item.Name))
+            // Granted but never found: deliver it. One-directional items are excluded. Held back while the player is in
+            // its home room, so it isn't pulled out from in front of them (e.g. the Speech Center, when the Autumn check
+            // grants it) and their pickup sends its check; it's delivered once they leave.
+            if (persisted.Stage == ItemStage.None && granted && !ItemTracking.IsOneDirectionalItem(item.Name)
+                && !IsInHomeRoom(item.Name, currentRnv))
                 DeliverGrantedItem(item, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolDelivered: true), gameManager);
         }
 
@@ -581,6 +585,12 @@ internal sealed class ItemSync
     private bool IsInstalled(long project, string itemName) =>
         IsInstalledInFuseBox(project, itemName) || IsInstalledInTitania(project, itemName);
 
+    /// <summary>True when <paramref name="rnv"/> is in any state of a room one of the item's home RNVs is in.</summary>
+    private static bool IsInHomeRoom(string itemName, RoomNodeView? rnv) =>
+        rnv is { } current
+        && ItemHomeLocations.TryGetHomeRnvs(itemName, out RoomNodeView[] homeRnvs)
+        && homeRnvs.Any(home => RoomNames.GetVariants(home.Room).Contains(current.Room));
+
     /// <summary>Finds a single named item within an already-fetched FindAllCarryItems result.</summary>
     private static CarryItemLocation? FindByName(List<CarryItemLocation> items, string name)
     {
@@ -671,7 +681,13 @@ internal sealed class ItemSync
                 // Read before the move, so ReturnToInstalled can put the part back the way its install left it.
                 bool installedVisible = installed && GameActions.IsItemVisible(_ctx.Mem, item.Address);
                 bool installedFlag = installed && GameActions.ReadItemInstalledFlag(_ctx.Mem, item.Address);
+                // Hidden before the move: the game renders frames between remote calls, and the item would otherwise
+                // show in the view with its inventory glyph frame until the fix-ups below.
+                bool wasVisible = GameActions.IsItemVisible(_ctx.Mem, item.Address);
+                GameActions.SetItemVisible(_ctx.Mem, item.Address, false);
                 bool moved = GameActions.MoveItemSmart(_ctx.Mem, item.Address, homeParent.Value, _ctx.InventoryRoom, gameManager);
+                if (!moved)
+                    GameActions.SetItemVisible(_ctx.Mem, item.Address, wasVisible);
                 if (moved)
                 {
                     // The game only shows the Replacement Phonograph Ear on the ear's first trip to the PET. If that's
@@ -685,7 +701,6 @@ internal sealed class ItemSync
                     // Otherwise the pickup here would tell TitaniaControl the part was taken out of its slot.
                     if (installedFlag)
                         GameActions.WriteItemInstalledFlag(_ctx.Mem, item.Address, false);
-                    GameActions.SetItemVisible(_ctx.Mem, item.Address, false);
 
                     if (!ItemTracking.SkipsFirstChildReorderOnRestore(name))
                         GameActions.MoveToFirstChild(_ctx.Mem, item.Address, homeParent.Value);
