@@ -17,6 +17,9 @@ public enum ItemPulledFrom : byte
     Hidden = 1,
     Mail = 2,
     Inventory = 3,
+    /// <summary>A fuse restored while installed in a Fuse Box socket. It goes back there whether or not it's picked
+    /// up, since the socket still shows it installed.</summary>
+    FuseBox = 4,
 }
 
 /// <summary>The full persisted state for one tracked item, packed into a single 4-byte int.</summary>
@@ -35,7 +38,7 @@ public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFire
     /// back to its home spot for a natural pickup, or has since been used somewhere (an item at Stage.Inventory isn't
     /// rewritten when it leaves).</summary>
     public bool HasBeenInInventory => Stage == ItemStage.Inventory
-        || (Stage == ItemStage.Restored && PulledFrom == ItemPulledFrom.Inventory);
+        || (Stage == ItemStage.Restored && PulledFrom is ItemPulledFrom.Inventory or ItemPulledFrom.FuseBox);
 
     public static ItemPersistedState Decode(int raw) => new(
         (ItemStage)(raw & 0xFF),

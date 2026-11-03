@@ -244,6 +244,19 @@ internal sealed class ItemSync
                 {
                     ReshowHiddenSibling(item.Name, persisted, animate: true);
                     SendItemPickupCheck(item.Name);
+                    if (persisted.PulledFrom == ItemPulledFrom.FuseBox)
+                    {
+                        bool returned = ReturnToFuseBox(item, checkFired: true, gameManager);
+                        if (returned)
+                        {
+                            ScheduleDirtyReassert();
+                            _ctx.Report.NotifyItemsChanged();
+                        }
+                        _ctx.Report.ReportAction(returned, returned
+                            ? $"{item.Name} picked up while installed in the Fuse Box - returned it there"
+                            : $"{item.Name} picked up while installed in the Fuse Box, but failed to return it there");
+                        continue;
+                    }
                     GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Inventory, true, ItemPulledFrom.None));
                     continue;
                 }
@@ -640,7 +653,9 @@ internal sealed class ItemSync
                     continue;
                 }
 
-                ItemPulledFrom pulledFrom = eligibleFromMail ? ItemPulledFrom.Mail : ItemPulledFrom.Inventory;
+                ItemPulledFrom pulledFrom = eligibleFromMail ? ItemPulledFrom.Mail
+                    : IsInstalledInFuseBox(project, name) ? ItemPulledFrom.FuseBox
+                    : ItemPulledFrom.Inventory;
                 bool moved = GameActions.MoveItemSmart(_ctx.Mem, item.Address, homeParent.Value, _ctx.InventoryRoom, gameManager);
                 if (moved)
                 {
@@ -912,12 +927,14 @@ internal sealed class ItemSync
             ItemPulledFrom.Inventory => RevertToInventory(item, gameManager),
             ItemPulledFrom.Hidden => RevertToHidden(item, persisted, gameManager),
             ItemPulledFrom.Mail => RevertToMail(item, persisted, gameManager),
+            ItemPulledFrom.FuseBox => ReturnToFuseBox(item, persisted.CheckFired, gameManager),
             _ => false,
         };
 
         if (moved)
         {
-            GameActions.SetItemVisible(_ctx.Mem, item.Address, true);
+            if (persisted.PulledFrom != ItemPulledFrom.FuseBox)
+                GameActions.SetItemVisible(_ctx.Mem, item.Address, true);
             if (ItemTracking.RequiresCanTakeRestoreToggle(item.Name) || ItemTracking.RestoreCanTakeRequiresMusicSolved(item.Name))
                 GameActions.SetItemCanTake(_ctx.Mem, item.Address, true);
             ReshowHiddenSibling(item.Name, persisted, animate: false);
@@ -965,6 +982,21 @@ internal sealed class ItemSync
         bool moved = GameActions.MoveItemToHiddenRoomFull(_ctx.Mem, item.Address, _ctx.InventoryRoom.Value, gameManager);
         if (moved)
             GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Hidden, persisted.CheckFired, ItemPulledFrom.None));
+        return moved;
+    }
+
+    /// <summary>Puts a fuse back where CBridgePiece::UseWithOtherMsg parks an installed one (hidden, in the hidden
+    /// room), so its Fuse Box socket, which still shows it installed, can hand it out again.</summary>
+    private bool ReturnToFuseBox(CarryItemLocation item, bool checkFired, long gameManager)
+    {
+        if (_ctx.InventoryRoom is null)
+            return false;
+        bool moved = GameActions.MoveItemToHiddenRoomFull(_ctx.Mem, item.Address, _ctx.InventoryRoom.Value, gameManager);
+        if (moved)
+        {
+            GameActions.SetItemVisible(_ctx.Mem, item.Address, false);
+            GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Inventory, checkFired, ItemPulledFrom.None));
+        }
         return moved;
     }
 
