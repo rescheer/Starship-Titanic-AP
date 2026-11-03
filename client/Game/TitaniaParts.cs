@@ -23,4 +23,8 @@ public static class TitaniaParts
         // A record the part's own check holds (items.py), not a delivery: the game hands over the part itself
         new("Auditory Center", "Titania's Auditory Center", "AuditoryCentre"),
     };
+
+    /// <summary>Whether itemName is one of the parts' carry items.</summary>
+    public static bool IsPart(string itemName) =>
+        All.Any(p => string.Equals(p.ItemName, itemName, StringComparison.OrdinalIgnoreCase));
 }

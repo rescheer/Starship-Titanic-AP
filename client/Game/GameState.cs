@@ -536,6 +536,65 @@ public static class GameState
         return results;
     }
 
+    /// <summary>Titania's head and brain slots by name, with each one's class. A brain card goes in whichever of the
+    /// four non-core brain slots it's used on.</summary>
+    private static readonly Dictionary<string, string> TitaniaSlotClasses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Eye1Slot"] = "CHeadSlot",
+        ["Eye2Slot"] = "CHeadSlot",
+        ["Ear1Slot"] = "CHeadSlot",
+        ["Ear2Slot"] = "CHeadSlot",
+        ["MouthSlot"] = "CHeadSlot",
+        ["NoseSlot"] = "CHeadSlot",
+        ["AuditoryCentreSlot"] = "CBrainSlot",
+        ["SpeechCentreSlot"] = "CBrainSlot",
+        ["OlfactoryCentreSlot"] = "CBrainSlot",
+        ["VisionCentreSlot"] = "CBrainSlot",
+        ["CentralCoreSlot"] = "CBrainSlot",
+    };
+
+    /// <summary>Whether one of Titania's head or brain slots currently holds itemName (see
+    /// GameOffsets.TitaniaSlotOccupiedOffset). An installed part's real item is parked in the hidden room.</summary>
+    public static bool IsInstalledInTitania(MemoryReader mem, long project, string itemName)
+    {
+        if (FindRoomByName(mem, project, RoomNames.GetName(37)) is not { } room
+            || mem.ReadInt64(room + GameOffsets.FirstChild) is not { } firstChild
+            || !LooksLikeHeapPointer(firstChild))
+            return false;
+
+        var visited = new HashSet<long>();
+        var stack = new Stack<long>();
+        stack.Push(firstChild);
+        int nodeCount = 0;
+
+        while (stack.Count > 0 && nodeCount < MaxTreeNodes)
+        {
+            long addr = stack.Pop();
+            if (addr == 0 || !visited.Add(addr))
+                continue;
+            nodeCount++;
+
+            if (TryReadName(mem, addr) is { } name
+                && TitaniaSlotClasses.TryGetValue(name, out string? className)
+                && TryGetClassName(mem, addr) == className
+                && mem.ReadBytes(addr + GameOffsets.TitaniaSlotOccupiedOffset, 1) is [not 0])
+            {
+                long targetOffset = className == "CHeadSlot" ? GameOffsets.HeadSlotTargetOffset : GameOffsets.BrainSlotTargetOffset;
+                if (string.Equals(ReadCString(mem, addr + targetOffset), itemName, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            long? childFirstChild = mem.ReadInt64(addr + GameOffsets.FirstChild);
+            long? nextSibling = mem.ReadInt64(addr + GameOffsets.NextSibling);
+            if (childFirstChild is not null && LooksLikeHeapPointer(childFirstChild.Value))
+                stack.Push(childFirstChild.Value);
+            if (nextSibling is not null && LooksLikeHeapPointer(nextSibling.Value))
+                stack.Push(nextSibling.Value);
+        }
+
+        return false;
+    }
+
     /// <summary>Bounded search of rootAddr's own subtree for the first node with an exact name match, regardless of class.</summary>
     public static long? FindDescendantByName(MemoryReader mem, long rootAddr, string name)
     {

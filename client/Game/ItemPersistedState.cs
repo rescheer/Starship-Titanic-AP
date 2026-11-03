@@ -17,9 +17,9 @@ public enum ItemPulledFrom : byte
     Hidden = 1,
     Mail = 2,
     Inventory = 3,
-    /// <summary>A fuse restored while installed in a Fuse Box socket. It goes back there whether or not it's picked
-    /// up, since the socket still shows it installed.</summary>
-    FuseBox = 4,
+    /// <summary>A fuse or Titania part restored while installed in a Fuse Box socket or one of Titania's slots. It goes
+    /// back there whether or not it's picked up, since the socket still shows it installed.</summary>
+    Installed = 4,
 }
 
 /// <summary>The full persisted state for one tracked item, packed into a single 4-byte int.</summary>
@@ -30,7 +30,12 @@ public enum ItemPulledFrom : byte
 /// <param name="ReshowSibling">True while <see cref="ItemStage.Restored"/> holds an item whose HideSiblingOnRestore
 /// sibling has to be shown again once the item leaves its home parent (see ItemSync.ReshowHiddenSibling). Recorded at
 /// the moment the item is restored.</param>
-public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFired, ItemPulledFrom PulledFrom, bool ToolDelivered = false, bool ReshowSibling = false)
+/// <param name="InstalledVisible">While <see cref="ItemStage.Restored"/> holds an item pulled from
+/// <see cref="ItemPulledFrom.Installed"/>: its _visible as the install left it, put back when it returns.</param>
+/// <param name="InstalledFlag">Likewise, the flag the install set on the part itself (see
+/// GameActions.ReadItemInstalledFlag), cleared while it's restored.</param>
+public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFired, ItemPulledFrom PulledFrom, bool ToolDelivered = false, bool ReshowSibling = false,
+    bool InstalledVisible = false, bool InstalledFlag = false)
 {
     public static readonly ItemPersistedState None = new(ItemStage.None, false, ItemPulledFrom.None);
 
@@ -38,15 +43,18 @@ public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFire
     /// back to its home spot for a natural pickup, or has since been used somewhere (an item at Stage.Inventory isn't
     /// rewritten when it leaves).</summary>
     public bool HasBeenInInventory => Stage == ItemStage.Inventory
-        || (Stage == ItemStage.Restored && PulledFrom is ItemPulledFrom.Inventory or ItemPulledFrom.FuseBox);
+        || (Stage == ItemStage.Restored && PulledFrom is ItemPulledFrom.Inventory or ItemPulledFrom.Installed);
 
     public static ItemPersistedState Decode(int raw) => new(
         (ItemStage)(raw & 0xFF),
         ((raw >> 8) & 1) != 0,
         (ItemPulledFrom)((raw >> 16) & 0xFF),
         ((raw >> 9) & 1) != 0,
-        ((raw >> 10) & 1) != 0);
+        ((raw >> 10) & 1) != 0,
+        ((raw >> 11) & 1) != 0,
+        ((raw >> 12) & 1) != 0);
 
     public int Encode() =>
-        (int)Stage | (CheckFired ? 1 << 8 : 0) | ((int)PulledFrom << 16) | (ToolDelivered ? 1 << 9 : 0) | (ReshowSibling ? 1 << 10 : 0);
+        (int)Stage | (CheckFired ? 1 << 8 : 0) | ((int)PulledFrom << 16) | (ToolDelivered ? 1 << 9 : 0) | (ReshowSibling ? 1 << 10 : 0)
+        | (InstalledVisible ? 1 << 11 : 0) | (InstalledFlag ? 1 << 12 : 0);
 }

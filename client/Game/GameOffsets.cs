@@ -259,6 +259,19 @@ public static class GameOffsets
     public const long ShipSettingFrameTargetOffset = 0x1E0; // CString: size (int32) @ +0, data ptr (int64) @ +8
     public const int CursorArrow = 1;
 
+    // CHeadSlot / CBrainSlot (titanic/game/head_slot.h, brain_slot.h) - Titania's sockets for her head pieces and brain
+    // parts. _occupied directly follows CGameObject's _visible (CHeadSlot::AddHeadPieceMsg writes it at 0x23E4B2E) and
+    // _target holds the installed part's name. Taking a part out clears _occupied, but only CHeadSlot resets _target.
+    public const long TitaniaSlotOccupiedOffset = 0x121;
+    public const long HeadSlotTargetOffset = 0x150;  // CString, after _senseState
+    public const long BrainSlotTargetOffset = 0x128; // CString
+
+    // CHeadPiece::_flag / CBrain::_pieceAdded (titanic/carry/head_piece.h, brain.h) - set on the part itself by some
+    // Titania installs (the Eyes, the Mouth, the four brain cards; CBrain::UseWithOtherMsg writes it at 0x247222B).
+    // While it's set, taking the part sends TitaniaControl a CTakeHeadPieceMsg, as if it were pulled out of its slot.
+    public const long HeadPieceFlagOffset = 0x218;
+    public const long BrainPieceAddedOffset = 0x21C; // after _pos1 (Point, two int16s)
+
     // CDropTarget (titanic/core/drop_target.h) - fields follow CGameObject from 0x124, same as CCarry's. A drop target
     // shows its held item by its own frame (_dropFrame) rather than the item's, picked only in EnterViewMsg.
     public const long DropTargetDropFrameOffset = 0x1BC;   // int

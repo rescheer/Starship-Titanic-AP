@@ -291,6 +291,25 @@ public static class GameActions
         return clearedName && cursorReset && frameReset;
     }
 
+    /// <summary>The offset of the flag a Titania install sets on the part itself (see
+    /// GameOffsets.HeadPieceFlagOffset), or null for an item that has none.</summary>
+    private static long? InstalledFlagOffset(MemoryReader mem, long itemAddr) =>
+        GameState.IsInstanceOf(mem, itemAddr, "CBrain") ? GameOffsets.BrainPieceAddedOffset
+        : GameState.IsInstanceOf(mem, itemAddr, "CHeadPiece") ? GameOffsets.HeadPieceFlagOffset
+        : null;
+
+    /// <summary>Reads the flag a Titania install sets on the part itself. False for an item that has none.</summary>
+    public static bool ReadItemInstalledFlag(MemoryReader mem, long itemAddr) =>
+        InstalledFlagOffset(mem, itemAddr) is { } offset && mem.ReadBytes(itemAddr + offset, 1) is [not 0];
+
+    /// <summary>Writes the flag a Titania install sets on the part itself. A no-op for an item that has none.</summary>
+    public static bool WriteItemInstalledFlag(MemoryReader mem, long itemAddr, bool value) =>
+        InstalledFlagOffset(mem, itemAddr) is not { } offset || mem.WriteByte(itemAddr + offset, (byte)(value ? 1 : 0));
+
+    /// <summary>Reads an item's _visible flag.</summary>
+    public static bool IsItemVisible(MemoryReader mem, long itemAddr) =>
+        mem.ReadBytes(itemAddr + GameOffsets.GameObjectVisibleOffset, 1) is [not 0];
+
     /// <summary>Writes an item's _visible flag.</summary>
     public static bool SetItemVisible(MemoryReader mem, long itemAddr, bool visible) =>
         mem.WriteByte(itemAddr + GameOffsets.GameObjectVisibleOffset, (byte)(visible ? 1 : 0));

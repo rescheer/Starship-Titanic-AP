@@ -9,6 +9,7 @@ internal enum ReturnItemResult
     NotFound,
     AlreadyInInventory,
     InstalledInFuseBox,
+    InstalledInTitania,
     Restored,
     MoveFailed,
     Returned,
@@ -167,7 +168,7 @@ internal sealed class ItemSync
 
                 if (itemGranted)
                 {
-                    if (serverGrantedInHidden && !IsInstalledInFuseBox(project, item.Name))
+                    if (serverGrantedInHidden && !IsInstalled(project, item.Name))
                         DeliverGrantedItem(item, mailState: null, gameManager);
                     continue;
                 }
@@ -244,17 +245,17 @@ internal sealed class ItemSync
                 {
                     ReshowHiddenSibling(item.Name, persisted, animate: true);
                     SendItemPickupCheck(item.Name);
-                    if (persisted.PulledFrom == ItemPulledFrom.FuseBox)
+                    if (persisted.PulledFrom == ItemPulledFrom.Installed)
                     {
-                        bool returned = ReturnToFuseBox(item, checkFired: true, gameManager);
+                        bool returned = ReturnToInstalled(item, persisted, checkFired: true, gameManager);
                         if (returned)
                         {
                             ScheduleDirtyReassert();
                             _ctx.Report.NotifyItemsChanged();
                         }
                         _ctx.Report.ReportAction(returned, returned
-                            ? $"{item.Name} picked up while installed in the Fuse Box - returned it there"
-                            : $"{item.Name} picked up while installed in the Fuse Box, but failed to return it there");
+                            ? $"{item.Name} picked up while installed - returned it to its socket"
+                            : $"{item.Name} picked up while installed, but failed to return it to its socket");
                         continue;
                     }
                     GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Inventory, true, ItemPulledFrom.None));
@@ -287,7 +288,7 @@ internal sealed class ItemSync
 
             if (inHiddenRoom)
             {
-                if (persisted.Stage == ItemStage.Hidden && granted && !IsInstalledInFuseBox(project, item.Name))
+                if (persisted.Stage == ItemStage.Hidden && granted && !IsInstalled(project, item.Name))
                     DeliverGrantedItem(item, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None), gameManager);
                 continue;
             }
@@ -474,6 +475,8 @@ internal sealed class ItemSync
             return ReturnItemResult.AlreadyInInventory;
         if (IsInstalledInFuseBox(project, name))
             return ReturnItemResult.InstalledInFuseBox;
+        if (IsInstalledInTitania(project, name))
+            return ReturnItemResult.InstalledInTitania;
 
         // A Restored item is sitting at its home spot for the player to pick up, and moving it would leave that view's
         // restoration side effects (hidden sibling, drop-target frame) stale while they're still looking at it.
@@ -570,6 +573,14 @@ internal sealed class ItemSync
         ItemTracking.IsFuseBoxItem(itemName)
         && GameState.FindShipSettingsInstalledWith(_ctx.Mem, project, itemName).Count > 0;
 
+    /// <summary>True when a Titania part is currently installed in one of her head or brain slots (an installed part's
+    /// real item is parked in the hidden room).</summary>
+    private bool IsInstalledInTitania(long project, string itemName) =>
+        TitaniaParts.IsPart(itemName) && GameState.IsInstalledInTitania(_ctx.Mem, project, itemName);
+
+    private bool IsInstalled(long project, string itemName) =>
+        IsInstalledInFuseBox(project, itemName) || IsInstalledInTitania(project, itemName);
+
     /// <summary>Finds a single named item within an already-fetched FindAllCarryItems result.</summary>
     private static CarryItemLocation? FindByName(List<CarryItemLocation> items, string name)
     {
@@ -653,9 +664,13 @@ internal sealed class ItemSync
                     continue;
                 }
 
+                bool installed = eligibleFromInventory && IsInstalled(project, name);
                 ItemPulledFrom pulledFrom = eligibleFromMail ? ItemPulledFrom.Mail
-                    : IsInstalledInFuseBox(project, name) ? ItemPulledFrom.FuseBox
+                    : installed ? ItemPulledFrom.Installed
                     : ItemPulledFrom.Inventory;
+                // Read before the move, so ReturnToInstalled can put the part back the way its install left it.
+                bool installedVisible = installed && GameActions.IsItemVisible(_ctx.Mem, item.Address);
+                bool installedFlag = installed && GameActions.ReadItemInstalledFlag(_ctx.Mem, item.Address);
                 bool moved = GameActions.MoveItemSmart(_ctx.Mem, item.Address, homeParent.Value, _ctx.InventoryRoom, gameManager);
                 if (moved)
                 {
@@ -664,7 +679,12 @@ internal sealed class ItemSync
                     bool reshowSibling = ItemHomeLocations.TryGetHideSiblingOnRestore(name, out _)
                         && GameActions.HasPhonographEarShownReplacement(_ctx.Mem, item.Address);
                     GameActions.WriteItemPersistedState(_ctx.Mem, item.Address,
-                        new ItemPersistedState(ItemStage.Restored, false, pulledFrom, ReshowSibling: reshowSibling));
+                        new ItemPersistedState(ItemStage.Restored, false, pulledFrom, ReshowSibling: reshowSibling,
+                            InstalledVisible: installedVisible, InstalledFlag: installedFlag));
+
+                    // Otherwise the pickup here would tell TitaniaControl the part was taken out of its slot.
+                    if (installedFlag)
+                        GameActions.WriteItemInstalledFlag(_ctx.Mem, item.Address, false);
                     GameActions.SetItemVisible(_ctx.Mem, item.Address, false);
 
                     if (!ItemTracking.SkipsFirstChildReorderOnRestore(name))
@@ -927,13 +947,13 @@ internal sealed class ItemSync
             ItemPulledFrom.Inventory => RevertToInventory(item, gameManager),
             ItemPulledFrom.Hidden => RevertToHidden(item, persisted, gameManager),
             ItemPulledFrom.Mail => RevertToMail(item, persisted, gameManager),
-            ItemPulledFrom.FuseBox => ReturnToFuseBox(item, persisted.CheckFired, gameManager),
+            ItemPulledFrom.Installed => ReturnToInstalled(item, persisted, persisted.CheckFired, gameManager),
             _ => false,
         };
 
         if (moved)
         {
-            if (persisted.PulledFrom != ItemPulledFrom.FuseBox)
+            if (persisted.PulledFrom != ItemPulledFrom.Installed)
                 GameActions.SetItemVisible(_ctx.Mem, item.Address, true);
             if (ItemTracking.RequiresCanTakeRestoreToggle(item.Name) || ItemTracking.RestoreCanTakeRequiresMusicSolved(item.Name))
                 GameActions.SetItemCanTake(_ctx.Mem, item.Address, true);
@@ -985,16 +1005,17 @@ internal sealed class ItemSync
         return moved;
     }
 
-    /// <summary>Puts a fuse back where CBridgePiece::UseWithOtherMsg parks an installed one (hidden, in the hidden
-    /// room), so its Fuse Box socket, which still shows it installed, can hand it out again.</summary>
-    private bool ReturnToFuseBox(CarryItemLocation item, bool checkFired, long gameManager)
+    /// <summary>Puts a fuse or Titania part back where its install parks it (the hidden room, with the _visible and
+    /// part flag the install left), so its socket, which still shows it installed, can hand it out again.</summary>
+    private bool ReturnToInstalled(CarryItemLocation item, ItemPersistedState persisted, bool checkFired, long gameManager)
     {
         if (_ctx.InventoryRoom is null)
             return false;
         bool moved = GameActions.MoveItemToHiddenRoomFull(_ctx.Mem, item.Address, _ctx.InventoryRoom.Value, gameManager);
         if (moved)
         {
-            GameActions.SetItemVisible(_ctx.Mem, item.Address, false);
+            GameActions.SetItemVisible(_ctx.Mem, item.Address, persisted.InstalledVisible);
+            GameActions.WriteItemInstalledFlag(_ctx.Mem, item.Address, persisted.InstalledFlag);
             GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, new ItemPersistedState(ItemStage.Inventory, checkFired, ItemPulledFrom.None));
         }
         return moved;
