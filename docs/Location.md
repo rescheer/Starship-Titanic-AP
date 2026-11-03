@@ -1,11 +1,6 @@
 # Locations
 
-Every location check in the apworld ([locations.py](../apworld/starship_titanic/locations.py)), grouped by room.
-Rooms and the checks within them are in alphabetical order. The DeskBot's checks are listed under the Embarkation
-Lobby, where the DeskBot is.
-
-Event-only shadow locations (the `(Event)` copies of the class upgrades and the Titania repair) aren't listed, since
-they never hold an item. The goal events are listed separately at the end.
+Every location check in the apworld
 
 ## 1st Class Lobby
 - 1st Class Lobby - Succ-U-Bus

@@ -1,10 +1,6 @@
 # Items
 
-Every item in the apworld ([items.py](../apworld/starship_titanic/items.py)), grouped by type. Items within each
-group are in alphabetical order.
-
-Internal records and events (the class upgrade records, Titania Repaired, Parrot Released and Victory) aren't
-listed, since they never go into the item pool.
+Every item in the apworld
 
 ## Titania Parts
 - Titania's Auditory Center (always at its own location, 1st Class Restaurant - Titania's Auditory Center)
