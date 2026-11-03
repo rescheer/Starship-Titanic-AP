@@ -303,6 +303,11 @@ def set_all_location_rules(world: StarshipTitanicWorld) -> None:
         CanReachRegion("Music Room")
     )
 
+    world.set_rule(
+        world.get_location("Music Room - Play the Correct Music"),
+        CanReachRegion("Music Room")
+    )
+
     # ---------------------------------------------------------------- #
     # 1st Class Restaurant
     # ---------------------------------------------------------------- #

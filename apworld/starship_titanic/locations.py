@@ -253,6 +253,8 @@ location_table: Dict[str, STLocationData] = {
     # Sent when the client blocks the vanilla table unlock (MaitreDHook). table access comes from the
     # Restaurant Table Reservation item instead
     "1st Class Restaurant - Defeat the Maitre'D": STLocationData("1st Class Restaurant"),
+    # Sent when the console starts the music with the panel set to the solution (ClientSession.PollMusicConsole)
+    "Music Room - Play the Correct Music": STLocationData("Music Room"),
 }
 
 location_name_to_id: Dict[str, int] = {

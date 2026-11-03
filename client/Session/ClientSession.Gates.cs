@@ -4,6 +4,7 @@ internal sealed partial class ClientSession
 {
     private const string TableAccessItemName = "Restaurant Table Reservation";
     private const string DefeatMaitreDLocation = "1st Class Restaurant - Defeat the Maitre'D";
+    private const string CorrectMusicLocation = "Music Room - Play the Correct Music";
 
     /// <summary>Sends the Defeat the Maitre'D check when MaitreDHook blocks the table unlock that follows the win.</summary>
     private void PollMaitreDHook()
@@ -73,7 +74,8 @@ internal sealed partial class ClientSession
 
     /// <summary>Detects the Music Room puzzle being solved: the console starting the music with the panel set to the
     /// solution, which is when CMusicConsoleButton::MouseButtonDownMsg sends CCorrectMusicPlayedMsg. That message only
-    /// reaches the Music Room, so the client records the solve on the ear itself (ItemSync.RecordMusicSolved).</summary>
+    /// reaches the Music Room, so the client records the solve on the ear itself (ItemSync.RecordMusicSolved). Also
+    /// sends the Play the Correct Music check.</summary>
     private void PollMusicConsole()
     {
         if (_musicConsoleAddr is not { } consoleAddr || _ctx.Project is not { } project)
@@ -83,8 +85,14 @@ internal sealed partial class ClientSession
 
         bool started = active && !_musicConsoleWasActive;
         _musicConsoleWasActive = active;
-        if (started && MusicRoomControls.IsSolution(_mem, project))
-            _itemSync.RecordMusicSolved();
+        if (!started || !MusicRoomControls.IsSolution(_mem, project))
+            return;
+
+        _itemSync.RecordMusicSolved();
+        bool handedOff = _apConnection.SendLocationCheck(CorrectMusicLocation);
+        ReportAction(handedOff, handedOff
+            ? $"Correct music played -> {CorrectMusicLocation}"
+            : $"Correct music played -> {CorrectMusicLocation} (queued offline)");
     }
 
     /// <summary>Keeps CTelevision::_channel4Glyph pinned to true, so taking Eye1 never takes channel 4's picture
