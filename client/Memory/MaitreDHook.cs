@@ -1,8 +1,8 @@
 namespace StarshipTitanicAp;
 
 /// <summary>Intercepts CScraliontisTable::MaitreDDefeatedMsg() so defeating the MaitreD records the attempt
-/// instead of granting table access directly. Table access is applied from the "Table Access" AP item instead
-/// (see GameActions.GrantScraliontisTableAccess).</summary>
+/// instead of granting table access directly. The attempt sends the Defeat the Maitre'D check, and table access is
+/// applied from the "Restaurant Table Reservation" AP item instead (see GameActions.GrantScraliontisTableAccess).</summary>
 public static class MaitreDHook
 {
     private const int OriginalBytesLength = 15; // mov eax,1 (5) + mov dword ptr [rcx+11C],4 (10) - clean instruction boundary
@@ -80,6 +80,20 @@ public static class MaitreDHook
         _stubAddr = 0;
         _mailboxAddr = 0;
         return restored;
+    }
+
+    /// <summary>Checks the mailbox for a newly-blocked table unlock, i.e. the MaitreD having just been defeated.</summary>
+    public static bool PollDefeated(MemoryReader mem)
+    {
+        if (!_installed)
+            return false;
+
+        byte[]? readyByte = mem.ReadBytes(_mailboxAddr, 1);
+        if (readyByte is null || readyByte[0] == 0)
+            return false;
+
+        mem.WriteByte(_mailboxAddr, 0); // clear ready flag
+        return true;
     }
 
     // ------------------------------------------------------------------

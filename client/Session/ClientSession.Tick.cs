@@ -249,6 +249,7 @@ internal sealed partial class ClientSession
         }
 
         PollMusicConsole();
+        PollMaitreDHook();
         SyncTableAccessFromItems();
         SyncRoomGate();
         KeepTelevisionChannel4GlyphOn();

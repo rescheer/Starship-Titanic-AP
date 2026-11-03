@@ -260,11 +260,15 @@ internal sealed class RoomTile : TrackerControl
         return -1;
     }
 
+    /// <summary>The dots share one row, since a second would run into the tag. A room with more checks than fit at
+    /// full size (the Restaurant, at the narrowest window) gets smaller dots instead of wrapping.</summary>
     private Rectangle PipBounds(int index)
     {
-        int left = S(6), pip = S(12), pitch = pip + S(3);
-        int perRow = Math.Max(1, (Width - S(2) - left + S(3)) / pitch);
-        return new Rectangle(left + index % perRow * pitch, S(22) + index / perRow * pitch, pip, pip);
+        int left = S(6), gap = S(3), rowWidth = Width - S(2) - left + gap;
+        int pitch = Math.Max(S(9), Math.Min(S(12) + gap, rowWidth / Math.Max(1, _state.Checks.Length)));
+        int pip = pitch - gap;
+        int perRow = Math.Max(1, rowWidth / pitch);
+        return new Rectangle(left + index % perRow * pitch, S(22) + (S(12) - pip) / 2 + index / perRow * pitch, pip, pip);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -1058,7 +1062,7 @@ internal readonly record struct HereState(string RoomName, CheckPip[] Checks, st
 /// <summary>The room the player's in and the checks still to get there, row by row across two columns.</summary>
 internal sealed class HerePanel : TrackerControl
 {
-    /// <summary>The room's name and four rows of checks, enough for the Restaurant's seven. Grows for hints.</summary>
+    /// <summary>The room's name and four rows of checks, enough for the Restaurant's eight. Grows for hints.</summary>
     public const int DefaultHeight = 106;
 
     private HereState _state = new("", Array.Empty<CheckPip>(), "", null);

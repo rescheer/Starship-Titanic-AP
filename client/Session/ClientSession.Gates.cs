@@ -3,6 +3,19 @@ namespace StarshipTitanicAp;
 internal sealed partial class ClientSession
 {
     private const string TableAccessItemName = "Restaurant Table Reservation";
+    private const string DefeatMaitreDLocation = "1st Class Restaurant - Defeat the Maitre'D";
+
+    /// <summary>Sends the Defeat the Maitre'D check when MaitreDHook blocks the table unlock that follows the win.</summary>
+    private void PollMaitreDHook()
+    {
+        if (!MaitreDHook.PollDefeated(_mem))
+            return;
+
+        bool handedOff = _apConnection.SendLocationCheck(DefeatMaitreDLocation);
+        ReportAction(handedOff, handedOff
+            ? $"Maitre'D defeated -> {DefeatMaitreDLocation}"
+            : $"Maitre'D defeated -> {DefeatMaitreDLocation} (queued offline)");
+    }
 
     /// <summary>Grants access to the Maitre'D's table (the effect MaitreDHook blocks) once the "Table Access"
     /// AP item is received, regardless of whether the MaitreD was ever defeated naturally.</summary>

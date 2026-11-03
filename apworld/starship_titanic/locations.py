@@ -250,6 +250,9 @@ location_table: Dict[str, STLocationData] = {
     # Parrot Hunt goal. region depends on the chosen stateroom's class, so regions.py places it in the 2nd
     # or 1st Class stateroom rather than the region given here
     "Parrot Hunt - Release the Parrot": STLocationData("2nd Class Stateroom", "Parrot Released"),
+    # Sent when the client blocks the vanilla table unlock (MaitreDHook). table access comes from the
+    # Restaurant Table Reservation item instead
+    "1st Class Restaurant - Defeat the Maitre'D": STLocationData("1st Class Restaurant"),
 }
 
 location_name_to_id: Dict[str, int] = {
