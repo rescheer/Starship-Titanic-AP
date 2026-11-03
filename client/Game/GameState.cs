@@ -109,14 +109,14 @@ public static class GameState
             return null;
 
         // CRoomFlags::whatPassengerClass
-        int classNum = floor is > 1 and < 10 ? 1 : floor is >= 10 and < 20 ? 2 : 3;
+        int classNum = floor is >= 2 and <= 19 ? 1 : floor is >= 20 and <= 27 ? 2 : 3;
         return classNum switch
         {
             1 => RoomFlags.Encode(elevator, classNum, floor, room),
             // Each 2nd class stateroom is shared by a pair of elevators; with no room the elevator bits stay 0.
             2 when room > 0 => RoomFlags.Encode(
                 room >= 3 ? (elevator is 1 or 2 ? 1 : 3) : (elevator is 1 or 2 ? 2 : 4),
-                classNum, floor, ((room - 1) & 1) + (sublevel > 1 ? 3 : 2)),
+                classNum, floor, ((room - 1) & 1) + (sublevel > 1 ? 3 : 1)),
             2 => RoomFlags.Encode(1, classNum, floor, 0),
             _ => RoomFlags.Encode(elevator, classNum, floor, room + sublevel * 6 - 6),
         };
