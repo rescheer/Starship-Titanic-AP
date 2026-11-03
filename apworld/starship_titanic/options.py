@@ -90,6 +90,11 @@ class QuickPellerator(Toggle):
     display_name = "Quick Pellerator"
 
 
+class QuickBarbotFreakout(Toggle):
+    """Drastically shortens the animation and control lockout after completing the Titanic Titillator cocktail."""
+    display_name = "Quick Barbot Freakout"
+
+
 class RoomAccessCardsMode(Choice):
     """Enabled: Requires a matching Access Card item from the multiworld to access any room.
     Count: Enables a number of Access Cards picked at random at generation, set by Room Access Cards Count.
@@ -230,6 +235,7 @@ class StarshipTitanicOptions(PerGameCommonOptions):
     skip_intro: SkipIntro
     quick_elevator: QuickElevator
     quick_pellerator: QuickPellerator
+    quick_barbot_freakout: QuickBarbotFreakout
     room_access_cards_mode: RoomAccessCardsMode
     room_access_cards_count: RoomAccessCardsCount
     require_access_cards_all_rooms: RequireAccessCardsAllRooms
@@ -297,6 +303,7 @@ starship_titanic_option_groups = [
         SkipIntro,
         QuickElevator,
         QuickPellerator,
+        QuickBarbotFreakout,
     ]),
     OptionGroup("Access Cards (Selection)", [
         RequireAccessCardTopOfTheWell,

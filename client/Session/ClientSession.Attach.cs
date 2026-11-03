@@ -77,6 +77,7 @@ internal sealed partial class ClientSession
         SyncRoomAssignHook();
         ReportAction(RoomGateHook.Install(_mem), "Install room key gate");
         SyncTravelSkipHook();
+        SyncBarbotVodkaPatch();
 
         bool saveLoadHookOk = SaveLoadHook.Install(_mem);
         ReportAction(saveLoadHookOk, "Install save-load detection hook");
@@ -124,6 +125,20 @@ internal sealed partial class ClientSession
             ReportAction(TravelSkipHook.Install(_mem), "Install quick elevator/pellerator hook");
         else if (!lift && !pellerator && TravelSkipHook.IsInstalled)
             ReportAction(TravelSkipHook.Uninstall(_mem), "Uninstall quick elevator/pellerator hook (options off)");
+    }
+
+    /// <summary>Applies the Barbot vodka patch if the seed has Quick Barbot Freakout on. Re-run once slot data
+    /// arrives; until then the patch is left as it is.</summary>
+    private void SyncBarbotVodkaPatch()
+    {
+        if (!_mem.IsAttached || _apConnection.KnownSlotData is not { } slotData)
+            return;
+
+        bool enabled = SlotDataFlag(slotData, "quick_barbot_freakout");
+        if (enabled && !BarbotVodkaPatch.IsInstalled)
+            ReportAction(BarbotVodkaPatch.Install(_mem), "Install quick Barbot freakout patch");
+        else if (!enabled && BarbotVodkaPatch.IsInstalled)
+            ReportAction(BarbotVodkaPatch.Uninstall(_mem), "Uninstall quick Barbot freakout patch (option off)");
     }
 
     /// <summary>A boolean slot data key. False when missing (older seeds) or malformed.</summary>
@@ -184,6 +199,10 @@ internal sealed partial class ClientSession
         if (TravelSkipHook.IsInstalled)
         {
             TravelSkipHook.Uninstall(_mem);
+        }
+        if (BarbotVodkaPatch.IsInstalled)
+        {
+            BarbotVodkaPatch.Uninstall(_mem);
         }
         if (SaveLoadHook.IsInstalled)
         {

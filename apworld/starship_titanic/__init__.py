@@ -126,6 +126,7 @@ class StarshipTitanicWorld(World):
         options.skip_intro.value = int(slot_data.get("skip_intro", False))
         options.quick_elevator.value = int(slot_data.get("quick_elevator", False))
         options.quick_pellerator.value = int(slot_data.get("quick_pellerator", False))
+        options.quick_barbot_freakout.value = int(slot_data.get("quick_barbot_freakout", False))
         self.access_cards = list(slot_data.get("room_access_cards", []))
         self.class_upgrades_locked = slot_data.get("class_upgrades_locked", False)
         self.auditory_center_locked = slot_data.get("auditory_center_locked", False)
@@ -228,6 +229,7 @@ class StarshipTitanicWorld(World):
             "skip_intro": bool(self.options.skip_intro),
             "quick_elevator": bool(self.options.quick_elevator),
             "quick_pellerator": bool(self.options.quick_pellerator),
+            "quick_barbot_freakout": bool(self.options.quick_barbot_freakout),
             "class_upgrades_locked": self.class_upgrades_locked,
             "auditory_center_locked": self.auditory_center_locked,
             "has_repair_titania_check": self.has_repair_titania_check,

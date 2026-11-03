@@ -353,6 +353,11 @@ public static class GameOffsets
     public const long PelleratorStatusChangeMsgStart = 0x2403810;
     public const long PelleratorStatusChangeMsgEnd = 0x240450C;
 
+    // CBarbot::ActMsg (0x24192A0), the vodka sequence: the bounds check before the first of its 15 flagless playMovie
+    // calls, and the one before the final locked _frames[40] call. BarbotVodkaPatch jumps from one to the other.
+    public const long BarbotVodkaSkipSite = 0x2419341;
+    public const long BarbotVodkaSkipTarget = 0x24195C0;
+
     // CGameState::changeView(CViewItem *newView, CMovieClip *clip) (titanic/game_state.cpp) - every walking link,
     // scripted mover and cutscene-deferred move funnels through it, and its leaveView/preEnterView/enterView calls
     // all happen inside it. rcx = CGameState* (embedded in CGameManager at GameStateFromGameManager). Its prologue

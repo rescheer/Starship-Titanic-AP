@@ -64,6 +64,11 @@ public sealed partial class DebugForm
             IsInstalled = () => TravelSkipHook.IsInstalled, Install = TravelSkipHook.Install, Uninstall = TravelSkipHook.Uninstall,
             Extra = BuildTravelSkipControls,
         },
+        new()
+        {
+            Title = "Quick Barbot Freakout", ActionName = "Barbot freakout patch", NotInstalledText = "Patch not installed",
+            IsInstalled = () => BarbotVodkaPatch.IsInstalled, Install = BarbotVodkaPatch.Install, Uninstall = BarbotVodkaPatch.Uninstall,
+        },
     };
 
     private TabPage BuildHooksTab()

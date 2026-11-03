@@ -254,6 +254,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
                 _parrotHuntSync.ResyncFromItems();
                 SyncRoomAssignHook();
                 SyncTravelSkipHook();
+                SyncBarbotVodkaPatch();
                 _lastTableAccessItemsCount = -1;
                 _currentLocationChecksPending = true;
                 NotifyPendingChecksChanged();

@@ -28,6 +28,7 @@ Requires [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/
    - Note that this places you before the initial check-in conversation with the Deskbot, so that should be your first step
 - **Quick Elevator**: Drastically shortens elevator ride animations
 - **Quick Pellerator**: Same as Quick Elevator but for the Pellerator
+- **Quick Barbot Freakout**: Drastically shortens the animation and control lockout after completing the Titanic Titillator cocktail
 ### Client commands
 Usable in-game or in the client window:
   - **/help** - list all client commands
