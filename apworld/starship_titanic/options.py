@@ -74,10 +74,20 @@ class EasyMusicRoomPuzzle(Toggle):
     display_name = "Easy Music Room Puzzle"
 
 
-class QuickStart(Toggle):
+class SkipIntro(Toggle):
     """Skips the intro. Starting a new game while connected puts you in the Embarkation Lobby, ready to check in,
     with the PET on and the Photograph in your inventory."""
-    display_name = "Quick Start"
+    display_name = "Skip Intro"
+
+
+class QuickElevator(Toggle):
+    """Drastically shortens elevator ride animations."""
+    display_name = "Quick Elevator"
+
+
+class QuickPellerator(Toggle):
+    """Drastically shortens pellerator ride animations."""
+    display_name = "Quick Pellerator"
 
 
 class RoomAccessCardsMode(Choice):
@@ -217,7 +227,9 @@ class StarshipTitanicOptions(PerGameCommonOptions):
     stateroom_assignment: StateroomAssignment
     item_delivery_method: ItemDeliveryMethod
     easy_music_room_puzzle: EasyMusicRoomPuzzle
-    quick_start: QuickStart
+    skip_intro: SkipIntro
+    quick_elevator: QuickElevator
+    quick_pellerator: QuickPellerator
     room_access_cards_mode: RoomAccessCardsMode
     room_access_cards_count: RoomAccessCardsCount
     require_access_cards_all_rooms: RequireAccessCardsAllRooms
@@ -281,6 +293,11 @@ def enabled_access_cards(options: StarshipTitanicOptions, random: Random) -> Lis
 
 
 starship_titanic_option_groups = [
+    OptionGroup("Timesavers", [
+        SkipIntro,
+        QuickElevator,
+        QuickPellerator,
+    ]),
     OptionGroup("Access Cards (Selection)", [
         RequireAccessCardTopOfTheWell,
         RequireAccessCardBottomOfTheWell,

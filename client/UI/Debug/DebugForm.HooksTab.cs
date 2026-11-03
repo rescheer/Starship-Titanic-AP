@@ -15,6 +15,8 @@ public sealed partial class DebugForm
         public required Func<bool> IsInstalled { get; init; }
         public required Func<MemoryReader, bool> Install { get; init; }
         public required Func<MemoryReader, bool> Uninstall { get; init; }
+        /// <summary>Settings shown under the toggle, if the hook has any.</summary>
+        public Func<Control>? Extra { get; init; }
 
         public Button Toggle { get; } = new() { Text = "Install", Width = 100 };
         public Label Status { get; } = new() { AutoSize = true, Anchor = AnchorStyles.Left };
@@ -53,6 +55,15 @@ public sealed partial class DebugForm
             Title = "Room Key Gate", ActionName = "room key gate", NotInstalledText = "Gate not installed",
             IsInstalled = () => RoomGateHook.IsInstalled, Install = RoomGateHook.Install, Uninstall = RoomGateHook.Uninstall,
         },
+        new()
+        {
+            Title = "Elevator/Pellerator Travel Skip", ActionName = "travel skip", NotInstalledText = "Skip not installed",
+            InstalledText = () => TravelSkipHook.ReadCounts() is { } c
+                ? $"Installed. Lift ranges trimmed: {c.LiftTrimmed}, pellerator trips: {c.PelleratorTrips}, ranges dropped: {c.PelleratorSkipped}"
+                : "Installed",
+            IsInstalled = () => TravelSkipHook.IsInstalled, Install = TravelSkipHook.Install, Uninstall = TravelSkipHook.Uninstall,
+            Extra = BuildTravelSkipControls,
+        },
     };
 
     private TabPage BuildHooksTab()
@@ -76,13 +87,29 @@ public sealed partial class DebugForm
             row.Controls.Add(hook.Toggle);
             row.Controls.Add(hook.Status);
             layout.Controls.Add(row);
+            if (hook.Extra is { } extra)
+                layout.Controls.Add(extra());
 
             hook.Toggle.Click += (_, _) => DoToggleHook(hook);
         }
         RefreshHookControls();
+        page.Enter += (_, _) => RefreshHookControls(); // picks up the travel skip's counts
 
         page.Controls.Add(layout);
         return page;
+    }
+
+    /// <summary>Frames kept at the end of each lift range. Applies straight away, installed or not.</summary>
+    private static Control BuildTravelSkipControls()
+    {
+        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        row.Controls.Add(new Label { Text = "Lift frames kept:", AutoSize = true, Anchor = AnchorStyles.Left });
+        var lift = new NumericUpDown { Minimum = 0, Maximum = 300, Value = TravelSkipHook.LiftKeepFrames, Width = 60 };
+        row.Controls.Add(lift);
+        row.Controls.Add(new Label { Text = "(15 = 1 s)", AutoSize = true, Anchor = AnchorStyles.Left });
+
+        lift.ValueChanged += (_, _) => TravelSkipHook.SetLiftKeepFrames((int)lift.Value);
+        return row;
     }
 
     private void DoToggleHook(HookRow hook)

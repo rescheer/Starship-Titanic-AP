@@ -340,6 +340,19 @@ public static class GameOffsets
     // has no RIP-relative operands; GameThreadHook replays it.
     public const long EventsPollEventsFunc = 0x246B080;
 
+    // CGameObject::playMovie(int startFrame, int endFrame, uint flags) - rcx = object, edx = start, r8d = end,
+    // r9d = flags. Its prologue (7 pushes + sub rsp,0x30 = 14 bytes) has no RIP-relative operands; TravelSkipHook
+    // replays it.
+    public const long GameObjectPlayMovieFunc = 0x239FC10;
+
+    // CLift::StatusChangeMsg and CPellerator::StatusChangeMsg - [start, end) of each function's code, so
+    // TravelSkipHook can tell their playMovie calls apart by return address. Every playMovie call in both is a
+    // direct `call`.
+    public const long LiftStatusChangeMsgStart = 0x24011E0;
+    public const long LiftStatusChangeMsgEnd = 0x24017B3;
+    public const long PelleratorStatusChangeMsgStart = 0x2403810;
+    public const long PelleratorStatusChangeMsgEnd = 0x240450C;
+
     // CGameState::changeView(CViewItem *newView, CMovieClip *clip) (titanic/game_state.cpp) - every walking link,
     // scripted mover and cutscene-deferred move funnels through it, and its leaveView/preEnterView/enterView calls
     // all happen inside it. rcx = CGameState* (embedded in CGameManager at GameStateFromGameManager). Its prologue

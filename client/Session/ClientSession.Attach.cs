@@ -76,6 +76,7 @@ internal sealed partial class ClientSession
         ReportAction(GetLiftEye2GateHook.Install(_mem), "Install broken-elevator Eye gate");
         SyncRoomAssignHook();
         ReportAction(RoomGateHook.Install(_mem), "Install room key gate");
+        SyncTravelSkipHook();
 
         bool saveLoadHookOk = SaveLoadHook.Install(_mem);
         ReportAction(saveLoadHookOk, "Install save-load detection hook");
@@ -107,6 +108,37 @@ internal sealed partial class ClientSession
         }
 
         TryApplyPendingRoomAssignment();
+    }
+
+    /// <summary>Installs the travel skip if the seed has Quick Elevator or Quick Pellerator on, with only those halves
+    /// enabled. Re-run once slot data arrives; until then the hook is left as it is.</summary>
+    private void SyncTravelSkipHook()
+    {
+        if (!_mem.IsAttached || _apConnection.KnownSlotData is not { } slotData)
+            return;
+
+        bool lift = SlotDataFlag(slotData, "quick_elevator");
+        bool pellerator = SlotDataFlag(slotData, "quick_pellerator");
+        TravelSkipHook.SetEnabled(lift, pellerator);
+        if ((lift || pellerator) && !TravelSkipHook.IsInstalled)
+            ReportAction(TravelSkipHook.Install(_mem), "Install quick elevator/pellerator hook");
+        else if (!lift && !pellerator && TravelSkipHook.IsInstalled)
+            ReportAction(TravelSkipHook.Uninstall(_mem), "Uninstall quick elevator/pellerator hook (options off)");
+    }
+
+    /// <summary>A boolean slot data key. False when missing (older seeds) or malformed.</summary>
+    private static bool SlotDataFlag(IReadOnlyDictionary<string, object> slotData, string key)
+    {
+        if (!slotData.TryGetValue(key, out object? raw))
+            return false;
+        try
+        {
+            return Convert.ToBoolean(raw);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>Performs a room assignment RoomAssignHook blocked, for seeds with vanilla stateroom assignment, once
@@ -149,6 +181,10 @@ internal sealed partial class ClientSession
         {
             RoomGateHook.Uninstall(_mem);
         }
+        if (TravelSkipHook.IsInstalled)
+        {
+            TravelSkipHook.Uninstall(_mem);
+        }
         if (SaveLoadHook.IsInstalled)
         {
             SaveLoadHook.Uninstall(_mem);
@@ -175,7 +211,7 @@ internal sealed partial class ClientSession
         _conversationsAddrShown = false;
         _pendingVanillaRoomAssignmentClass = null;
         _parrotHuntSync.Reset();
-        _quickStart.Reset();
+        _skipIntro.Reset();
         _itemSync.ClearTitaniaPartsInHand();
         _saveSeedGuard.Reset();
         GameState.ClearClassNameCache();

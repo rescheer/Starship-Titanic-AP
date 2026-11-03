@@ -1,9 +1,9 @@
-"""Regenerates Resources/QuickStartPatch.gz from a vanilla save made with no client attached, at the point Quick Start
+"""Regenerates Resources/SkipIntroPatch.gz from a vanilla save made with no client attached, at the point Skip Intro
 should start from: first control in the Embarkation Lobby after the credits, before talking to the DeskBot.
 
-Usage: python make_quickstart_patch.py "<game folder>" <save slot>
+Usage: python make_skip_intro_patch.py "<game folder>" <save slot>
 
-Prints the SHA-256 of newgame.st, which goes in QuickStartSave.NewGameSha256.
+Prints the SHA-256 of newgame.st, which goes in SkipIntroSave.NewGameSha256.
 """
 import gzip
 import hashlib
@@ -16,7 +16,7 @@ import zlib
 
 TREE_START = b'\n{\n\t"CProjectItem"'
 HUNK = re.compile(rb"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
-OUTPUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Resources", "QuickStartPatch.gz")
+OUTPUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Resources", "SkipIntroPatch.gz")
 
 
 def diff_hunks(old, new):

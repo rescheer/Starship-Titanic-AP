@@ -1,10 +1,10 @@
 namespace StarshipTitanicAp;
 
-/// <summary>The Quick Start option: when the player starts a new game while connected, swaps the untouched new game for
-/// a generated save at the Embarkation Lobby. Only an untouched new game qualifies, so this can't replace a game the
+/// <summary>The Skip Intro option: when the player starts a new game while connected, swaps the
+/// untouched new game for a generated save at the Embarkation Lobby. Only an untouched new game qualifies, so this can't replace a game the
 /// player chose to load: the game refuses to save with the PET off, which leaves newgame.st as the only way to have it
 /// off in Home, and the tray check rules out the intro having started.</summary>
-internal sealed class QuickStart
+internal sealed class SkipIntro
 {
     /// <summary>Above the slots the PET's save screen and the game's startup dialog normally reach.</summary>
     private const int SaveSlot = 42;
@@ -20,7 +20,7 @@ internal sealed class QuickStart
     private bool _decided;
     private bool _loadRequested;
 
-    public QuickStart(SessionContext ctx)
+    public SkipIntro(SessionContext ctx)
     {
         _ctx = ctx;
     }
@@ -32,10 +32,10 @@ internal sealed class QuickStart
         _loadRequested = false;
     }
 
-    /// <summary>Whether the seed has the Quick Start option on. False for seeds without the slot data key.</summary>
+    /// <summary>Whether the seed has the Skip Intro option on. False for seeds without the slot data key.</summary>
     public static bool IsEnabled(IReadOnlyDictionary<string, object>? slotData)
     {
-        if (slotData is null || !slotData.TryGetValue("quick_start", out object? raw))
+        if (slotData is null || !slotData.TryGetValue("skip_intro", out object? raw))
             return false;
         try
         {
@@ -75,7 +75,7 @@ internal sealed class QuickStart
         string? insertedCd = GameState.ReadCString(_ctx.Mem, tray + GameOffsets.CdRomTrayInsertedCdOffset);
         if (insertedCd != NoCd)
         {
-            _ctx.Report.AppendLog($"Quick Start: skipped, as the CD tray holds \"{insertedCd}\" and the intro may have started");
+            _ctx.Report.AppendLog($"Skip Intro: skipped, as the CD tray holds \"{insertedCd}\" and the intro may have started");
             return false;
         }
 
@@ -89,7 +89,7 @@ internal sealed class QuickStart
         try
         {
             byte[] newGame = File.ReadAllBytes(install.NewGamePath);
-            if (!QuickStartSave.FitsPatch(newGame))
+            if (!SkipIntroSave.FitsPatch(newGame))
             {
                 Fail("this copy of the game's newgame.st isn't supported");
                 return false;
@@ -97,7 +97,7 @@ internal sealed class QuickStart
 
             string savePath = install.SavePath(SaveSlot);
             string tempPath = savePath + ".tmp";
-            File.WriteAllBytes(tempPath, QuickStartSave.Build(newGame, SaveSeedTag.ComputeSeedTag(seedName, slotName)));
+            File.WriteAllBytes(tempPath, SkipIntroSave.Build(newGame, SaveSeedTag.ComputeSeedTag(seedName, slotName)));
             File.Move(tempPath, savePath, overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or FormatException)
@@ -118,7 +118,7 @@ internal sealed class QuickStart
         }
 
         _loadRequested = true;
-        _ctx.Report.ReportAction(true, "Quick Start: loading the Embarkation Lobby");
+        _ctx.Report.ReportAction(true, "Skip Intro: loading the Embarkation Lobby");
         return true;
     }
 
@@ -160,7 +160,7 @@ internal sealed class QuickStart
 
     private void Fail(string reason)
     {
-        string message = $"Quick Start failed: {reason}. Playing the normal intro instead.";
+        string message = $"Skip Intro failed: {reason}. Playing the normal intro instead.";
         _ctx.Report.ReportAction(false, message);
         _ctx.Report.AppendServerLog($"CLIENT: {message}", bold: true);
     }

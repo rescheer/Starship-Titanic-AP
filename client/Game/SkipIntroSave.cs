@@ -5,12 +5,12 @@ using System.Text;
 
 namespace StarshipTitanicAp;
 
-/// <summary>Builds the save Quick Start loads: the game's own newgame.st, patched to the moment a vanilla game reaches
+/// <summary>Builds the save Skip Intro loads: the game's own newgame.st, patched to the moment a vanilla game reaches
 /// the Embarkation Lobby before check-in, and tagged with the seed so <see cref="SaveSeedGuard"/> accepts it. The patch
-/// comes from tools/make_quickstart_patch.py and only fits the newgame.st it was made from.</summary>
-internal static class QuickStartSave
+/// comes from tools/make_skip_intro_patch.py and only fits the newgame.st it was made from.</summary>
+internal static class SkipIntroSave
 {
-    private const string PatchResourceName = "QuickStartPatch.gz";
+    private const string PatchResourceName = "SkipIntroPatch.gz";
 
     /// <summary>SHA-256 of the newgame.st the patch was made from.</summary>
     private const string NewGameSha256 = "B434B527A8A4AEE81ADF1AE0B80DC521E08D34A4B45A3E0F77F243CDEA6A6E21";
@@ -62,10 +62,10 @@ internal static class QuickStartSave
         {
             string[] hunk = patchLines[patchIndex++].Split(' ');
             if (hunk.Length != 3)
-                throw new InvalidDataException($"Bad Quick Start patch hunk at line {patchIndex}");
+                throw new InvalidDataException($"Bad Skip Intro patch hunk at line {patchIndex}");
             int start = int.Parse(hunk[0]), removed = int.Parse(hunk[1]), added = int.Parse(hunk[2]);
             if (start < position || start + removed > lines.Length || patchIndex + added > patchLines.Length)
-                throw new InvalidDataException($"Quick Start patch hunk at line {patchIndex} is out of range");
+                throw new InvalidDataException($"Skip Intro patch hunk at line {patchIndex} is out of range");
 
             output.AddRange(lines[position..start]);
             output.AddRange(patchLines[patchIndex..(patchIndex + added)]);

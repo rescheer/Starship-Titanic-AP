@@ -23,9 +23,11 @@ Requires [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/
    - With Item Delivery Method set to Direct To Inventory, received items go straight into your inventory instead
 ### Hints
 - Click just about anything in the client window to request a hint for it. Hovering shows any hints it already has. Checks with known hint are color coded
-### Quick Start YAML option
-- Setting this option to true will automatically skip the intro sequence and credits and put you in the Embarkation Lobby when you select Start a New Game in the main menu
-- Note that this places you before the initial check-in conversation with the Deskbot, so that should be your first step
+### Timesavers
+- **Skip Intro**: setting this option to true will automatically skip the intro sequence and credits and put you in the Embarkation Lobby when you select Start a New Game in the main menu
+   - Note that this places you before the initial check-in conversation with the Deskbot, so that should be your first step
+- **Quick Elevator**: Drastically shortens elevator ride animations
+- **Quick Pellerator**: Same as Quick Elevator but for the Pellerator
 ### Client commands
 Usable in-game or in the client window:
   - **/help** - list all client commands

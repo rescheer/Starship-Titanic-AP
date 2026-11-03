@@ -20,7 +20,7 @@ internal sealed partial class ClientSession
         _itemSync.Reset(); // pending unrestores and the eaten Magazine were tracked against the old tree
         _classSync.Reset(); // the load overwrote PassengerClass and the glyphs, along with any spoof on them
         _parrotHuntSync.Reset(); // CarryParrot was rebuilt with the tree
-        _quickStart.Reset();
+        _skipIntro.Reset();
         _movers = null; // scanned from the old tree
         _conversationsAddrShown = false;
         _saveSeedGuard.Reset();
@@ -183,7 +183,7 @@ internal sealed partial class ClientSession
         ReleaseHeldPetMessages();
 
         // Before the guard, which would otherwise tag and start syncing a new game that's about to be replaced.
-        if (_quickStart.Update(gameManager.Value, rnv))
+        if (_skipIntro.Update(gameManager.Value, rnv))
             return;
 
         // --- Save/seed guard gate: everything below reads and writes the save on the AP server's behalf

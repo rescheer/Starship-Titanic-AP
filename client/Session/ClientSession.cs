@@ -20,7 +20,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
     private readonly ClassSync _classSync;
     private readonly ItemSync _itemSync;
     private readonly ParrotHuntSync _parrotHuntSync;
-    private readonly QuickStart _quickStart;
+    private readonly SkipIntro _skipIntro;
     private readonly ClientCommands _commands;
 
     private readonly SynchronizationContext _uiContext;
@@ -78,7 +78,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         _classSync = new ClassSync(_ctx);
         _itemSync = new ItemSync(_ctx);
         _parrotHuntSync = new ParrotHuntSync(_ctx);
-        _quickStart = new QuickStart(_ctx);
+        _skipIntro = new SkipIntro(_ctx);
         _commands = new ClientCommands(_ctx, _saveSeedGuard, _itemSync);
 
         _timer.Tick += (_, _) => OnTick();
@@ -253,6 +253,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
                 _classSync.ResyncFromItems();
                 _parrotHuntSync.ResyncFromItems();
                 SyncRoomAssignHook();
+                SyncTravelSkipHook();
                 _lastTableAccessItemsCount = -1;
                 _currentLocationChecksPending = true;
                 NotifyPendingChecksChanged();
