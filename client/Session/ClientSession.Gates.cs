@@ -61,35 +61,24 @@ internal sealed partial class ClientSession
             : $"Maitre'D defeated -> {DefeatMaitreDLocation} (queued offline)");
     }
 
-    /// <summary>Keeps the Maitre'D fightable until the Defeat the Maitre'D check is sent: MaitreDPacifiedHook diverts
-    /// the game's writes to his "pacified" flag into a shadow slot, and a flag set without the hook (a save from before
-    /// it, or while detached) is moved there too. Once he's defeated, the flag gets the shadow's value, i.e. whatever
-    /// the music would have left it as. With the flag clear, entering his view with the correct music still playing
-    /// during a fight wins it too, as in vanilla.</summary>
-    private void SyncMaitreDPacifiedFlag()
+    /// <summary>Keeps the Maitre'D's TrueTalk "pacified" flag cleared until the Defeat the Maitre'D check is sent.
+    /// The correct music sets it (MaitreDScript event 110), and while it's set prodding and fighting him do nothing.
+    /// Vanilla needs the table, and so the win, before the music can be fixed, but here the music can come first.
+    /// With the flag cleared, entering his view with the correct music still playing during a fight wins it too.
+    /// Once he's defeated the flag is left alone, and the game sets it again on the next entry into his view.</summary>
+    private void KeepMaitreDFightable()
     {
-        long flagAddr = _mem.ModuleBase + GameOffsets.TrueTalkFlagsStatic + GameOffsets.MaitreDPacifiedFlagIndex * 4;
-        long shadowAddr = _mem.ModuleBase + GameOffsets.TrueTalkFlagsStatic + GameOffsets.MaitreDPacifiedShadowIndex * 4;
-
-        if (!_apConnection.IsLocationCheckedOrQueued(DefeatMaitreDLocation))
-        {
-            if (!MaitreDPacifiedHook.SetDiverting(_mem, true) || _mem.ReadInt32(flagAddr) is not int flag || flag == 0)
-                return;
-
-            bool moved = _mem.WriteInt32(shadowAddr, flag) && _mem.WriteInt32(flagAddr, 0);
-            AppendLog(moved
-                ? "Maitre'D was pacified before being defeated - held the flag back so he can still be fought"
-                : "Maitre'D was pacified before being defeated - failed to hold the flag back");
-            return;
-        }
-
-        if (!MaitreDPacifiedHook.SetDiverting(_mem, false) || _mem.ReadInt32(shadowAddr) is not int shadow || shadow == 0)
+        if (_apConnection.IsLocationCheckedOrQueued(DefeatMaitreDLocation))
             return;
 
-        bool restored = _mem.WriteInt32(flagAddr, shadow) && _mem.WriteInt32(shadowAddr, 0);
-        ReportAction(restored, restored
-            ? "Maitre'D defeated - restored his pacified flag from the music"
-            : "Maitre'D defeated - failed to restore his pacified flag");
+        long addr = _mem.ModuleBase + GameOffsets.TrueTalkFlagsStatic + GameOffsets.MaitreDPacifiedFlagIndex * 4;
+        if (_mem.ReadInt32(addr) is null or 0)
+            return;
+
+        bool ok = _mem.WriteInt32(addr, 0);
+        AppendLog(ok
+            ? "Maitre'D was pacified before being defeated - cleared the flag so he can still be fought"
+            : "Maitre'D was pacified before being defeated - failed to clear the flag");
     }
 
     /// <summary>Grants access to the Maitre'D's table (the effect MaitreDHook blocks) once the "Table Access"

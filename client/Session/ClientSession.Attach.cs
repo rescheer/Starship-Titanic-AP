@@ -73,7 +73,6 @@ internal sealed partial class ClientSession
         ReportAction(TextCommandHook.Install(_mem), "Install PET command hook");
         ReportAction(ClassUpgradeHook.Install(_mem), "Install class upgrade lock");
         ReportAction(MaitreDHook.Install(_mem), "Install Maitre'D table lock");
-        ReportAction(MaitreDPacifiedHook.Install(_mem), "Install Maitre'D pacified-flag hold");
         ReportAction(GetLiftEye2GateHook.Install(_mem), "Install broken-elevator Eye gate");
         SyncRoomAssignHook();
         ReportAction(RoomGateHook.Install(_mem), "Install room key gate");
@@ -184,10 +183,6 @@ internal sealed partial class ClientSession
         if (MaitreDHook.IsInstalled)
         {
             MaitreDHook.Uninstall(_mem);
-        }
-        if (MaitreDPacifiedHook.IsInstalled)
-        {
-            MaitreDPacifiedHook.Uninstall(_mem);
         }
         if (GetLiftEye2GateHook.IsInstalled)
         {

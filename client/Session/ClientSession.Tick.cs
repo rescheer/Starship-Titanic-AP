@@ -254,7 +254,7 @@ internal sealed partial class ClientSession
 
         PollMusicConsole();
         PollMaitreDHook();
-        SyncMaitreDPacifiedFlag();
+        KeepMaitreDFightable();
         PollStarlingsPureed();
         PollSeason(gameManager.Value);
         SyncTableAccessFromItems();
