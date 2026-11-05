@@ -344,6 +344,15 @@ internal sealed class ItemSync
         if (!LocationChecks.TryGetClassUpgradeLocationName((int)PassengerClass.Second, out string secondLocationName))
             return;
 
+        // Offline, IsLocationCheckedOrQueued only knows this session's queued checks, so a 2nd Class check the server
+        // already has reads as pending and a long-since-successful hand-off would be undone. A genuinely eaten
+        // Magazine stays eaten, so it's returned once the server's checked locations are known again.
+        if (!_ctx.Ap.IsConnected)
+        {
+            _eatenMagazineAddr = null;
+            return;
+        }
+
         // Only a Magazine the client saw the player hold (Stage.Inventory, which the hand-off leaves as-is): one already
         // eaten in a save from before this seed would just be re-picked-up and hidden again. CheckFired isn't required,
         // since a granted Magazine collected from the mail before the SGT TV puzzle reaches Inventory without it.
