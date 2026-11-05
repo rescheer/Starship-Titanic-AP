@@ -26,7 +26,9 @@ public enum ForceTagResult
 internal sealed class SaveSeedGuard
 {
     private const int BeamBridgeMissLimit = 100; // 100 * 50ms = 5s
-    private const int TagMismatchLimit = 40; // 40 * 50ms = 2s of consecutive mismatched reads before blocking
+    // 5 * 50ms = 250ms of consecutive mismatched reads before blocking. Covers the race where a read lands at the start of
+    // a save load, before SaveLoadHook.Poll reports Loading, and sees a half-rebuilt tree.
+    private const int TagMismatchLimit = 5;
     private const int RecheckIntervalTicks = 40; // every 40 * 50ms = 2s, once verified
 
     private readonly SessionContext _ctx;
@@ -52,7 +54,11 @@ internal sealed class SaveSeedGuard
     /// re-verifying periodically once a verdict is reached.</summary>
     public void Evaluate(long gameManager)
     {
+        // A mismatch seen on an Ok save is confirmed tick by tick, not at the recheck interval, so TagMismatchLimit
+        // counts ticks in every state.
+        bool confirmingMismatch = State == SaveSeedGuardState.Ok && _tagMismatches > 0;
         if (State != SaveSeedGuardState.Unverified
+            && !confirmingMismatch
             && _ctx.TickCount % RecheckIntervalTicks != 0)
             return;
         if (_ctx.Ap.SeedName is not { } seedName || _ctx.Ap.SlotName is not { } slotName)
