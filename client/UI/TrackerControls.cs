@@ -147,7 +147,8 @@ internal sealed record CheckHint(string Caption, Color? DotColor, (string Text, 
 /// <param name="Requires">What's still missing for a locked check, where that's known.</param>
 /// <param name="HintOptions">What's left to request by clicking it.</param>
 /// <param name="Hint">The hint on the check itself. Null once it's checked.</param>
-internal readonly record struct CheckPip(string Name, string Location, CheckStatus Status, RequirementLine[] Requires, HintOption[] HintOptions, CheckHint? Hint)
+/// <param name="RequiresCaption">What the hover calls <paramref name="Requires"/>, for popups that borrow it for another list.</param>
+internal readonly record struct CheckPip(string Name, string Location, CheckStatus Status, RequirementLine[] Requires, HintOption[] HintOptions, CheckHint? Hint, string RequiresCaption = "REQUIRES")
 {
     public Color DotColor => Status switch
     {
@@ -463,7 +464,6 @@ internal sealed class CheckPopup : HoverPopup
     private const int MaxLinesPerColumn = 20; // short enough to fit above or below anything at the minimum window size
     private const int ColumnGap = 14;
     private const int HintIndent = 10;
-    private const string RequiresCaption = "REQUIRES";
 
     private readonly record struct Cell(int Column, int Row, (string Text, Color Color)[] Parts, int Indent);
 
@@ -499,7 +499,7 @@ internal sealed class CheckPopup : HoverPopup
         }
         if (check.Requires.Length > 0)
         {
-            Size caption = Measure(RequiresCaption, TrackerTheme.CaptionFont);
+            Size caption = Measure(check.RequiresCaption, TrackerTheme.CaptionFont);
             AddLine(caption.Width, caption.Height, S(CaptionGap));
             int columns = LayOutRequires(check.Requires);
             AddLine(columns * _columnWidth + (columns - 1) * S(ColumnGap), _rows * _lineHeight, 0);
@@ -566,7 +566,7 @@ internal sealed class CheckPopup : HoverPopup
         }
         if (_check.Requires.Length > 0)
         {
-            y = DrawLine(g, RequiresCaption, TrackerTheme.CaptionFont, TrackerTheme.TextMuted, x, y + gap);
+            y = DrawLine(g, _check.RequiresCaption, TrackerTheme.CaptionFont, TrackerTheme.TextMuted, x, y + gap);
             foreach (Cell cell in _cells)
             {
                 int left = x + cell.Column * (_columnWidth + S(ColumnGap));

@@ -9,7 +9,7 @@ public sealed class MainForm : Form
     private readonly ClientSession _session;
     private readonly TrackerView _view = new() { Dock = DockStyle.Fill };
 
-    private int _mailCount;
+    private string[] _mailItems = Array.Empty<string>(); // the AP names of the items the client put in the mail
 
     // Each room's location names in this slot, and the seed's logic, rebuilt on each connection state change
     private readonly Dictionary<RoomDefinition, string[]> _roomLocationNames = new();
@@ -59,7 +59,8 @@ public sealed class MainForm : Form
         _session.PassengerClassChanged += _ => RefreshView();
         _session.MailChanged += items =>
         {
-            _mailCount = items?.Count(i => i.ToolPlaced) ?? 0;
+            _mailItems = items?.Where(i => i.ToolPlaced).Select(i => MailItemName(i.Name)).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray()
+                ?? Array.Empty<string>();
             RefreshView();
         };
         _session.RoomNodeViewChanged += (_, _) => RefreshView();
@@ -150,6 +151,10 @@ public sealed class MainForm : Form
     private static IEnumerable<(string Text, Color Color)> LogParts(MessagePart[] parts) =>
         parts.Select(part => (part.Text, LogColor(part)));
 
+    /// <summary>A mailed item as the multiworld calls it, or its engine name if it has no AP name.</summary>
+    private static string MailItemName(string engineName) =>
+        Items.TryGet(engineName, out ItemDefinition item) ? item.ServerGrantedApItemName ?? item.ApItemName ?? engineName : engineName;
+
     private static Color LogColor(MessagePart part) => part.IsBackgroundColor ? TrackerTheme.Text : TrackerTheme.ApColor(part.PaletteColor);
 
     /// <summary>Sorts the slot's location names under their rooms by name prefix, and reads the seed's logic. Empty
@@ -197,7 +202,8 @@ public sealed class MainForm : Form
             _ => ("✖ Not connected", TrackerTheme.Error, true),
         };
         bool directToInventory = ItemSync.IsDirectToInventory(_session.Ap.KnownSlotData);
-        int mailCount = attached ? _mailCount : 0;
+        string[] mailItems = attached && !directToInventory ? _mailItems : Array.Empty<string>();
+        int mailCount = mailItems.Length;
         bool goalComplete = connected && _session.Ap.IsGoalComplete;
         bool? goMode = connected && _logic is not null ? _evaluation?.GoalReachable : null; // null without logic to go by
         int? inLogicChecks = connected && _logic is not null ? _evaluation?.Reachable.Count(location => !_session.Ap.IsLocationChecked(location)) : null;
@@ -231,6 +237,7 @@ public sealed class MainForm : Form
             directToInventory ? "ITEM DELIVERY MODE" : "SUCC-U-BUS",
             directToInventory ? "Direct" : $"{mailCount} waiting",
             !directToInventory && mailCount > 0,
+            mailItems,
             _session.Options.EnforceSaveSeedGuard && _session.SaveSeedGuardState == SaveSeedGuardState.Blocked,
             RoomTiles.Decks.Select(deck => BuildDeck(deck, connected, receivedItems, passengerClass, titaniaRepaired)).ToArray(),
             BuildHere(connected),

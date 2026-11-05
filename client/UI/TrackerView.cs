@@ -29,7 +29,7 @@ internal sealed record TrackerState(
     string HintsValue, int HintCost, int HintPoints,
     string InLogicValue, bool InLogicAlert,
     string GoModeValue, bool GoModeHighlighted, string[] GoModeRequires,
-    string MailLabel, string MailValue, bool MailHighlighted,
+    string MailLabel, string MailValue, bool MailHighlighted, string[] MailItems,
     bool SaveSeedMismatch,
     DeckState[] Decks,
     HereState Here,
@@ -69,6 +69,8 @@ internal sealed class TrackerView : TrackerControl
     private string[] _goModeRequires = Array.Empty<string>();
     private RequirementLine[] _goModeLines = Array.Empty<RequirementLine>();
     private readonly StatusTile _mailTile = new();
+    private string[] _mailItems = Array.Empty<string>();
+    private RequirementLine[] _mailLines = Array.Empty<RequirementLine>();
 
     private readonly Label _saveSeedBanner = new()
     {
@@ -198,6 +200,7 @@ internal sealed class TrackerView : TrackerControl
             tile.PipHoverChanged += OnCheckHoverChanged;
         _here.CheckHoverChanged += OnCheckHoverChanged;
         _goModeTile.HoverChanged += UpdateGoModePopup;
+        _mailTile.HoverChanged += UpdateMailPopup;
         _clueBar.ClueHoverChanged += OnClueHoverChanged;
         foreach (TrackerControl hintable in _roomTiles.SelectMany(row => row).Concat<TrackerControl>(_partTiles).Append(_here).Append(_clueBar))
         {
@@ -245,6 +248,15 @@ internal sealed class TrackerView : TrackerControl
             UpdateGoModePopup();
         }
         _mailTile.Set(state.MailLabel, state.MailValue, state.MailHighlighted);
+        if (!_mailItems.SequenceEqual(state.MailItems))
+        {
+            _mailItems = state.MailItems;
+            _mailLines = state.MailItems
+                .GroupBy(item => item)
+                .Select(group => new RequirementLine(group.Count() > 1 ? $"{group.Key} ×{group.Count()}" : group.Key, Array.Empty<(string Text, Color Color)[]>()))
+                .ToArray();
+            UpdateMailPopup();
+        }
 
         for (int deck = 0; deck < _roomTiles.Length; deck++)
         {
@@ -309,6 +321,15 @@ internal sealed class TrackerView : TrackerControl
             ? new CheckPip("Go mode", "Go mode", CheckStatus.Locked, _goModeLines, Array.Empty<HintOption>(), null)
             : null;
         OnCheckHoverChanged(_goModeTile, check, new Rectangle(Point.Empty, _goModeTile.Size));
+    }
+
+    /// <summary>Lists the items waiting in the Succ-U-Bus while the mouse is over the tile.</summary>
+    private void UpdateMailPopup()
+    {
+        CheckPip? check = _mailTile.IsHovered && _mailLines.Length > 0
+            ? new CheckPip("Succ-U-Bus", "Succ-U-Bus", CheckStatus.Locked, _mailLines, Array.Empty<HintOption>(), null, "WAITING")
+            : null;
+        OnCheckHoverChanged(_mailTile, check, new Rectangle(Point.Empty, _mailTile.Size));
     }
 
     private void OnClueHoverChanged(ClueEntry? clue, Rectangle bounds)
