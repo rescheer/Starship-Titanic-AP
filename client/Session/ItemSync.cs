@@ -170,7 +170,11 @@ internal sealed class ItemSync
                 if (itemGranted)
                 {
                     if (serverGrantedInHidden && !IsInstalled(project, item.Name))
-                        DeliverGrantedItem(item, mailState: null, gameManager);
+                    {
+                        // Server-granted items don't otherwise use the persisted state; it's written here only to mark
+                        // them tool-placed. CheckFired keeps them out of restoration.
+                        DeliverGrantedItem(item, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None, ToolPlaced: true), gameManager);
+                    }
                     continue;
                 }
 
@@ -213,11 +217,11 @@ internal sealed class ItemSync
 
                 if (persisted.Stage == ItemStage.Mail)
                 {
-                    // Collected from mail. Only a Magazine that the game itself mailed (not ToolDelivered) counts as a
+                    // Collected from mail. Only a Magazine that the game itself mailed (not ToolPlaced) counts as a
                     // natural pickup; every other item keeps its CheckFired as-is.
                     bool fireCheck = !persisted.CheckFired
                         && string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
-                        && !persisted.ToolDelivered;
+                        && !persisted.ToolPlaced;
 
                     if (fireCheck)
                         SendItemPickupCheck(item.Name);
@@ -290,7 +294,7 @@ internal sealed class ItemSync
             if (inHiddenRoom)
             {
                 if (persisted.Stage == ItemStage.Hidden && granted && !IsInstalled(project, item.Name))
-                    DeliverGrantedItem(item, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None), gameManager);
+                    DeliverGrantedItem(item, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None, ToolPlaced: true), gameManager);
                 continue;
             }
 
@@ -310,7 +314,7 @@ internal sealed class ItemSync
             // grants it) and their pickup sends its check; it's delivered once they leave.
             if (persisted.Stage == ItemStage.None && granted && !ItemTracking.IsOneDirectionalItem(item.Name)
                 && !IsInHomeRoom(item.Name, currentRnv))
-                DeliverGrantedItem(item, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolDelivered: true), gameManager);
+                DeliverGrantedItem(item, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolPlaced: true), gameManager);
         }
 
         // After the loop above, so it never acts on the Magazine's stale pre-return parent this pass.
@@ -413,7 +417,7 @@ internal sealed class ItemSync
         if (persisted.Stage == ItemStage.Hidden)
         {
             if (granted)
-                DeliverGrantedItem(feather, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None, ToolDelivered: true), gameManager);
+                DeliverGrantedItem(feather, new ItemPersistedState(ItemStage.Mail, true, ItemPulledFrom.None, ToolPlaced: true), gameManager);
             return;
         }
 
@@ -422,7 +426,7 @@ internal sealed class ItemSync
 
         if (granted)
         {
-            DeliverGrantedItem(feather, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolDelivered: true), gameManager);
+            DeliverGrantedItem(feather, new ItemPersistedState(ItemStage.Mail, false, ItemPulledFrom.None, ToolPlaced: true), gameManager);
             return;
         }
 
@@ -561,7 +565,7 @@ internal sealed class ItemSync
             bool fireCheck = persisted.Stage == ItemStage.Mail
                 && !persisted.CheckFired
                 && string.Equals(name, "Magazine", StringComparison.OrdinalIgnoreCase)
-                && !persisted.ToolDelivered;
+                && !persisted.ToolPlaced;
             if (fireCheck)
                 SendItemPickupCheck(name);
 
@@ -663,8 +667,8 @@ internal sealed class ItemSync
 
             bool eligibleFromInventory = persisted.Stage == ItemStage.Inventory && !persisted.CheckFired;
 
-            // Only items this app mailed (ToolDelivered) are restored out of the mail.
-            bool eligibleFromMail = persisted.Stage == ItemStage.Mail && !persisted.CheckFired && persisted.ToolDelivered;
+            // Only items this app mailed (ToolPlaced) are restored out of the mail.
+            bool eligibleFromMail = persisted.Stage == ItemStage.Mail && !persisted.CheckFired && persisted.ToolPlaced;
 
             if (eligibleFromInventory || eligibleFromMail)
             {
@@ -1058,9 +1062,9 @@ internal sealed class ItemSync
         bool moved = GameActions.MoveItemSmart(_ctx.Mem, item.Address, _ctx.MailManRoom.Value, _ctx.InventoryRoom, gameManager);
         if (moved)
         {
-            // PulledFrom.Mail is only recorded for ToolDelivered items, so ToolDelivered is restamped.
+            // PulledFrom.Mail is only recorded for ToolPlaced items, so ToolPlaced is restamped.
             GameActions.WriteItemPersistedState(_ctx.Mem, item.Address,
-                new ItemPersistedState(ItemStage.Mail, persisted.CheckFired, ItemPulledFrom.None, ToolDelivered: true));
+                new ItemPersistedState(ItemStage.Mail, persisted.CheckFired, ItemPulledFrom.None, ToolPlaced: true));
         }
         return moved;
     }
@@ -1084,9 +1088,9 @@ internal sealed class ItemSync
         DeliversToInventory && EngineNameByApItemName.ContainsKey(apItemName);
 
     /// <summary>Delivers a granted item the way the seed's Item Delivery Method asks. <paramref name="mailState"/> is
-    /// recorded when it goes by mail (null for server-granted items, which don't use the persisted state); straight
-    /// into the inventory, MoveIntoInventory records it as being in inventory instead.</summary>
-    private bool DeliverGrantedItem(CarryItemLocation item, ItemPersistedState? mailState, long gameManager)
+    /// recorded when it goes by mail, and must have ToolPlaced set (see GameActions.IsItemToolPlaced); straight into the
+    /// inventory, MoveIntoInventory records it as being in inventory instead.</summary>
+    private bool DeliverGrantedItem(CarryItemLocation item, ItemPersistedState mailState, long gameManager)
     {
         bool ok;
         if (DeliversToInventory)
@@ -1106,8 +1110,7 @@ internal sealed class ItemSync
             ok = DeliverToMail(item, gameManager);
             if (ok)
             {
-                if (mailState is { } state)
-                    GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, state);
+                GameActions.WriteItemPersistedState(_ctx.Mem, item.Address, mailState);
                 _ctx.Report.NotifyMailChanged();
             }
         }

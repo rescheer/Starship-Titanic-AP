@@ -23,10 +23,10 @@ public enum ItemPulledFrom : byte
 }
 
 /// <summary>The full persisted state for one tracked item, packed into a single 4-byte int.</summary>
-/// <param name="ToolDelivered">True while <see cref="ItemStage.Mail"/> holds an item this app proactively mailed
-/// (an AP grant landing before the player found it naturally), as opposed to the game's own script placing it
-/// there (a genuine natural delivery). Only meaningful for the Magazine (see MagazineItem.cs); recorded at the
-/// moment the item enters Mail.</param>
+/// <param name="ToolPlaced">True while <see cref="ItemStage.Mail"/> holds an item this app mailed (an AP grant, or a
+/// Debug form move), as opposed to the game's own script placing it there (a genuine natural delivery). Recorded at
+/// the moment the item enters Mail, and read through GameActions.IsItemToolPlaced. It lives here rather than in a
+/// double field because the save format only round-trips small integers through those.</param>
 /// <param name="ReshowSibling">True while <see cref="ItemStage.Restored"/> holds an item whose HideSiblingOnRestore
 /// sibling has to be shown again once the item leaves its home parent (see ItemSync.ReshowHiddenSibling). Recorded at
 /// the moment the item is restored.</param>
@@ -34,7 +34,7 @@ public enum ItemPulledFrom : byte
 /// <see cref="ItemPulledFrom.Installed"/>: its _visible as the install left it, put back when it returns.</param>
 /// <param name="InstalledFlag">Likewise, the flag the install set on the part itself (see
 /// GameActions.ReadItemInstalledFlag), cleared while it's restored.</param>
-public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFired, ItemPulledFrom PulledFrom, bool ToolDelivered = false, bool ReshowSibling = false,
+public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFired, ItemPulledFrom PulledFrom, bool ToolPlaced = false, bool ReshowSibling = false,
     bool InstalledVisible = false, bool InstalledFlag = false)
 {
     public static readonly ItemPersistedState None = new(ItemStage.None, false, ItemPulledFrom.None);
@@ -55,6 +55,6 @@ public readonly record struct ItemPersistedState(ItemStage Stage, bool CheckFire
         ((raw >> 12) & 1) != 0);
 
     public int Encode() =>
-        (int)Stage | (CheckFired ? 1 << 8 : 0) | ((int)PulledFrom << 16) | (ToolDelivered ? 1 << 9 : 0) | (ReshowSibling ? 1 << 10 : 0)
+        (int)Stage | (CheckFired ? 1 << 8 : 0) | ((int)PulledFrom << 16) | (ToolPlaced ? 1 << 9 : 0) | (ReshowSibling ? 1 << 10 : 0)
         | (InstalledVisible ? 1 << 11 : 0) | (InstalledFlag ? 1 << 12 : 0);
 }

@@ -242,19 +242,28 @@ public static class GameActions
         return wroteRoomFlags && wrotePending;
     }
 
-    /// <summary>Marks an item as placed into the mail system by this app.</summary>
-    public static bool MarkItemAsToolPlaced(MemoryReader mem, long itemAddr) =>
-        mem.WriteInt32(itemAddr + GameOffsets.GameObjectUnused1Offset, unchecked((int)GameOffsets.ToolPlacedSentinel));
+    /// <summary>Marks an item as placed into the mail system by this app, in its persisted state (Stage.Mail with
+    /// ToolPlaced, keeping its CheckFired). The persisted state is an int field, so the mark survives a save/load.</summary>
+    public static bool MarkItemAsToolPlaced(MemoryReader mem, long itemAddr)
+    {
+        ItemPersistedState persisted = ReadItemPersistedState(mem, itemAddr);
+        return WriteItemPersistedState(mem, itemAddr,
+            new ItemPersistedState(ItemStage.Mail, persisted.CheckFired, ItemPulledFrom.None, ToolPlaced: true));
+    }
 
-    /// <summary>Clears the tool-placed sentinel on an item.</summary>
-    public static bool UnmarkItemAsToolPlaced(MemoryReader mem, long itemAddr) =>
-        mem.WriteInt32(itemAddr + GameOffsets.GameObjectUnused1Offset, 0);
+    /// <summary>Clears the tool-placed mark on an item, leaving the rest of its persisted state.</summary>
+    public static bool UnmarkItemAsToolPlaced(MemoryReader mem, long itemAddr)
+    {
+        ItemPersistedState persisted = ReadItemPersistedState(mem, itemAddr);
+        return !persisted.ToolPlaced || WriteItemPersistedState(mem, itemAddr, persisted with { ToolPlaced = false });
+    }
 
-    /// <summary>True if this app marked the item as placed into the mail system itself, as opposed to the game.</summary>
+    /// <summary>True if this app marked the item as placed into the mail system itself, as opposed to the game. Only
+    /// meaningful for an item parented under CMailMan: the mark isn't always cleared when the item leaves.</summary>
     public static bool IsItemToolPlaced(MemoryReader mem, long itemAddr)
     {
-        int? marker = mem.ReadInt32(itemAddr + GameOffsets.GameObjectUnused1Offset);
-        return marker is int raw && unchecked((uint)raw) == GameOffsets.ToolPlacedSentinel;
+        ItemPersistedState persisted = ReadItemPersistedState(mem, itemAddr);
+        return persisted.Stage == ItemStage.Mail && persisted.ToolPlaced;
     }
 
     /// <summary>Clears a CShipSetting's _itemName back to "NULL" in place, mirroring what

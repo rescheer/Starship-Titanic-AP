@@ -131,7 +131,6 @@ public static class GameOffsets
     //
     // _unused4 is this app's own per-item state storage (see ItemPersistedState.cs).
     // _unused3 is used by SaveSeedTag.cs, but only on the BeamBridge (Red Fuse) item.
-    // _unused1 is this app's own tool-placed/game-placed mail marker (see ToolPlacedSentinel below).
     // _unused2 is this app's Music Room puzzle solved marker, but only on Ear 2 (see GameActions.MarkItemMusicSolved),
     // and the count of Progressive Clues announced so far, but only on CarryParrot (see GameActions.ReadCluesAnnounced).
     public const long GameObjectUnused1Offset = 0x58;
@@ -306,10 +305,6 @@ public static class GameOffsets
     public const long ItemIsPendingMail = 0x10C;
     public const long ItemDestRoomFlags = 0x110;
     public const long ItemRoomFlags = 0x114;
-
-    // Sentinel written into _unused1 (GameObjectUnused1Offset) for items this app has delivered to the mail
-    // system, distinguishing a tool-placed item from one the game itself placed.
-    public const uint ToolPlacedSentinel = 0xFFFFFFFF;
 
     // CTreeItem layout: +0x08 _parent, +0x10 _nextSibling, +0x18 _priorSibling, +0x20 _firstChild
     // (HeaderOffset accounts for CMessageTarget's vtable pointer at +0x0.)
