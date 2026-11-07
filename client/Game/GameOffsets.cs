@@ -409,6 +409,14 @@ public static class GameOffsets
     // (addAssignedRoomDialogue3, 0x2492070) needs exactly Third.
     public const long DeskBotMagazineScriptGate = 0x24922CA;
 
+    // TTnpcScript::getValue(int testNum) const - rcx = script, edx = testNum; case 1 reads the passenger class via
+    // CTrueTalkManager::getPassengerClass() (0x2462000). Hooked by DeskBotClassHook.
+    public const long NpcScriptGetValueFunc = 0x2464150;
+
+    // DeskbotScript's vtable address point (the value at [script+0]); typeinfo N7Titanic13DeskbotScriptE at 0x54551D0,
+    // stored by the constructor at 0x2491B89.
+    public const long DeskbotScriptVtable = 0x5638D90;
+
     // CGameState::changeView(CViewItem *newView, CMovieClip *clip) (titanic/game_state.cpp) - every walking link,
     // scripted mover and cutscene-deferred move funnels through it, and its leaveView/preEnterView/enterView calls
     // all happen inside it. rcx = CGameState* (embedded in CGameManager at GameStateFromGameManager). Its prologue

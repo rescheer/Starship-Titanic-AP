@@ -203,6 +203,7 @@ internal sealed partial class ClientSession
         _classSync.SyncFromItems(gameManager.Value);
         // Every tick, so check-in finishing mid-visit opens the Magazine hand-off before the player can make it.
         _classSync.SyncDeskBotMagazinePatch(gameManager.Value);
+        _classSync.SyncDeskBotClassHook(gameManager.Value);
 
         // Every tick, so the parrot is in the mail as soon as the player enters the target stateroom
         _parrotHuntSync.Sync();

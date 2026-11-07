@@ -69,6 +69,14 @@ public sealed partial class DebugForm
             Title = "Quick Barbot Freakout", ActionName = "Barbot freakout patch", NotInstalledText = "Patch not installed",
             IsInstalled = () => BarbotVodkaPatch.IsInstalled, Install = BarbotVodkaPatch.Install, Uninstall = BarbotVodkaPatch.Uninstall,
         },
+        new()
+        {
+            Title = "DeskBot Class Hook", ActionName = "DeskBot class hook", NotInstalledText = "Hook not installed",
+            InstalledText = () => DeskBotClassHook.ReportedClass is { } c
+                ? $"Installed. DeskBot conversation sees {PassengerClassNames.GetName(c)}"
+                : "Installed. DeskBot conversation sees the real class",
+            IsInstalled = () => DeskBotClassHook.IsInstalled, Install = DeskBotClassHook.Install, Uninstall = DeskBotClassHook.Uninstall,
+        },
     };
 
     private TabPage BuildHooksTab()

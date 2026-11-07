@@ -395,10 +395,9 @@ internal sealed class ClassSync
 
     /// <summary>Temporarily overwrites PassengerClass while the player is at one of <see cref="ClassSpoofTriggerRnvs"/>
     /// (or continues an active spoof at <see cref="BellBotIntroRnv"/>), so the vanilla class-gated DeskBot/SGT TV
-    /// interactions run. Reports Third at the SGT TV and staterooms for a pending Magazine pickup, Second at the
-    /// DeskBot for a pending 1st Class upgrade, and None there when no room has been assigned yet. The true value is
-    /// saved in
-    /// <see cref="_classUpgradeSpoofOriginalClass"/>.</summary>
+    /// interactions run. Reports Third at the SGT TV and staterooms for a pending Magazine pickup, and None at the
+    /// DeskBot when no room has been assigned yet. The DeskBot's class upgrades need no spoof: DeskBotMagazinePatch
+    /// and DeskBotClassHook handle them. The true value is saved in <see cref="_classUpgradeSpoofOriginalClass"/>.</summary>
     private void TryApplyClassUpgradeSpoof(RoomNodeView rnv, long gameManager)
     {
         if (rnv == BellBotIntroRnv)
@@ -449,28 +448,26 @@ internal sealed class ClassSync
         if (rnv == DeskBotRnv && notCheckedIn)
             return;
 
-        // The Magazine hand-off needs no spoof: DeskBotMagazinePatch lifts its class gates.
+        // DeskBotClassHook is showing the DeskBot's conversation Second for its 1st Class upgrade (SyncDeskBotClassHook).
+        bool firstClassUpgradeDue = !vanillaClass && !secondClassPending
+            && !_ctx.Ap.IsLocationCheckedOrQueued(firstLocationName);
+
         if (rnv != DeskBotRnv && currentClass.Value < (int)PassengerClass.Third && magazineCheckPending)
         {
             // The SGT TV's Magazine payout and the stateroom's "you may have won an upgrade" line both require
             // exactly Third.
             spoofToClass = configuredSpoofClass;
         }
-        else if (rnv == DeskBotRnv && !vanillaClass && !secondClassPending
-            && !_ctx.Ap.IsLocationCheckedOrQueued(firstLocationName))
-        {
-            // DeskbotScript's 1st Class upgrade pays out only at exactly Second.
-            if (currentClass.Value != (int)PassengerClass.Second)
-                spoofToClass = (int)PassengerClass.Second;
-        }
         else if (rnv == DeskBotRnv
+            && !firstClassUpgradeDue
             && currentClass.Value != (int)PassengerClass.None
             && !(vanillaClass && currentClass.Value <= (int)PassengerClass.Second)
             && !GameActions.HasAnyAssignedRoom(_ctx.Mem, _ctx.InventoryRoom.Value))
         {
             // No room assigned yet: report None so the initial DeskBot conversation and room assignment run. Not under
             // vanilla class upgrades once upgraded: the player has checked in, and None would hide the 1st Class upgrade
-            // until a Progressive Stateroom arrives.
+            // until a Progressive Stateroom arrives. Not while the 1st Class upgrade is due either: the DeskBot's
+            // conversation sees Second then, and the DeskBot itself would see None.
             spoofToClass = (int)PassengerClass.None;
         }
 
@@ -492,6 +489,24 @@ internal sealed class ClassSync
         if (realClass is null)
             return null;
         return realClass.Value != (int)PassengerClass.None || GameState.IsTitaniaRepaired(_ctx.Mem);
+    }
+
+    /// <summary>Has <see cref="DeskBotClassHook"/> report Second to the DeskBot's conversation while its 1st Class
+    /// upgrade is due: item-gated class upgrades, the 2nd Class check sent, the 1st Class one not, and the player
+    /// checked in (reporting Second before check-in would skip the check-in conversation and strand them in the
+    /// Embarkation Lobby). Every tick, so it takes effect mid-visit, e.g. right after the Magazine hand-off.</summary>
+    public void SyncDeskBotClassHook(long gameManager)
+    {
+        if (!DeskBotClassHook.IsInstalled)
+            return;
+
+        bool due = !ClassUpgradeTracker.IsVanilla(_ctx.Ap.KnownSlotData)
+            && LocationChecks.TryGetClassUpgradeLocationName((int)PassengerClass.Second, out string secondLocationName)
+            && LocationChecks.TryGetClassUpgradeLocationName((int)PassengerClass.First, out string firstLocationName)
+            && _ctx.Ap.IsLocationCheckedOrQueued(secondLocationName)
+            && !_ctx.Ap.IsLocationCheckedOrQueued(firstLocationName)
+            && IsCheckedIn(gameManager) == true;
+        DeskBotClassHook.SetReportedClass(_ctx.Mem, due ? (int)PassengerClass.Second : null);
     }
 
     /// <summary>The state <see cref="SyncDeskBotMagazinePatch"/> last failed to reach, so a failing install or

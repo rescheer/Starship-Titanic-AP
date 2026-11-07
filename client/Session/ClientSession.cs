@@ -257,6 +257,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
                 SyncRoomAssignHook();
                 SyncTravelSkipHook();
                 SyncBarbotVodkaPatch();
+                SyncDeskBotClassHook();
                 _lastTableAccessItemsCount = -1;
                 _currentLocationChecksPending = true;
                 NotifyPendingChecksChanged();

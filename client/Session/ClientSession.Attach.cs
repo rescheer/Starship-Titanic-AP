@@ -78,6 +78,7 @@ internal sealed partial class ClientSession
         ReportAction(RoomGateHook.Install(_mem), "Install room key gate");
         SyncTravelSkipHook();
         SyncBarbotVodkaPatch();
+        SyncDeskBotClassHook();
 
         bool saveLoadHookOk = SaveLoadHook.Install(_mem);
         ReportAction(saveLoadHookOk, "Install save-load detection hook");
@@ -139,6 +140,21 @@ internal sealed partial class ClientSession
             ReportAction(BarbotVodkaPatch.Install(_mem), "Install quick Barbot freakout patch");
         else if (!enabled && BarbotVodkaPatch.IsInstalled)
             ReportAction(BarbotVodkaPatch.Uninstall(_mem), "Uninstall quick Barbot freakout patch (option off)");
+    }
+
+    /// <summary>Installs the DeskBot class hook if the seed has item-gated class upgrades; under vanilla ones the real
+    /// class is already what the DeskBot's upgrades need. Re-run once slot data arrives; until then the hook is left as
+    /// it is.</summary>
+    private void SyncDeskBotClassHook()
+    {
+        if (!_mem.IsAttached || _apConnection.KnownSlotData is not { } slotData)
+            return;
+
+        bool wanted = !ClassUpgradeTracker.IsVanilla(slotData);
+        if (wanted && !DeskBotClassHook.IsInstalled)
+            ReportAction(DeskBotClassHook.Install(_mem), "Install DeskBot class hook");
+        else if (!wanted && DeskBotClassHook.IsInstalled)
+            ReportAction(DeskBotClassHook.Uninstall(_mem), "Uninstall DeskBot class hook (vanilla class upgrades)");
     }
 
     /// <summary>A boolean slot data key. False when missing (older seeds) or malformed.</summary>
@@ -207,6 +223,10 @@ internal sealed partial class ClientSession
         if (DeskBotMagazinePatch.IsInstalled)
         {
             DeskBotMagazinePatch.Uninstall(_mem);
+        }
+        if (DeskBotClassHook.IsInstalled)
+        {
+            DeskBotClassHook.Uninstall(_mem);
         }
         if (SaveLoadHook.IsInstalled)
         {
