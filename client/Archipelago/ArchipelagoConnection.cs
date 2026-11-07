@@ -141,7 +141,8 @@ public sealed class ArchipelagoConnection : IDisposable
     private readonly object _itemsLock = new();
     private readonly List<string> _receivedItemNames = new();
 
-    private readonly HashSet<(long ItemId, long LocationId)> _seenItemLocationPairs = new();
+    /// <summary>How many of the server's received items (in its order) have been taken in this connection.</summary>
+    private int _itemsTaken;
 
     /// <summary>Snapshot of every item name received so far this connection, in order.</summary>
     public string[] GetReceivedItemNames()
@@ -194,7 +195,7 @@ public sealed class ArchipelagoConnection : IDisposable
         lock (_itemsLock)
         {
             _receivedItemNames.Clear();
-            _seenItemLocationPairs.Clear();
+            _itemsTaken = 0;
         }
         _goalComplete = false;
         Hints.Clear();
@@ -228,18 +229,26 @@ public sealed class ArchipelagoConnection : IDisposable
 
         session.Items.ItemReceived += helper =>
         {
-            ItemInfo item = helper.DequeueItem();
-            string? name = item.ItemName;
-            if (name is null)
-                return;
+            // Only drains the library's queue: items are taken by their place in the server's list instead, as
+            // neither (item, location) nor (item, location, sender) tells copies apart - location ids are per game,
+            // and every starting-inventory copy has location -2.
+            helper.DequeueItem();
 
+            var newNames = new List<string>();
             lock (_itemsLock)
             {
-                if (!_seenItemLocationPairs.Add((item.ItemId, item.LocationId)))
-                    return;
-                _receivedItemNames.Add(name);
+                var all = helper.AllItemsReceived;
+                for (; _itemsTaken < all.Count; _itemsTaken++)
+                {
+                    if (all[_itemsTaken]?.ItemName is { } name)
+                    {
+                        _receivedItemNames.Add(name);
+                        newNames.Add(name);
+                    }
+                }
             }
-            ItemReceived?.Invoke(name);
+            foreach (string name in newNames)
+                ItemReceived?.Invoke(name);
         };
 
         session.Locations.CheckedLocationsUpdated += _ => CheckedLocationsChanged?.Invoke();
