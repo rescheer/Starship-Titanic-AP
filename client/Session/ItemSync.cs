@@ -388,7 +388,7 @@ internal sealed class ItemSync
             ScheduleDirtyReassert();
             _ctx.Report.NotifyItemsChanged();
             GameActions.DisplayMessageSmart(_ctx.Mem, petControlAddr, _classSync.IsCheckedIn(gameManager) == false
-                ? "Magazine returned. Complete check-in first."
+                ? "AP: Magazine returned. Complete DeskBot check-in first."
                 : "AP: The DeskBot took your Magazine without upgrading you, so it's been returned to your inventory. " +
                   "Hand it over again.");
         }
