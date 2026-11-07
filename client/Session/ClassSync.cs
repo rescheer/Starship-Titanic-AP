@@ -395,8 +395,9 @@ internal sealed class ClassSync
 
     /// <summary>Temporarily overwrites PassengerClass while the player is at one of <see cref="ClassSpoofTriggerRnvs"/>
     /// (or continues an active spoof at <see cref="BellBotIntroRnv"/>), so the vanilla class-gated DeskBot/SGT TV
-    /// interactions run. Reports Third for a pending Magazine hand-off, Second for a pending 1st Class upgrade, and
-    /// None at the DeskBot when no room has been assigned yet. The true value is saved in
+    /// interactions run. Reports Third at the SGT TV and staterooms for a pending Magazine pickup, Second at the
+    /// DeskBot for a pending 1st Class upgrade, and None there when no room has been assigned yet. The true value is
+    /// saved in
     /// <see cref="_classUpgradeSpoofOriginalClass"/>.</summary>
     private void TryApplyClassUpgradeSpoof(RoomNodeView rnv, long gameManager)
     {
@@ -417,7 +418,7 @@ internal sealed class ClassSync
 
         if (!ClassSpoofTriggerRnvs.TryGetValue(rnv, out int configuredSpoofClass))
             return;
-        if (_ctx.Project is not { } project || _ctx.InventoryRoom is null)
+        if (_ctx.InventoryRoom is null)
             return;
         if (_classUpgradeSpoofOriginalClass is not null)
             return;
@@ -443,23 +444,13 @@ internal sealed class ClassSync
             && !GameState.IsTitaniaRepaired(_ctx.Mem);
 
         // Not checked in: leave the DeskBot unspoofed so the check-in conversation runs first - otherwise the player
-        // can never leave the Embarkation Lobby. Once it pays out the real class is Third, so a Magazine hand-off
-        // works natively (even in the same visit) and later visits spoof as usual.
+        // can never leave the Embarkation Lobby. Once it pays out, DeskBotMagazinePatch goes on, so a Magazine
+        // hand-off works even in the same visit, and later visits spoof as usual.
         if (rnv == DeskBotRnv && notCheckedIn)
             return;
 
-        // Not gated on !vanillaClass: the real class is already Third there, but this branch must still win over the
-        // no-room None spoof below, which would eat the Magazine without paying out.
-        bool magazineHandOffPending = rnv == DeskBotRnv && secondClassPending
-            && IsMagazineInInventory(project, _ctx.InventoryRoom.Value);
-
-        if (magazineHandOffPending)
-        {
-            // DeskbotScript's 2ndClassUpgrade dialogue (140) pays out only at exactly Third.
-            if (currentClass.Value != (int)PassengerClass.Third)
-                spoofToClass = (int)PassengerClass.Third;
-        }
-        else if (rnv != DeskBotRnv && currentClass.Value < (int)PassengerClass.Third && magazineCheckPending)
+        // The Magazine hand-off needs no spoof: DeskBotMagazinePatch lifts its class gates.
+        if (rnv != DeskBotRnv && currentClass.Value < (int)PassengerClass.Third && magazineCheckPending)
         {
             // The SGT TV's Magazine payout and the stateroom's "you may have won an upgrade" line both require
             // exactly Third.
@@ -493,43 +484,45 @@ internal sealed class ClassSync
         }
     }
 
-    private bool IsMagazineInInventory(long project, long petControlAddr) =>
-        GameState.FindAllCarryItems(_ctx.Mem, project).Any(item =>
-            string.Equals(item.Name, "Magazine", StringComparison.OrdinalIgnoreCase)
-            && item.ParentAddress == petControlAddr);
-
-    /// <summary>Starts the Magazine hand-off spoof when the Magazine reaches the inventory while the player is already
-    /// at the DeskBot (a Direct To Inventory grant), which <see cref="TryApplyClassUpgradeSpoof"/> only checks on
-    /// arrival. An active no-room None spoof is switched to Third and keeps its backup. Only the hand-off: the other
-    /// DeskBot spoofs still wait for the next arrival, so finishing check-in or the hand-off itself never starts one
-    /// mid-conversation.</summary>
-    public void RecheckDeskBotMagazineSpoof(long gameManager)
+    /// <summary>Whether the player has really checked in with the DeskBot: their true class (behind any spoof) isn't
+    /// None, or Titania is repaired (after which None is Bridge access). Null if the class can't be read.</summary>
+    public bool? IsCheckedIn(long gameManager)
     {
-        if (_currentRnv != DeskBotRnv)
+        int? realClass = _classUpgradeSpoofOriginalClass ?? GameState.ReadPassengerClass(_ctx.Mem, gameManager);
+        if (realClass is null)
+            return null;
+        return realClass.Value != (int)PassengerClass.None || GameState.IsTitaniaRepaired(_ctx.Mem);
+    }
+
+    /// <summary>The state <see cref="SyncDeskBotMagazinePatch"/> last failed to reach, so a failing install or
+    /// uninstall is reported once rather than every tick.</summary>
+    private bool? _deskBotMagazinePatchFailedState;
+
+    /// <summary>Applies <see cref="DeskBotMagazinePatch"/> while the 2nd Class check is pending and the player has
+    /// checked in, so the Magazine hand-off pays out at any class (and through the no-room None spoof). Removed
+    /// otherwise: before check-in the vanilla gates make the DeskBot eat the Magazine, and ItemSync returns it; once the
+    /// check is in, the vanilla gates stop a First class player being handed a Second class upgrade.</summary>
+    public void SyncDeskBotMagazinePatch(long gameManager)
+    {
+        if (!LocationChecks.TryGetClassUpgradeLocationName((int)PassengerClass.Second, out string secondLocationName))
             return;
-        if (_ctx.Project is not { } project || _ctx.InventoryRoom is not { } petControlAddr)
-            return;
-        if (!LocationChecks.TryGetClassUpgradeLocationName((int)PassengerClass.Second, out string secondLocationName)
-            || _ctx.Ap.IsLocationCheckedOrQueued(secondLocationName))
+        if (IsCheckedIn(gameManager) is not { } checkedIn)
             return;
 
-        int? reportedClass = GameState.ReadPassengerClass(_ctx.Mem, gameManager);
-        // DeskbotScript's 2ndClassUpgrade dialogue (140) pays out only at exactly Third.
-        if (reportedClass is null || reportedClass.Value == (int)PassengerClass.Third)
-            return;
-
-        int realClass = _classUpgradeSpoofOriginalClass ?? reportedClass.Value;
-        // Not checked in: the check-in conversation runs first, as in TryApplyClassUpgradeSpoof.
-        if (realClass == (int)PassengerClass.None && !GameState.IsTitaniaRepaired(_ctx.Mem))
-            return;
-        if (!IsMagazineInInventory(project, petControlAddr))
-            return;
-
-        if (GameActions.SetPassengerClass(_ctx.Mem, gameManager, (int)PassengerClass.Third))
+        bool wanted = checkedIn && !_ctx.Ap.IsLocationCheckedOrQueued(secondLocationName);
+        if (wanted == DeskBotMagazinePatch.IsInstalled)
         {
-            _classUpgradeSpoofOriginalClass ??= realClass;
-            _ctx.Report.ReportAction(true, $"Class upgrade spoof: reporting {PassengerClassNames.GetName((int)PassengerClass.Third)} for a Magazine received at the DeskBot (really {PassengerClassNames.GetName(realClass)})");
+            _deskBotMagazinePatchFailedState = null;
+            return;
         }
+        if (_deskBotMagazinePatchFailedState == wanted)
+            return;
+
+        bool ok = wanted ? DeskBotMagazinePatch.Install(_ctx.Mem) : DeskBotMagazinePatch.Uninstall(_ctx.Mem);
+        _deskBotMagazinePatchFailedState = ok ? null : wanted;
+        _ctx.Report.ReportAction(ok, wanted
+            ? "Install DeskBot Magazine hand-off patch (2nd Class check pending)"
+            : "Uninstall DeskBot Magazine hand-off patch");
     }
 
     /// <summary>Restores the true PassengerClass value once the player moves to an RNV that isn't one of

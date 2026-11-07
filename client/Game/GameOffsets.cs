@@ -402,6 +402,13 @@ public static class GameOffsets
     public const long BarbotVodkaSkipSite = 0x2419341;
     public const long BarbotVodkaSkipTarget = 0x24195C0;
 
+    // The two class gates on the Magazine hand-off; DeskBotMagazinePatch NOPs both conditional jumps.
+    // CDeskbot::ActMsg (0x241D780): `cmp eax, 2; jle` after getPassengerClass() - "2ndClassUpgrade" needs class > 2.
+    public const long DeskBotMagazineActMsgGate = 0x241D7B8;
+    // DeskbotScript::scriptChanged (0x24921E0), case 140: `cmp eax, 3; jne` after getValue(1) - the payout
+    // (addAssignedRoomDialogue3, 0x2492070) needs exactly Third.
+    public const long DeskBotMagazineScriptGate = 0x24922CA;
+
     // CGameState::changeView(CViewItem *newView, CMovieClip *clip) (titanic/game_state.cpp) - every walking link,
     // scripted mover and cutscene-deferred move funnels through it, and its leaveView/preEnterView/enterView calls
     // all happen inside it. rcx = CGameState* (embedded in CGameManager at GameStateFromGameManager). Its prologue

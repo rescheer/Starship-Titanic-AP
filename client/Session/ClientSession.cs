@@ -78,7 +78,7 @@ internal sealed partial class ClientSession : IDisposable, ISessionReporter
         _ctx = new SessionContext(_mem, _apConnection, Options, this);
         _saveSeedGuard = new SaveSeedGuard(_ctx);
         _classSync = new ClassSync(_ctx);
-        _itemSync = new ItemSync(_ctx);
+        _itemSync = new ItemSync(_ctx, _classSync);
         _parrotHuntSync = new ParrotHuntSync(_ctx);
         _skipIntro = new SkipIntro(_ctx);
         _commands = new ClientCommands(_ctx, _saveSeedGuard, _itemSync);

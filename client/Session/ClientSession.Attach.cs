@@ -204,6 +204,10 @@ internal sealed partial class ClientSession
         {
             BarbotVodkaPatch.Uninstall(_mem);
         }
+        if (DeskBotMagazinePatch.IsInstalled)
+        {
+            DeskBotMagazinePatch.Uninstall(_mem);
+        }
         if (SaveLoadHook.IsInstalled)
         {
             SaveLoadHook.Uninstall(_mem);

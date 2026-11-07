@@ -41,9 +41,12 @@ internal sealed class ItemSync
 
     private HashSet<string>? _titaniaPartsInHand;
 
-    public ItemSync(SessionContext ctx)
+    private readonly ClassSync _classSync;
+
+    public ItemSync(SessionContext ctx, ClassSync classSync)
     {
         _ctx = ctx;
+        _classSync = classSync;
     }
 
     /// <summary>Drops everything tracked against the current game tree. Call when the tree is rebuilt (save load).</summary>
@@ -335,7 +338,8 @@ internal sealed class ItemSync
     private int _eatenMagazineFlaggedTick;
 
     /// <summary>Returns the Magazine to inventory when an active DeskBot ate it without paying out the 2nd Class
-    /// upgrade (it wasn't reporting exactly Third, e.g. mid check-in), which would otherwise lose that check for good.
+    /// upgrade, which would otherwise lose that check for good. With DeskBotMagazinePatch that only happens before
+    /// check-in, when the patch is off and vanilla's class gates refuse a None player.
     /// Flags it on one pass and only acts on a later one, once it's still eaten and the check is still pending.</summary>
     private void TryReturnEatenMagazine(List<CarryItemLocation> items, long gameManager)
     {
@@ -383,9 +387,10 @@ internal sealed class ItemSync
             GameActions.SetItemVisible(_ctx.Mem, magazine.Address, true);
             ScheduleDirtyReassert();
             _ctx.Report.NotifyItemsChanged();
-            GameActions.DisplayMessageSmart(_ctx.Mem, petControlAddr,
-                "AP: The DeskBot took your Magazine without upgrading you, so it's been returned to your inventory. " +
-                "Make sure you've checked in, then hand it over again.");
+            GameActions.DisplayMessageSmart(_ctx.Mem, petControlAddr, _classSync.IsCheckedIn(gameManager) == false
+                ? "Magazine returned. Complete check-in first."
+                : "AP: The DeskBot took your Magazine without upgrading you, so it's been returned to your inventory. " +
+                  "Hand it over again.");
         }
         _ctx.Report.ReportAction(moved, moved
             ? "Magazine eaten by the DeskBot without a 2nd Class upgrade - returned to inventory"
