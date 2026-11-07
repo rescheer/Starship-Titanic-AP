@@ -267,6 +267,8 @@ internal sealed partial class ClientSession
         if (_ctx.TickCount % InventoryIntervalTicks == 0)
         {
             _itemSync.ReconcileTrackedItems(gameManager.Value);
+            // After the reconcile, which is where a Direct To Inventory grant lands.
+            _classSync.RecheckDeskBotMagazineSpoof(gameManager.Value);
         }
 
         _classSync.PollClassUpgradeHook(gameManager.Value);
