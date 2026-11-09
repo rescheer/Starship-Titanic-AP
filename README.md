@@ -43,8 +43,16 @@ Usable in-game or in the client window:
 Oh no! The parrot has gotten himself stuck in a random 2nd or 1st Class Stateroom's Succ-U-Bus! Find Progressive Clues in the multiworld. Some of them reveal the stateroom's elevator, floor or room number. Once you know all three (or before, if you have a guess!), go to that stateroom's Succ-U-Bus terminal and save the parrot from its clutches!
  
 ## FAQ
-- Why only the Steam version of the game? What about GOG? Can I use my original discs?
-  - Simply put, the Steam version is the one that I own. I plan to eventually pick up the GOG version and test it, because there's a good chance it's the same ScummVM version of the game and might work out of the box. The original discs will never be supported. This implementation depends on the rebuilt engine used in the ScummVM release
+- Can I use my original discs?
+  - This implementation depends on the modern rebuilt engine provided by ScummVM, so the original discs will never work.
+- What about the GOG version of the game?
+  - Short answer: The Steam version is 64-bit, while the GOG version is 32-bit. So this implementation will not work with the GOG version.
+  - Long answer: You can use the GOG version if you swap to the updated ScummVM version that Steam uses:
+    - Download the 2.9.1 version of ScummVM from [their archives](https://downloads.scummvm.org/frs/scummvm/2.9.1/) (scummvm-2.9.1-win32-x86_64.zip)
+    - Install anywhere and run it
+    - Go to Add Game... and point it at your Starship Titanic game folder
+    - Accept the default settings
+    - From now on, run the game with this newly installed scummvm.exe, not the "Launch Starship Titanic" shortcut provided by the GOG release
 - I was granted an item, but it's not in my inventory
   - By default, the Item Delivery Method option is set to Succ-U-Bus (default), granted items are placed into the Succ-U-Bus mail delivery system. There is a Succ-U-Bus terminal in just about every room in the ship. Approach one and use the Receive button in the UI to receive an item. Repeat for any additional items
 - The Deskbot said she upgraded my class and/or assigned me a stateroom, but nothing happened
