@@ -78,6 +78,7 @@ internal sealed partial class ClientSession
         ReportAction(RoomGateHook.Install(_mem), "Install room key gate");
         SyncTravelSkipHook();
         SyncBarbotVodkaPatch();
+        ReportAction(BarbotPureePatch.Install(_mem), "Install Barbot puret answer fix");
         SyncDeskBotClassHook();
 
         bool saveLoadHookOk = SaveLoadHook.Install(_mem);
@@ -219,6 +220,10 @@ internal sealed partial class ClientSession
         if (BarbotVodkaPatch.IsInstalled)
         {
             BarbotVodkaPatch.Uninstall(_mem);
+        }
+        if (BarbotPureePatch.IsInstalled)
+        {
+            BarbotPureePatch.Uninstall(_mem);
         }
         if (DeskBotMagazinePatch.IsInstalled)
         {

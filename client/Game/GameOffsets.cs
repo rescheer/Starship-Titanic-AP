@@ -402,6 +402,19 @@ public static class GameOffsets
     public const long BarbotVodkaSkipSite = 0x2419341;
     public const long BarbotVodkaSkipTarget = 0x24195C0;
 
+    // CBarbot::MovieFrameMsg, the "What's this?" branch (_glassContent > GG_EMPTY at the start of _frames[32] or
+    // [55]): the argument setup for startTalking(this, 250580), 15 bytes ending at its call (0x24179CF). Only the
+    // branch's jg at 0x241792F jumps here. BarbotPureePatch detours it.
+    public const long BarbotWhatsThisSite = 0x24179C0;
+
+    // CBarbot::MovieEndMsg, the end of _frames[32]: the call startTalking(this, 145) that sets BarbotScript state 57.
+    // BarbotPureePatch NOPs it.
+    public const long BarbotPuretEndTalkCall = 0x2418FBC;
+
+    // CGameObject::startTalking(CTrueTalkNPC *npc, uint id, CViewItem *view) - rcx = this, rdx = npc, r8d = id,
+    // r9 = view.
+    public const long GameObjectStartTalkingFunc = 0x23A3510;
+
     // The two class gates on the Magazine hand-off; DeskBotMagazinePatch NOPs both conditional jumps.
     // CDeskbot::ActMsg (0x241D780): `cmp eax, 2; jle` after getPassengerClass() - "2ndClassUpgrade" needs class > 2.
     public const long DeskBotMagazineActMsgGate = 0x241D7B8;

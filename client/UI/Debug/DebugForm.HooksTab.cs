@@ -71,6 +71,11 @@ public sealed partial class DebugForm
         },
         new()
         {
+            Title = "Barbot Puret Answer Fix", ActionName = "Barbot puret answer fix", NotInstalledText = "Patch not installed",
+            IsInstalled = () => BarbotPureePatch.IsInstalled, Install = BarbotPureePatch.Install, Uninstall = BarbotPureePatch.Uninstall,
+        },
+        new()
+        {
             Title = "DeskBot Class Hook", ActionName = "DeskBot class hook", NotInstalledText = "Hook not installed",
             InstalledText = () => DeskBotClassHook.ReportedClass is { } c
                 ? $"Installed. DeskBot conversation sees {PassengerClassNames.GetName(c)}"
