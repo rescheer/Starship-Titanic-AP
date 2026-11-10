@@ -208,8 +208,16 @@ internal sealed class TrackerView : TrackerControl
             hintable.HintHoverChanged += OnHintHoverChanged;
         }
         _hintBox.Requested += options => HintRequested?.Invoke(options);
-        _gameTile.Button.Click += (_, _) => AttachButtonClicked?.Invoke();
-        _apTile.Button.Click += (_, _) => ApButtonClicked?.Invoke();
+        _gameTile.Button.Click += (_, _) =>
+        {
+            AttachButtonClicked?.Invoke();
+            FocusChatInput();
+        };
+        _apTile.Button.Click += (_, _) =>
+        {
+            ApButtonClicked?.Invoke();
+            FocusChatInput();
+        };
         _apTile.ValueClicked += () => ApValueClicked?.Invoke();
         _forceSeedLink.LinkClicked += (_, _) => ForceSeedClicked?.Invoke();
         _chatSend.Click += (_, _) => SubmitChat();
@@ -231,6 +239,14 @@ internal sealed class TrackerView : TrackerControl
     }
 
     public void ClearChatInput() => _chatInput.Clear();
+
+    /// <summary>Moves focus to the chat box so Enter goes there rather than pressing the Attach or Connect button.
+    /// Leaves it in the log, where the player may be selecting text to copy.</summary>
+    public void FocusChatInput()
+    {
+        if (!_log.Focused)
+            _chatInput.Focus();
+    }
 
     public void Apply(TrackerState state)
     {

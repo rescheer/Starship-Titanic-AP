@@ -86,6 +86,12 @@ public sealed class MainForm : Form
         TrackerTheme.UseDarkTitleBar(this);
     }
 
+    protected override void OnActivated(EventArgs e)
+    {
+        base.OnActivated(e);
+        _view.FocusChatInput();
+    }
+
     protected override void OnDeactivate(EventArgs e)
     {
         base.OnDeactivate(e);
